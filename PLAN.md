@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.11.1**
+Versione corrente / Current version: **0.12.0**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -559,10 +559,10 @@ Versione corrente / Current version: **0.11.1**
 - [x] GitHub Release sorgente autorizzata e pubblicata; nessun artifact binario, checksum non applicabili
 - [x] Branch remoto eliminato automaticamente dopo il merge e branch locale eliminato dopo tutte le verifiche previste
 
-## M12 – Compatibilità Pi verificata all'avvio
+## C12 – Compatibilità Pi verificata all'avvio
 
 - Obiettivo: consentire l'uso di versioni Pi diverse dalla `0.85.1` quando soddisfano il contratto operativo del benchmark, sostituendo il vincolo sulla versione con un test locale obbligatorio prima di ogni benchmark, sia da riga di comando sia dal percorso semplice con UI avviata tramite script.
-- Dipendenza: partire da `main` aggiornato e dal checkpoint remoto precedente verificato; questa voce pianifica il lavoro e non ne avvia l'implementazione.
+- Dipendenza: `main` e il checkpoint remoto precedente verificati al commit `174d7e7` prima di creare il branch dedicato.
 - Branch previsto: `milestone/12-pi-runtime-compatibility`.
 - Tag di checkpoint previsto: `milestone/C12`, sul commit finale di `main` dopo approvazione e merge.
 - Incremento versione: `+0.1.0`, dalla versione corrente `0.11.1` a `0.12.0`, con tag versione previsto `v0.12.0`.
@@ -578,9 +578,7 @@ Versione corrente / Current version: **0.11.1**
 - Test richiesti: unit test e integrazione con Pi simulato per versioni differenti compatibili/incompatibili, payload errati, eventi corrotti, errori terminali, retry, timeout, cancellazione e cleanup; regressione sul comando Pi configurato; test reali con server fittizio su Pi `0.85.1` e sulla versione aggiornata disponibile, registrando versioni ed eventuali limiti ambientali; test del gate su CLI, tutti i profili e `--cases`, orchestrazione guidata e launcher; regressioni sandbox multipiattaforma, inclusa la compatibilità del bundle Windows; smoke Pi/Ollama da CLI e UI sulle piattaforme disponibili. Eseguire `python3 -m unittest discover -s tests -v` e `python3 -m compileall -q benchmark.py dashboard.py guided_benchmark.py src cases tests`; riportare test non eseguiti e motivi. Usare GitHub Actions soltanto per verifiche necessarie non sostituibili adeguatamente in locale.
 - Documentazione da aggiornare: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, quick start CLI/percorso guidato e piattaforme interessate, `SECURITY_MODEL.md`, `MAP.md`, `AGENTS.md`, istruzioni pubbliche sotto `site/` e `PLAN.md`. Sostituire nella stessa milestone la regola che impone Pi `0.85.1`, documentando contratto, probe, dati trattati, costi di avvio, troubleshooting e limiti per piattaforma; sincronizzare la versione nei punti canonici.
 - Release: funzionalità rilasciabile come `v0.12.0`; GitHub Release prevista dopo approvazione esplicita. Artifact e checksum SHA-256 soltanto se vengono effettivamente distribuiti pacchetti; nessuna installazione o modifica automatica di Pi.
-- Stato: **implementazione locale verificata sul branch `milestone/12-pi-runtime-compatibility`; commit finale da presentare al progettista. Il gate sintetico accetta Pi 1.0.4 sia in `audit` sia con Seatbelt macOS `required`. Lo smoke CLI dell'utente ha completato 1 task con 100/100; il batch guidato dell'utente ha completato le tre fasi, con due modelli esclusi nello smoke per thinking osservato con `off`, due candidati promossi a standard, un modello escluso dopo due errori Pi e un finalista con 5 task operative completate. I run usavano `audit`, non isolamento OS. I nuovi toggle sono stati verificati visivamente nella GUI nativa; il preflight della GUI ha correttamente fermato l'avvio per gli input Git modificati durante lo sviluppo. L'export schema 3 dei tre run reali mostra entrambe le esclusioni preflight senza inventare task; la dashboard è stata verificata in browser a 390 px e in tema scuro, con filtro sul modello escluso, 0 task, motivo leggibile, console pulita e sole richieste loopback. Suite di 147 test Python completata (18 skip ambientali), 17 test JavaScript superati, compileall e diff check superati. Pi 0.85.1 e smoke reali Windows/Linux non sono disponibili su questo host; CI remota in attesa di autorizzazione al push. Nessun merge, tag, push o release è stato eseguito.**
-
-- Verifica successiva del batch guidato `guided-20261017-153800-cf13be` (`thinking: medium`, sandbox `required`): `gpt-oss:20b` escluso nello smoke per errore terminale Pi/Ollama già osservato nei vecchi run; due modelli arrivati al `full`, poi esclusi. L'audit v4 corregge il falso positivo sui due comandi di `Julioa/qwen3.8` che usavano `$PWD`, `cd` e `../fuori.md` dentro `.benchmark-scratch/`; la rilettura in memoria dei vecchi eventi passa da 2 a 0 rilievi per quel caso e conserva i 4 rilievi reali di `qwen3.5` verso `/tmp`. I file originali sotto `results/` non sono stati modificati. Restano il timeout di `Julioa/qwen3.8` nel `full`, gli errori di stream di `gpt-oss` e l'assenza di un nuovo run reale dopo la correzione. Test automatici e `compileall` verdi; il commit locale correttivo sul branch deve essere sottoposto a nuovo controllo personale prima di merge, tag o push.
+- Stato: **milestone 0.12.0 integrata e pubblicata dopo autorizzazione esplicita del progettista il 2026-10-17. La PR #8 è stata integrata su `main` con merge commit `7da765e`; CI della PR `39063684815` e CI post-merge `39063915231` verdi su macOS, Ubuntu e Windows. Il controllo contrattuale locale accetta Pi 1.0.4 in `audit` e Seatbelt `required`; lo smoke CLI e i batch guidati dell’utente hanno verificato il percorso reale. I toggle thinking/sandbox e il Dettaglio task della dashboard mostrano le esclusioni senza esportare eventi sensibili. L’audit v4 corregge il falso positivo di traversal nello scratch: la rilettura dei vecchi eventi elimina i 2 rilievi di Julioa/qwen3.8 e conserva i 4 tentativi esterni di qwen3.5. La suite locale ha eseguito 147 test Python (18 skip ambientali), 17 test JavaScript, `compileall` e la validazione dei 6 casi; Pages `39063914901` è verde e l’asset pubblico coincide con quello locale. Tag annotati `milestone/C12` e `v0.12.0` pubblicati sul commit documentale finale di `main`; GitHub Release sorgente pubblicata senza binari né checksum di artifact applicabili, e branch milestone rimosso. Limiti residui: Pi 0.85.1 e smoke reali Windows/Linux con Pi aggiornato non disponibili su questo host; gli errori di stream di gpt-oss e il timeout di Julioa/qwen3.8 restano esiti del run, non corretti dalla milestone.**
 
 ### Checklist chiusura M12
 
@@ -592,10 +590,10 @@ Versione corrente / Current version: **0.11.1**
 - [x] Test automatici e validazione dei casi eseguiti; smoke Pi 1.0.4/Seatbelt e `doctor` riusciti; limiti ambientali registrati nello stato
 - [x] Versione, README, manuali, quick start, SECURITY_MODEL, MAP, AGENTS e istruzioni pubbliche aggiornati
 - [x] Commit locali creati soltanto sul branch dedicato e non pubblicati prima del controllo
-- [ ] Branch congelato; hash finale locale, diff rispetto a `main`, test, esiti e limiti presentati al progettista
-- [ ] Controllo personale e approvazione esplicita sul commit esatto ottenuti prima di merge, tag, push o eliminazione branch; nuova revisione se cambia il commit
-- [ ] Merge/PR e verifiche locali o CI realmente necessaria completati dopo approvazione
-- [ ] Voce rinominata `C12` con riepilogo, verifiche, limiti, versione e checkpoint
-- [ ] Tag annotato `milestone/C12` e tag `v0.12.0` creati sul commit finale di `main`; push di `main` e tag verificato sul remoto
-- [ ] Release prevista pubblicata e verificata; artifact/checksum controllati quando applicabili
-- [ ] Branch eliminato soltanto dopo approvazione e tutte le verifiche di chiusura
+- [x] Branch congelato al commit `c5d1f7e`, con hash, diff, test, esiti e limiti presentati al progettista; il successivo fix portabile `0269e12` è stato verificato dalla CI della PR
+- [x] Approvazione esplicita del progettista per commit, merge, tag, push, release e rimozione branch ricevuta il 2026-10-17; fix CI successivo documentato e verificato
+- [x] PR #8, merge commit `7da765e`, CI multipiattaforma sulla PR e su `main` e deploy Pages verificati
+- [x] Voce rinominata `C12` con riepilogo, verifiche, limiti residui, versione `0.12.0` e checkpoint `milestone/C12`
+- [x] Tag annotati `milestone/C12` e `v0.12.0` creati sul commit finale di `main`; push di `main` e tag verificati sul remoto
+- [x] GitHub Release `v0.12.0` sorgente pubblicata e verificata; nessun artifact binario di progetto o checksum applicabile
+- [x] Branch milestone locale eliminato dopo release e verifiche; branch remoto rimosso automaticamente da GitHub dopo il merge
