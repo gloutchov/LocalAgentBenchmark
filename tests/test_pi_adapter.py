@@ -254,16 +254,17 @@ class PiAdapterTests(unittest.TestCase):
                 [workspace.parent],
             )
 
+            targets = {
+                call_id: {item["target"] for item in findings if item["tool_call_id"] == call_id}
+                for call_id in ("outside", "absolute-outside", "oldpwd-outside")
+            }
+            self.assertEqual({"../../../fuori.md"}, targets["outside"])
+            self.assertEqual(1, len(targets["absolute-outside"]))
+            self.assertEqual(workspace.parent.resolve(), Path(next(iter(targets["absolute-outside"]))).resolve())
+            self.assertEqual(1, len(targets["oldpwd-outside"]))
             self.assertEqual(
-                {
-                    "outside": {"../../../fuori.md"},
-                    "absolute-outside": {str(workspace.resolve() / "..")},
-                    "oldpwd-outside": {str(workspace.resolve() / "../secret.txt")},
-                },
-                {
-                    call_id: {item["target"] for item in findings if item["tool_call_id"] == call_id}
-                    for call_id in ("outside", "absolute-outside", "oldpwd-outside")
-                },
+                (workspace.parent / "secret.txt").resolve(),
+                Path(next(iter(targets["oldpwd-outside"]))).resolve(),
             )
             self.assertFalse(any(item["tool_call_id"] == "inside" for item in findings))
 
