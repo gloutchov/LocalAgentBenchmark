@@ -12,6 +12,7 @@
     "repetitions": 1,
     "thinking": "off",
     "thinking_preflight_timeout_seconds": 300,
+    "pi_contract_timeout_seconds": 30,
     "http_idle_timeout_ms": 0,
     "agent_max_retries": 0,
     "provider_max_retries": 0,

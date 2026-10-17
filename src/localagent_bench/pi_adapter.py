@@ -9,6 +9,7 @@ import shlex
 import signal
 import subprocess
 import time
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -19,11 +20,10 @@ from .ollama import OllamaModel
 from .thinking import PI_THINKING_LEVEL_MAP, ThinkingPolicy
 
 
-AUDIT_VERSION = 3
+AUDIT_VERSION = 4
 SCRATCH_DIRECTORY = ".benchmark-scratch"
-SUPPORTED_PI_VERSIONS = ("0.85.1",)
 
-_SHELL_OPERATORS = {";", "&&", "||", "|", "&"}
+_SHELL_OPERATORS = {";", "&&", "||", "|", "&", "\n"}
 _SHELL_REDIRECTS = {"<", "<<", "<<<", ">", ">>"}
 _NETWORK_COMMANDS = {
     "curl",
@@ -176,6 +176,9 @@ def run_pi(
     timeout_seconds: int,
     sandbox: SandboxSelection,
     ollama_url: str,
+    *,
+    tools: str = "read,bash,edit,write,grep,find,ls",
+    cancel_event: threading.Event | None = None,
 ) -> PiRun:
     command = [
         *pi_command,
@@ -190,7 +193,7 @@ def run_pi(
         "--thinking",
         thinking,
         "--tools",
-        "read,bash,edit,write,grep,find,ls",
+        tools,
         "--no-session",
         "--no-extensions",
         "--no-skills",
@@ -239,8 +242,28 @@ def run_pi(
     )
     try:
         outer_timeout = timeout_seconds + 300 if sandbox.backend == "windows-appcontainer" else timeout_seconds
-        stdout, stderr = process.communicate(timeout=outer_timeout)
-        if process.returncode == 0:
+        cancelled = False
+        if cancel_event is None:
+            stdout, stderr = process.communicate(timeout=outer_timeout)
+        else:
+            deadline = time.monotonic() + outer_timeout
+            while True:
+                if cancel_event.is_set():
+                    _terminate(process)
+                    stdout, stderr = process.communicate()
+                    cancelled = True
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(launch.command, outer_timeout)
+                try:
+                    stdout, stderr = process.communicate(timeout=min(0.2, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+                break
+        if cancelled:
+            status = "cancelled"
+        elif process.returncode == 0:
             status = "ok"
         elif process.returncode == 124 and sandbox.backend == "windows-appcontainer":
             status = "timeout"
@@ -301,10 +324,17 @@ def _inside(path: Path, root: Path) -> bool:
 
 def _shell_tokens(command: str) -> list[str]:
     try:
-        lexer = shlex.shlex(command, posix=(os.name != "nt"), punctuation_chars=";&|<>")
+        lexer = shlex.shlex(command, posix=(os.name != "nt"), punctuation_chars=";&|<>\n")
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         lexer.commenters = ""
-        return list(lexer)
+        tokens: list[str] = []
+        for token in lexer:
+            if "\n" in token and all(char in ";&|<>\n" for char in token):
+                tokens.extend(part for part in re.split(r"(\n)", token) if part)
+            else:
+                tokens.append(token)
+        return tokens
     except ValueError:
         return command.split()
 
@@ -408,8 +438,8 @@ def _audit_shell_command(
     findings: list[tuple[str, str, str]] = []
     control_command, heredocs = _heredoc_control_and_payloads(command)
     tokens = _shell_tokens(control_command)
-    variables: dict[str, str] = {}
     cwd = workspace.resolve(strict=False)
+    variables: dict[str, str] = {"PWD": str(cwd)}
     expect_cd_path = False
     expect_redirection_path = False
     command_name = ""
@@ -459,7 +489,7 @@ def _audit_shell_command(
         assignment = _SHELL_ASSIGNMENT.match(token)
         if assignment:
             name = token.split("=", 1)[0]
-            variables[name] = _expand_shell_variables(assignment.group(1), variables)
+            variables[name] = _path_value(token, variables)
             continue
         if not command_name:
             command_name = Path(token).name.casefold()
@@ -528,7 +558,9 @@ def _audit_shell_command(
                 )
                 findings.append((reason, value, "command_argument"))
             if expect_cd_path:
+                variables["OLDPWD"] = str(cwd)
                 cwd = resolved
+                variables["PWD"] = str(cwd)
         expect_cd_path = False
     return findings
 

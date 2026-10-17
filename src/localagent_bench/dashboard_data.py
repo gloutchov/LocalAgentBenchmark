@@ -6,14 +6,15 @@ import hashlib
 import json
 import math
 import os
+import re
 import tempfile
 from collections import defaultdict
 from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable
 
 
-DASHBOARD_SCHEMA_VERSION = 2
-SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2}
+DASHBOARD_SCHEMA_VERSION = 3
+SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2, 3}
 SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4}
 SUPPORTED_REPORT_SCHEMA_VERSIONS = {2, 3, 4}
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
@@ -32,8 +33,16 @@ RUN_FIELDS = {
     "participants",
     "leaderboard",
     "tasks",
+    "exclusions",
 }
-LEGACY_RUN_FIELDS = RUN_FIELDS - {"thinking_control"}
+SCHEMA_2_RUN_FIELDS = RUN_FIELDS - {"exclusions"}
+LEGACY_RUN_FIELDS = SCHEMA_2_RUN_FIELDS - {"thinking_control"}
+EXCLUSION_FIELDS = {"model", "reason", "case_id"}
+EXCLUSION_REASONS = {
+    "thinking_observed_off", "thinking_unverified", "workspace_boundary",
+    "repository_mutation", "snapshot_mutation", "integrity_other",
+}
+PUBLIC_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 PROVENANCE_FIELDS = {
     "run_schema_version",
     "report_schema_version",
@@ -318,6 +327,53 @@ def _sanitize_thinking_control(manifest: dict[str, Any], report_run: dict[str, A
     }
 
 
+def _sanitize_exclusions(
+    manifest: dict[str, Any], report_integrity: dict[str, Any], disqualified: list[str]
+) -> list[dict[str, str | None]]:
+    thinking = manifest.get("thinking_control") if isinstance(manifest.get("thinking_control"), dict) else {}
+    preflights = thinking.get("preflights") if isinstance(thinking.get("preflights"), dict) else {}
+    requested = thinking.get("requested")
+    violations = report_integrity.get("violations")
+    by_model: dict[str, list[tuple[str, str | None]]] = defaultdict(list)
+    if isinstance(violations, list):
+        kinds = {
+            "external_workspace_access": "workspace_boundary",
+            "repository_mutation": "repository_mutation",
+            "snapshot_mutation": "snapshot_mutation",
+        }
+        for item in violations:
+            if not isinstance(item, dict):
+                continue
+            model = _text(item.get("model"))
+            kind = item.get("kind")
+            reason = kinds.get(kind) if isinstance(kind, str) else None
+            if kind == "thinking_control_violation":
+                details = item.get("details")
+                observed_off = (
+                    requested == "off" and isinstance(details, list)
+                    and any(isinstance(detail, dict) and detail.get("reason") == "unexpected_thinking" for detail in details)
+                )
+                reason = "thinking_observed_off" if observed_off else "thinking_unverified"
+            case_id = _text(item.get("case_id"), maximum=64) or None
+            if case_id and not PUBLIC_CASE_ID.fullmatch(case_id):
+                case_id = None
+            if model in disqualified and reason:
+                by_model[model].append((reason, case_id))
+    output: list[dict[str, str | None]] = []
+    for model in disqualified:
+        preflight = preflights.get(model) if isinstance(preflights.get(model), dict) else {}
+        if requested == "off" and preflight.get("status") == "unexpected_thinking":
+            by_model[model].insert(0, ("thinking_observed_off", None))
+        elif model in _string_list(thinking.get("disqualified_models")):
+            by_model[model].insert(0, ("thinking_unverified", None))
+        seen: set[tuple[str, str | None]] = set()
+        for reason, case_id in by_model[model] or [("integrity_other", None)]:
+            if (reason, case_id) not in seen:
+                output.append({"model": model, "reason": reason, "case_id": case_id})
+                seen.add((reason, case_id))
+    return output
+
+
 def _profile_order(profiles: Iterable[str]) -> list[str]:
     available = set(profiles)
     ordered = [profile for profile in PROFILE_ORDER if profile in available]
@@ -428,6 +484,7 @@ def build_dashboard_data(run_dirs: Iterable[Path]) -> dict[str, Any]:
                 "participants": sorted(participants),
                 "leaderboard": leaderboard,
                 "tasks": tasks,
+                "exclusions": _sanitize_exclusions(manifest, report_integrity, disqualified),
             }
         )
 
@@ -465,7 +522,10 @@ def validate_dashboard_data(dataset: Any) -> None:
         raise DashboardDataError("runs deve contenere almeno un run")
     ids: set[str] = set()
     for run in runs:
-        expected_run_fields = RUN_FIELDS if dashboard_schema >= 2 else LEGACY_RUN_FIELDS
+        expected_run_fields = (
+            RUN_FIELDS if dashboard_schema >= 3 else
+            SCHEMA_2_RUN_FIELDS if dashboard_schema == 2 else LEGACY_RUN_FIELDS
+        )
         run = _require_exact_fields(run, expected_run_fields, label="run dashboard")
         if _text(run.get("id"), maximum=120) != run.get("id"):
             raise DashboardDataError("Run dashboard non valido")
@@ -520,6 +580,22 @@ def validate_dashboard_data(dataset: Any) -> None:
                 or not _valid_public_text(thinking["source"], maximum=64)
             ):
                 raise DashboardDataError(f"Controllo thinking non valido nel run {run['id']}")
+        if dashboard_schema >= 3:
+            exclusions = run.get("exclusions")
+            if not isinstance(exclusions, list):
+                raise DashboardDataError(f"Esclusioni non valide nel run {run['id']}")
+            for exclusion in exclusions:
+                exclusion = _require_exact_fields(exclusion, EXCLUSION_FIELDS, label=f"esclusione di {run['id']}")
+                if (
+                    not _valid_public_text(exclusion["model"])
+                    or exclusion["model"] not in integrity["disqualified_models"]
+                    or exclusion["reason"] not in EXCLUSION_REASONS
+                    or (exclusion["case_id"] is not None and (
+                        not isinstance(exclusion["case_id"], str)
+                        or not PUBLIC_CASE_ID.fullmatch(exclusion["case_id"])
+                    ))
+                ):
+                    raise DashboardDataError(f"Esclusione non valida nel run {run['id']}")
         if not isinstance(run.get("leaderboard"), list) or not isinstance(run.get("tasks"), list):
             raise DashboardDataError(f"Leaderboard o task non valide nel run {run['id']}")
         for row in run["leaderboard"]:

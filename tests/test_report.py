@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.report import write_report
+from localagent_bench.pi_adapter import AUDIT_VERSION
 
 
 class ReportTests(unittest.TestCase):
@@ -37,7 +38,7 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(4, report["schema_version"])
             self.assertEqual("unverified", report["run"]["thinking_control"]["status"])
             self.assertNotIn("case_manifest_schema_version", report["results"][0])
-            self.assertEqual(3, report["integrity"]["audit_version"])
+            self.assertEqual(AUDIT_VERSION, report["integrity"]["audit_version"])
             self.assertIsNone(report["leaderboard"][0]["median_energy_joules"])
             self.assertTrue((run_dir / "REPORT.md").exists())
 
@@ -203,6 +204,7 @@ class ReportTests(unittest.TestCase):
                 "metrics": {"usage": {"output": 10}},
                 "grade": {"score": 90},
                 "integrity": {
+                    "audit_version": 3,
                     "valid_for_ranking": False,
                     "source_mutations": [],
                     "snapshot_mutations": [],
@@ -212,9 +214,14 @@ class ReportTests(unittest.TestCase):
             (case_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
             safe_event = {
                 "type": "tool_execution_start",
-                "toolCallId": "awk",
+                "toolCallId": "scratch-test",
                 "toolName": "bash",
-                "args": {"command": r"awk '/- \[x\] done/ {print NR}' PLAN.md"},
+                "args": {
+                    "command": (
+                        'WS="$PWD/.benchmark-scratch/smoke"\n'
+                        'cd "$WS" && python3 -m tinyjournal export note.txt ../fuori.md'
+                    )
+                },
             }
             (case_dir / "pi-events.jsonl").write_text(json.dumps(safe_event) + "\n", encoding="utf-8")
 
@@ -223,6 +230,7 @@ class ReportTests(unittest.TestCase):
             self.assertEqual("passed", report["integrity"]["status"])
             self.assertEqual([], report["integrity"]["violations"])
             self.assertEqual(["clean"], [row["model"] for row in report["leaderboard"]])
+            self.assertEqual(3, json.loads((case_dir / "result.json").read_text())["integrity"]["audit_version"])
 
 
 if __name__ == "__main__":

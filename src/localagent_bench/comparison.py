@@ -116,6 +116,8 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
             "http_idle_timeout_ms", configuration.get("http_idle_timeout_ms")
         ),
         "pi_version": environment.get("pi"),
+        "pi_contract_version": (manifest.get("pi_compatibility") or {}).get("contract_version", 0),
+        "pi_contract_status": (manifest.get("pi_compatibility") or {}).get("status", "unverified"),
         "ollama_version": environment.get("ollama"),
         "model_capabilities": tuple(capability_signature),
         "warmup": configuration.get("warmup", manifest.get("warmup")),

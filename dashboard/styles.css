@@ -491,6 +491,44 @@ main > section,
   margin: 0;
 }
 
+.exclusion-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 0.75rem;
+  margin: 0.9rem 0 1.3rem;
+}
+
+.exclusion-card {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--panel-soft);
+}
+
+.exclusion-card h4 {
+  overflow-wrap: anywhere;
+  margin: 0 0 0.65rem;
+}
+
+.exclusion-details {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.45fr) minmax(0, 1fr);
+  gap: 0.35rem 0.6rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.exclusion-details dt {
+  color: var(--muted);
+}
+
+.exclusion-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .table-scroll {
   max-width: 100%;
   overflow-x: auto;
@@ -1237,8 +1275,13 @@ noscript {
   }
 
   .metadata-grid,
-  .dialog-grid {
+  .dialog-grid,
+  .exclusion-details {
     grid-template-columns: 1fr;
+  }
+
+  .exclusion-details dt:not(:first-child) {
+    margin-top: 0.35rem;
   }
 
   .efficiency-model-key {

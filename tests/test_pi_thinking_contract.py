@@ -16,12 +16,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.ollama import OllamaModel
-from localagent_bench.pi_adapter import SUPPORTED_PI_VERSIONS, run_pi, write_models_config
+from localagent_bench.pi_adapter import run_pi, write_models_config
+from localagent_bench.pi_compatibility import check_pi_compatibility
 from localagent_bench.sandbox import select_sandbox
 from localagent_bench.thinking import resolve_thinking_policy
-
-
-SUPPORTED_PI_VERSION = SUPPORTED_PI_VERSIONS[0]
 
 
 def _pi_version() -> str | None:
@@ -105,10 +103,14 @@ class _OpenAIHandler(BaseHTTPRequestHandler):
 
 
 @unittest.skipUnless(
-    _pi_version() == SUPPORTED_PI_VERSION,
-    f"richiede Pi {SUPPORTED_PI_VERSION}",
+    _pi_version() is not None,
+    "richiede Pi installato",
 )
 class PiThinkingContractTests(unittest.TestCase):
+    def test_runtime_compatibility(self):
+        result = check_pi_compatibility((shutil.which("pi") or "pi",), 30)
+        self.assertTrue(result.passed, result)
+
     def setUp(self):
         try:
             self.server = _CaptureServer(("127.0.0.1", 0), _OpenAIHandler)

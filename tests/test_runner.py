@@ -21,6 +21,7 @@ from localagent_bench.integrity import (
 )
 from localagent_bench.ollama import OllamaModel, ThinkingPreflight
 from localagent_bench.pi_adapter import AUDIT_VERSION, SCRATCH_DIRECTORY, PiRun
+from localagent_bench.pi_compatibility import CONTRACT_VERSION, PiCompatibility
 from localagent_bench.runner import (
     BenchmarkError,
     EXECUTION_POLICY,
@@ -33,6 +34,14 @@ from localagent_bench.runner import (
 
 
 class RunnerGitTests(unittest.TestCase):
+    def setUp(self):
+        patcher = patch(
+            "localagent_bench.runner.check_pi_compatibility",
+            return_value=PiCompatibility("passed", CONTRACT_VERSION, ("off_200", "medium_200", "off_500")),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_diff_includes_committed_and_untracked_changes(self):
         config = load_config(ROOT / "benchmark.json")
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
@@ -110,14 +119,15 @@ class RunnerGitTests(unittest.TestCase):
             {(item["model"], item["case_id"], item["repetition"]) for item in first},
         )
 
-    def test_run_rejects_unverified_pi_version_before_contacting_ollama(self):
+    def test_run_rejects_incompatible_pi_before_contacting_ollama(self):
         config = load_config(ROOT / "benchmark.json")
         with (
             patch("localagent_bench.runner.require_clean_inputs"),
             patch("localagent_bench.runner._command_version", return_value="0.99.0"),
+            patch("localagent_bench.runner.check_pi_compatibility", return_value=PiCompatibility("failed", CONTRACT_VERSION, (), "off_200_reasoning_effort")),
             patch("localagent_bench.runner.list_models") as list_models_mock,
         ):
-            with self.assertRaisesRegex(BenchmarkError, "Versione Pi non verificata"):
+            with self.assertRaisesRegex(BenchmarkError, "off_200_reasoning_effort"):
                 run_benchmark(
                     config,
                     profile="smoke",
@@ -191,7 +201,8 @@ class RunnerGitTests(unittest.TestCase):
             self.assertEqual("passed", report["integrity"]["status"])
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(7, manifest["order_seed"])
-            self.assertEqual("0.11.1", manifest["benchmark_version"])
+            self.assertEqual("0.12.0", manifest["benchmark_version"])
+            self.assertEqual("passed", manifest["pi_compatibility"]["status"])
             self.assertEqual(32768, manifest["configuration"]["context_window"])
             self.assertEqual(30, manifest["configuration"]["timeout_seconds"])
             self.assertEqual(AUDIT_VERSION, manifest["execution_policy"]["audit_version"])

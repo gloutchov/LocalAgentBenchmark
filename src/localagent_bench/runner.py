@@ -11,6 +11,7 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,11 +43,11 @@ from .ollama import (
 from .pi_adapter import (
     AUDIT_VERSION,
     SCRATCH_DIRECTORY,
-    SUPPORTED_PI_VERSIONS,
     audit_workspace_accesses,
     run_pi,
     write_models_config,
 )
+from .pi_compatibility import PiCompatibility, REFERENCE_PI_VERSION, check_pi_compatibility
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
 from .system_metrics import hardware_snapshot
@@ -213,25 +214,31 @@ def _build_task_order(
     return tasks
 
 
-def doctor(config: BenchmarkConfig) -> dict[str, Any]:
+def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     pi_path = shutil.which(config.pi_command[0])
     pi_version = _command_version([*config.pi_command, "--version"]) if pi_path else None
-    pi_supported = pi_version in SUPPORTED_PI_VERSIONS
+    try:
+        probe_sandbox = select_sandbox(config.defaults.sandbox)
+    except SandboxError:
+        probe_sandbox = None
+    pi_compatibility = (
+        check_pi_compatibility(config.pi_command, config.defaults.pi_contract_timeout_seconds, probe_sandbox, cancel_event)
+        if pi_path and probe_sandbox else PiCompatibility("failed", 1, (), "pi_missing" if not pi_path else "sandbox_unavailable")
+    )
+    if cancel_event is not None and cancel_event.is_set():
+        return {"ok": False, "checks": [{"name": "pi", "ok": False, "detail": "cancelled"}], "models": []}
     checks.append(
         {
             "name": "pi",
-            "ok": pi_path is not None and pi_supported,
+            "ok": pi_compatibility.passed,
             "detail": (
-                f"{pi_path}; versione {pi_version} supportata"
-                if pi_supported
-                else (
-                    f"{pi_path}; versione {pi_version or 'sconosciuta'} non supportata "
-                    f"(attese: {', '.join(SUPPORTED_PI_VERSIONS)})"
-                    if pi_path
-                    else "comando non trovato"
-                )
+                f"{pi_path}; versione {pi_version or 'sconosciuta'}; contratto Pi v{pi_compatibility.contract_version} superato"
+                if pi_compatibility.passed else
+                f"versione Pi {pi_version or 'sconosciuta'}; controllo {pi_compatibility.failed_check or 'non verificabile'} fallito. "
+                f"Pi {REFERENCE_PI_VERSION} è la versione di riferimento verificata / Pi {REFERENCE_PI_VERSION} is the verified reference version"
             ),
+            "compatibility": pi_compatibility.to_manifest(),
         }
     )
     git_path = shutil.which("git")
@@ -317,10 +324,19 @@ def run_benchmark(
     except InputIntegrityError as exc:
         raise BenchmarkError(str(exc)) from exc
     pi_version = _command_version([*config.pi_command, "--version"])
-    if pi_version not in SUPPORTED_PI_VERSIONS:
+    try:
+        sandbox = select_sandbox(sandbox_mode or config.defaults.sandbox)
+    except SandboxError as exc:
+        raise BenchmarkError(str(exc)) from exc
+    pi_compatibility = check_pi_compatibility(
+        config.pi_command, config.defaults.pi_contract_timeout_seconds, sandbox
+    )
+    if not pi_compatibility.passed:
         raise BenchmarkError(
-            f"Versione Pi non verificata: {pi_version or 'sconosciuta'}; "
-            f"supportate: {', '.join(SUPPORTED_PI_VERSIONS)}"
+            f"Controllo compatibilità Pi fallito ({pi_compatibility.failed_check}): "
+            f"versione {pi_version or 'sconosciuta'}. "
+            f"Pi {REFERENCE_PI_VERSION} è la versione di riferimento verificata / "
+            f"Pi {REFERENCE_PI_VERSION} is the verified reference version"
         )
     installed = list_models(config.ollama_url)
     models = _resolve_models(config, requested_models, installed)
@@ -330,10 +346,6 @@ def run_benchmark(
     if repeat_count < 1 or timeout < 10:
         raise BenchmarkError("Ripetizioni e timeout devono essere positivi")
     should_warmup = config.defaults.warmup if use_warmup is None else use_warmup
-    try:
-        sandbox = select_sandbox(sandbox_mode or config.defaults.sandbox)
-    except SandboxError as exc:
-        raise BenchmarkError(str(exc)) from exc
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = (output_dir or config.root / "results" / timestamp).resolve()
     if run_dir.exists() and any(run_dir.iterdir()):
@@ -397,6 +409,7 @@ def run_benchmark(
             "thinking": thinking_policy.requested,
             "reasoning_effort": thinking_policy.reasoning_effort,
             "thinking_preflight_timeout_seconds": config.defaults.thinking_preflight_timeout_seconds,
+            "pi_contract_timeout_seconds": config.defaults.pi_contract_timeout_seconds,
             "http_idle_timeout_ms": config.defaults.http_idle_timeout_ms,
             "agent_max_retries": config.defaults.agent_max_retries,
             "provider_max_retries": config.defaults.provider_max_retries,
@@ -418,6 +431,7 @@ def run_benchmark(
             },
             "http_idle_timeout_ms": config.defaults.http_idle_timeout_ms,
         },
+        "pi_compatibility": pi_compatibility.to_manifest(),
         "environment": {
             "platform": platform.platform(),
             "python": sys.version.split()[0],
