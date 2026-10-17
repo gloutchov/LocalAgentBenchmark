@@ -197,6 +197,18 @@ class ComparisonTests(unittest.TestCase):
             ):
                 write_comparison([off, legacy], root / "mixed-legacy")
 
+    def test_pi_contract_version_is_part_of_comparison(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = self._write_run(root, "first", overall=80, verified_thinking=True)
+            second = self._write_run(root, "second", overall=82, verified_thinking=True)
+            manifest_path = second / "run.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["pi_compatibility"] = {"status": "passed", "contract_version": 1}
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ComparisonError, "pi_contract"):
+                write_comparison([first, second], root / "mixed-contracts")
+
 
 if __name__ == "__main__":
     unittest.main()

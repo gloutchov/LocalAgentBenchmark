@@ -5,7 +5,7 @@
 ### Requisiti
 
 - Windows 10 o 11;
-- Python 3.10+, Git, Pi 0.85.1 e Ollama già configurati;
+- Python 3.10+, Git, Pi compatibile e Ollama già configurati;
 - un modello Ollama già scaricato;
 - esecuzione come utente standard, con permesso di creare un profilo AppContainer e modificare temporaneamente le ACL dei path del run.
 
@@ -20,7 +20,7 @@ py -3 benchmark.py doctor
 py -3 benchmark.py run --profile smoke --models NOME_MODELLO --thinking off --sandbox required
 ```
 
-`doctor` deve accettare Pi 0.85.1 e riportare `windows-appcontainer` con isolamento filesystem, processi e rete. Prima della task, il preflight deve inoltre confermare `reasoning_effort: "none"`; `--no-warmup` non lo disabilita. In `required`, un probe fallito interrompe il run prima delle task. `auto` consente invece un fallback registrato e `audit` applica soltanto policy e rilevamento.
+`doctor` deve verificare Pi sul server sintetico locale, incluso lo staging AppContainer, e accettare una versione compatibile e riportare `windows-appcontainer` con isolamento filesystem, processi e rete. Prima della task, il preflight deve inoltre confermare `reasoning_effort: "none"`; `--no-warmup` non lo disabilita. In `required`, un probe fallito interrompe il run prima delle task. `auto` consente invece un fallback registrato e `audit` applica soltanto policy e rilevamento.
 
 Il launcher crea un profilo AppContainer senza capability di rete, prepara una copia per-task dei runtime Pi/Node/Python, configura nella copia il tool shell di Pi su `cmd.exe`, concede ACL temporanee al SID esatto soltanto per workspace, configurazione Pi e runtime staged, assegna il processo sospeso a un Job Object kill-on-close e poi lo avvia. Un named pipe nel namespace AppContainer raggiunge un broker host vincolato all'host e alla porta Ollama configurati.
 
@@ -37,7 +37,7 @@ Il launcher crea un profilo AppContainer senza capability di rete, prepara una c
 ### Requirements
 
 - Windows 10 or 11;
-- Python 3.10+, Git, Pi 0.85.1, and Ollama already configured;
+- Python 3.10+, Git, Pi compatibile, and Ollama already configured;
 - at least one downloaded Ollama model;
 - a standard-user session allowed to create an AppContainer profile and temporarily update ACLs on run paths.
 
@@ -52,7 +52,7 @@ py -3 benchmark.py doctor
 py -3 benchmark.py run --profile smoke --models MODEL_NAME --thinking off --sandbox required
 ```
 
-`doctor` must accept Pi 0.85.1 and report `windows-appcontainer` with filesystem, process, and network isolation. Before the task, preflight must also confirm `reasoning_effort: "none"`; `--no-warmup` does not disable it. In `required` mode, a failed probe stops before any task. `auto` permits a recorded fallback, while `audit` applies policy and detection only.
+`doctor` must test Pi on the local synthetic server, including AppContainer staging, and accept a compatible version and report `windows-appcontainer` with filesystem, process, and network isolation. Before the task, preflight must also confirm `reasoning_effort: "none"`; `--no-warmup` does not disable it. In `required` mode, a failed probe stops before any task. `auto` permits a recorded fallback, while `audit` applies policy and detection only.
 
 The launcher creates an AppContainer profile without network capabilities, prepares per-task copies of the Pi/Node/Python runtimes, configures Pi's staged shell tool to use `cmd.exe`, grants temporary ACLs to the exact SID only for the workspace, Pi configuration, and staged runtime, assigns the suspended process to a kill-on-close Job Object, and then starts it. A named pipe in the AppContainer namespace reaches a trusted host broker pinned to the configured Ollama host and port.
 

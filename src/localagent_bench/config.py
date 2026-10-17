@@ -29,6 +29,7 @@ class Defaults:
     repetitions: int
     thinking: str
     thinking_preflight_timeout_seconds: int
+    pi_contract_timeout_seconds: int
     http_idle_timeout_ms: int
     agent_max_retries: int
     provider_max_retries: int
@@ -121,6 +122,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         thinking_preflight_timeout_seconds=int(
             defaults_raw.get("thinking_preflight_timeout_seconds", 300)
         ),
+        pi_contract_timeout_seconds=int(defaults_raw.get("pi_contract_timeout_seconds", 30)),
         http_idle_timeout_ms=int(defaults_raw.get("http_idle_timeout_ms", 0)),
         agent_max_retries=int(defaults_raw.get("agent_max_retries", 0)),
         provider_max_retries=int(defaults_raw.get("provider_max_retries", 0)),
@@ -137,6 +139,8 @@ def load_config(path: Path) -> BenchmarkConfig:
         raise ConfigError("Livello thinking non valido")
     if defaults.thinking_preflight_timeout_seconds < 10:
         raise ConfigError("thinking_preflight_timeout_seconds deve essere >= 10")
+    if not 10 <= defaults.pi_contract_timeout_seconds <= 300:
+        raise ConfigError("pi_contract_timeout_seconds deve essere tra 10 e 300")
     if (
         defaults.http_idle_timeout_ms < 0
         or defaults.agent_max_retries < 0

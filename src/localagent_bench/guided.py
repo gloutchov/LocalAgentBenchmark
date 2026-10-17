@@ -27,6 +27,8 @@ from .guided_process import (
     start_detached,
 )
 from .runner import doctor
+from .sandbox import SANDBOX_MODES, SandboxError, select_sandbox
+from .thinking import THINKING_LEVELS
 
 
 MANIFEST_NAME = "guided-run.json"
@@ -330,7 +332,13 @@ class GuidedOrchestrator:
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto Ollama locale")
-        payload = self.doctor_function(self.config)
+        self.cancel_event.clear()
+        payload = (
+            self.doctor_function(self.config, cancel_event=self.cancel_event)
+            if self.doctor_function is doctor else self.doctor_function(self.config)
+        )
+        if self.cancel_event.is_set():
+            raise GuidedError("cancelled", "Controllo prerequisiti annullato")
         if not isinstance(payload, dict):
             raise GuidedError("prerequisites", "Risposta doctor non valida")
         models = payload.get("models")
@@ -340,23 +348,23 @@ class GuidedOrchestrator:
             if not isinstance(item, dict) or not isinstance(item.get("name"), str):
                 raise GuidedError("prerequisites", "Elenco modelli non valido")
             validate_model_name(item["name"])
-        if not models:
-            raise GuidedError("no_models", "Nessun modello Ollama locale rilevato")
         if not payload.get("ok"):
             error = _error_from_doctor(payload)
             error.context = payload
             raise error
+        if not models:
+            raise GuidedError("no_models", "Nessun modello Ollama locale rilevato")
         return payload
 
-    def settings_summary(self) -> dict[str, Any]:
+    def settings_summary(self, *, thinking: str | None = None, sandbox: str | None = None) -> dict[str, Any]:
         defaults = self.config.defaults
         return {
             "profiles": list(self.guided.profiles),
             "promotion_limits": list(self.guided.promotion_limits),
             "ollama_url": self.config.ollama_url,
             "pi_command": list(self.config.pi_command),
-            "thinking": defaults.thinking,
-            "sandbox": defaults.sandbox,
+            "thinking": thinking if thinking is not None else defaults.thinking,
+            "sandbox": sandbox if sandbox is not None else defaults.sandbox,
             "timeout_seconds": defaults.timeout_seconds,
             "repetitions": defaults.repetitions,
             "warmup": defaults.warmup,
@@ -392,7 +400,8 @@ class GuidedOrchestrator:
         raise GuidedError("output_exists", "Impossibile creare una directory sessione distinta")
 
     def _benchmark_command(
-        self, profile: str, models: list[str], seed: int, output: Path
+        self, profile: str, models: list[str], seed: int, output: Path,
+        *, thinking: str | None = None, sandbox: str | None = None,
     ) -> list[str]:
         safe_models = [validate_model_name(model) for model in models]
         if not safe_models:
@@ -413,6 +422,10 @@ class GuidedOrchestrator:
             str(seed),
             "--output",
             str(output),
+            "--thinking",
+            thinking if thinking is not None else self.config.defaults.thinking,
+            "--sandbox",
+            sandbox if sandbox is not None else self.config.defaults.sandbox,
         ]
 
     def _dashboard_command(self, run_directories: list[Path]) -> list[str]:
@@ -464,6 +477,8 @@ class GuidedOrchestrator:
         selected_models: list[str],
         discovery: dict[str, Any],
         *,
+        thinking: str | None = None,
+        sandbox: str | None = None,
         callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> Path:
         if self.cancel_event.is_set():
@@ -481,6 +496,17 @@ class GuidedOrchestrator:
             raise GuidedError("model_unavailable", f"Modelli non più disponibili: {', '.join(missing)}")
         if not discovery.get("ok"):
             raise _error_from_doctor(discovery)
+
+        thinking_mode = thinking if thinking is not None else self.config.defaults.thinking
+        sandbox_mode = sandbox if sandbox is not None else self.config.defaults.sandbox
+        if thinking_mode not in THINKING_LEVELS:
+            raise GuidedError("invalid_setting", "Modalità thinking non valida")
+        if sandbox_mode not in SANDBOX_MODES:
+            raise GuidedError("invalid_setting", "Modalità sandbox non valida")
+        try:
+            select_sandbox(sandbox_mode)
+        except SandboxError as exc:
+            raise GuidedError("sandbox_unavailable", str(exc)) from exc
 
         session = self._session_directory()
         self.manifest_path = session / MANIFEST_NAME
@@ -515,7 +541,7 @@ class GuidedOrchestrator:
             "discovered_models": discovered,
             "selected_models": selected,
             "base_seed": base_seed,
-            "settings": self.settings_summary(),
+            "settings": self.settings_summary(thinking=thinking_mode, sandbox=sandbox_mode),
             "phases": [],
             "transitions": [],
             "dashboard": {"status": "pending", "run_directories": []},
@@ -559,7 +585,8 @@ class GuidedOrchestrator:
                         }
                     )
                 command = self._benchmark_command(
-                    profile, current_models, phase_seeds[profile], output
+                    profile, current_models, phase_seeds[profile], output,
+                    thinking=thinking_mode, sandbox=sandbox_mode,
                 )
                 result: ProcessResult = self.process_runner.run(
                     command,

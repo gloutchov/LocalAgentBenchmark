@@ -6,14 +6,14 @@ This workflow compares local Ollama models without requiring command composition
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.11.0;
+- checkout sorgente completo di LocalAgent Benchmark 0.12.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - Ollama locale avviato su `127.0.0.1` con almeno un modello tool-capable;
-- Pi 0.85.1 disponibile come `pi`;
+- Pi disponibile come `pi`; compatibilità verificata durante il rilevamento e prima di ogni fase;
 - `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubriche selezionati puliti rispetto a Git.
 
-The source checkout, Python 3.10+ with Tkinter, Git, local Ollama, Pi 0.85.1, and clean protected benchmark inputs are required. No third-party Python package is added.
+The source checkout, Python 3.10+ with Tkinter, Git, local Ollama, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
 
 ## Avvio con doppio clic / Double-click launch
 
@@ -34,12 +34,16 @@ La finestra esegue i controlli equivalenti a `doctor`, rileva i modelli tramite 
 - nome, dimensione e capability thinking nota dei modelli locali;
 - modelli selezionati, inizialmente tutti;
 - profili `smoke` → `standard` → `full` e limiti `4` → `2`;
-- modalità thinking, sandbox, timeout e warmup effettivi letti da `benchmark.json`;
+- due toggle per scegliere thinking `off`/`medium` e sandbox `audit`/`required`, più timeout e warmup da `benchmark.json`;
 - un avviso che la durata dipende da modelli, hardware e casi e non è garantita.
 
 Fare clic sull'intestazione modello, dimensione o thinking per ordinare la tabella; un secondo clic inverte l'ordine e la freccia mostra la direzione attiva. La selezione resta invariata durante il riordino.
 
+Il toggle **Thinking** spento richiede `off`, acceso richiede `medium`; non c'è fallback automatico. Il toggle **Sandbox** spento usa solo l'audit senza isolamento OS; acceso richiede un backend OS applicabile e interrompe l'avvio se manca. Le scelte sono mostrate prima della conferma, valgono per tutte e tre le fasi e vengono registrate nel manifesto. Nella dashboard, **Dettaglio task** elenca separatamente i modelli esclusi prima delle task per thinking osservato con `off` e quelli esclusi dopo tentativi fuori workspace/rete o altre violazioni; la riga indica se la sandbox OS era applicata. Un'esclusione non dimostra da sola che il sistema operativo abbia bloccato l'azione.
+
 The window performs the equivalent of `doctor`, detects Ollama models, and displays the selected models, funnel, promotion limits, thinking mode, sandbox, timeout, warmup, and an explicit duration warning. Click the model, size, or thinking column heading to sort it; a second click reverses the order and the arrow shows the active direction. Selection is preserved while sorting. The benchmark starts only after confirmation.
+
+The **Thinking** toggle selects `off` or `medium` without automatic fallback. The **Sandbox** toggle selects audit only, without OS isolation, or `required`, which stops before a run if no applicable OS backend is available. Both choices apply to all three stages and are recorded in the session manifest. In the dashboard, **Task details** lists preflight thinking exclusions and workspace/network integrity exclusions separately from executed tasks, with the effective sandbox status. An exclusion alone does not prove that the OS blocked the action.
 
 Lingua e tema seguono il sistema per default. Gli override vengono salvati soltanto in `.localagent-benchmark/guided-preferences.json`, dentro la root e ignorato da Git.
 
@@ -102,7 +106,7 @@ The quick path never runs `showcase`, never selects `results_dashboard`, never a
 - **Tkinter non disponibile / Tkinter unavailable:** installare una distribuzione Python che includa Tk; i launcher sorgente non scaricano componenti.
 - **Ollama non raggiungibile / Ollama unavailable:** avviare Ollama localmente e usare un endpoint loopback in `benchmark.json`.
 - **Nessun modello / No models:** scaricare almeno un modello tool-capable con Ollama, poi scegliere **Rileva di nuovo / Detect again**.
-- **Pi non disponibile o versione errata / Pi missing or wrong version:** installare Pi 0.85.1 e verificare che `pi` sia nel `PATH` del launcher grafico.
+- **Pi non disponibile o versione errata / Pi missing or wrong version:** verificare che `pi` sia nel `PATH` del launcher grafico e leggere il controllo fallito; Pi 0.85.1 è la versione di riferimento verificata.
 - **Input protetti sporchi / Dirty protected inputs:** revisionare e committare legittimamente le modifiche prima del benchmark; non aggirare il preflight.
 - **Sandbox required non disponibile / required sandbox unavailable:** installare/configurare il backend previsto oppure cambiare consapevolmente `benchmark.json`; non avviene alcun downgrade automatico.
 - **Task fallita o fase incompleta / Failed task or incomplete stage:** consultare la directory mostrata e i report; il funnel non prosegue.

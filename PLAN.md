@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.11.1**
+Versione corrente / Current version: **0.12.0**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -558,3 +558,42 @@ Versione corrente / Current version: **0.11.1**
 - [x] Tag annotato `v0.11.1` creato e pubblicato nel workflow di chiusura autorizzato
 - [x] GitHub Release sorgente autorizzata e pubblicata; nessun artifact binario, checksum non applicabili
 - [x] Branch remoto eliminato automaticamente dopo il merge e branch locale eliminato dopo tutte le verifiche previste
+
+## C12 – Compatibilità Pi verificata all'avvio
+
+- Obiettivo: consentire l'uso di versioni Pi diverse dalla `0.85.1` quando soddisfano il contratto operativo del benchmark, sostituendo il vincolo sulla versione con un test locale obbligatorio prima di ogni benchmark, sia da riga di comando sia dal percorso semplice con UI avviata tramite script.
+- Dipendenza: `main` e il checkpoint remoto precedente verificati al commit `174d7e7` prima di creare il branch dedicato.
+- Branch previsto: `milestone/12-pi-runtime-compatibility`.
+- Tag di checkpoint previsto: `milestone/C12`, sul commit finale di `main` dopo approvazione e merge.
+- Incremento versione: `+0.1.0`, dalla versione corrente `0.11.1` a `0.12.0`, con tag versione previsto `v0.12.0`.
+- Attività principali:
+  - Estrarre dal test contrattuale esistente un servizio modulare, senza nuove dipendenze runtime, che avvii il comando Pi effettivamente configurato contro un server OpenAI-compatible fittizio su `127.0.0.1`, con dati sintetici, directory isolata, timeout espliciti, cancellazione e cleanup. Il probe non deve contattare Internet o modelli reali, leggere contenuti utente o usare la configurazione personale di Pi.
+  - Verificare sul payload reale i livelli thinking richiesti, inclusi `off` canonicalizzato in `reasoning_effort: "none"` e una modalità attiva, il limite token, il formato degli eventi necessario al runner, il riconoscimento degli errori terminali e l'assenza di retry automatici. Non limitarsi a leggere `pi --version` e non saltare il test perché la versione installata è diversa dalla `0.85.1`.
+  - Riutilizzare lo stesso servizio in `doctor` e nel gate del runner prima di warmup e task, per tutti i profili e per `--cases`; eliminare i blocchi basati esclusivamente sull'elenco di versioni ammesse. Il percorso guidato deve mostrare il controllo nella UI e mantenere il gate anche nei processi CLI delle fasi `smoke`, `standard` e `full`, senza introdurre percorsi alternativi che lo aggirino.
+  - Verificare separatamente i requisiti del backend sandbox selezionato, in particolare marker, staging e adattamento del bundle Pi su Windows: un payload compatibile non certifica da solo la compatibilità AppContainer. Conservare i probe del backend, il fallimento di `required` e la segnalazione esplicita del fallback di `auto`.
+  - In caso di incompatibilità o verifica non conclusiva, fermare il benchmark prima delle task e mostrare in italiano/inglese requisito fallito, versione rilevata e indicazioni utili. Consigliare Pi `0.85.1` come versione di riferimento già verificata, senza installarla automaticamente, senza bypass e senza presentarla come rimedio garantito per problemi estranei a Pi.
+  - Registrare versione effettiva Pi, versione del contratto, esito e metadata diagnostici sanitizzati del probe; escludere probe da tempi, token e punteggi delle task. Conservare la distinzione dal preflight thinking per-modello su Ollama, che resta obbligatorio. Mantenere il rifiuto di aggregazioni statistiche tra versioni Pi o contratti incompatibili e la lettura degli artefatti legacy; non esportare diagnostica libera o payload tramite `dashboard-data`.
+- Estensione richiesta durante la prova M12: aggiungere al percorso rapido toggle per thinking `off`/`medium` e sandbox `audit`/`required`, applicati a tutte le fasi senza fallback; mostrare nel Dettaglio task della dashboard le esclusioni per thinking osservato con `off` e per violazioni dei confini workspace/rete, separate dalle task realmente eseguite e senza esportare evidenze raw.
+- Criteri di accettazione: una versione diversa dalla `0.85.1` che supera il contratto e i controlli applicabili può eseguire il benchmark; anche la `0.85.1` deve superare il test; CLI, selezioni personalizzate e UI avviata dai launcher applicano lo stesso gate prima delle task; errori, timeout, eventi incompatibili, retry inattesi e controllo non verificabile impediscono l'avvio con diagnostica comprensibile; la UI resta reattiva e consente l'annullamento; nessuna metrica task include il probe; nessuna garanzia thinking, sandbox, integrità o riproducibilità viene ridotta.
+- Test richiesti: unit test e integrazione con Pi simulato per versioni differenti compatibili/incompatibili, payload errati, eventi corrotti, errori terminali, retry, timeout, cancellazione e cleanup; regressione sul comando Pi configurato; test reali con server fittizio su Pi `0.85.1` e sulla versione aggiornata disponibile, registrando versioni ed eventuali limiti ambientali; test del gate su CLI, tutti i profili e `--cases`, orchestrazione guidata e launcher; regressioni sandbox multipiattaforma, inclusa la compatibilità del bundle Windows; smoke Pi/Ollama da CLI e UI sulle piattaforme disponibili. Eseguire `python3 -m unittest discover -s tests -v` e `python3 -m compileall -q benchmark.py dashboard.py guided_benchmark.py src cases tests`; riportare test non eseguiti e motivi. Usare GitHub Actions soltanto per verifiche necessarie non sostituibili adeguatamente in locale.
+- Documentazione da aggiornare: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, quick start CLI/percorso guidato e piattaforme interessate, `SECURITY_MODEL.md`, `MAP.md`, `AGENTS.md`, istruzioni pubbliche sotto `site/` e `PLAN.md`. Sostituire nella stessa milestone la regola che impone Pi `0.85.1`, documentando contratto, probe, dati trattati, costi di avvio, troubleshooting e limiti per piattaforma; sincronizzare la versione nei punti canonici.
+- Release: funzionalità rilasciabile come `v0.12.0`; GitHub Release prevista dopo approvazione esplicita. Artifact e checksum SHA-256 soltanto se vengono effettivamente distribuiti pacchetti; nessuna installazione o modifica automatica di Pi.
+- Stato: **milestone 0.12.0 integrata e pubblicata dopo autorizzazione esplicita del progettista il 2026-10-17. La PR #8 è stata integrata su `main` con merge commit `7da765e`; CI della PR `39063684815` e CI post-merge `39063915231` verdi su macOS, Ubuntu e Windows. Il controllo contrattuale locale accetta Pi 1.0.4 in `audit` e Seatbelt `required`; lo smoke CLI e i batch guidati dell’utente hanno verificato il percorso reale. I toggle thinking/sandbox e il Dettaglio task della dashboard mostrano le esclusioni senza esportare eventi sensibili. L’audit v4 corregge il falso positivo di traversal nello scratch: la rilettura dei vecchi eventi elimina i 2 rilievi di Julioa/qwen3.8 e conserva i 4 tentativi esterni di qwen3.5. La suite locale ha eseguito 147 test Python (18 skip ambientali), 17 test JavaScript, `compileall` e la validazione dei 6 casi; Pages `39063914901` è verde e l’asset pubblico coincide con quello locale. Tag annotati `milestone/C12` e `v0.12.0` pubblicati sul commit documentale finale di `main`; GitHub Release sorgente pubblicata senza binari né checksum di artifact applicabili, e branch milestone rimosso. Limiti residui: Pi 0.85.1 e smoke reali Windows/Linux con Pi aggiornato non disponibili su questo host; gli errori di stream di gpt-oss e il timeout di Julioa/qwen3.8 restano esiti del run, non corretti dalla milestone.**
+
+### Checklist chiusura M12
+
+- [x] `main` remoto verificato al commit `174d7e7`; branch dedicato creato da quel commit
+- [x] Servizio contrattuale condiviso implementato e vincolo sulla versione rimosso
+- [x] Gate obbligatorio verificato su CLI e orchestrazione UI tramite test e rilevamento reale; launcher GUI avviato, verifica visiva non conclusa per timeout dello strumento UI
+- [x] Diagnostica bilingue e suggerimento Pi `0.85.1` verificati
+- [x] Thinking, retry, eventi e sandbox macOS verificati; staging Windows coperto da test strutturali, smoke reale Windows pendente
+- [x] Test automatici e validazione dei casi eseguiti; smoke Pi 1.0.4/Seatbelt e `doctor` riusciti; limiti ambientali registrati nello stato
+- [x] Versione, README, manuali, quick start, SECURITY_MODEL, MAP, AGENTS e istruzioni pubbliche aggiornati
+- [x] Commit locali creati soltanto sul branch dedicato e non pubblicati prima del controllo
+- [x] Branch congelato al commit `c5d1f7e`, con hash, diff, test, esiti e limiti presentati al progettista; il successivo fix portabile `0269e12` è stato verificato dalla CI della PR
+- [x] Approvazione esplicita del progettista per commit, merge, tag, push, release e rimozione branch ricevuta il 2026-10-17; fix CI successivo documentato e verificato
+- [x] PR #8, merge commit `7da765e`, CI multipiattaforma sulla PR e su `main` e deploy Pages verificati
+- [x] Voce rinominata `C12` con riepilogo, verifiche, limiti residui, versione `0.12.0` e checkpoint `milestone/C12`
+- [x] Tag annotati `milestone/C12` e `v0.12.0` creati sul commit finale di `main`; push di `main` e tag verificati sul remoto
+- [x] GitHub Release `v0.12.0` sorgente pubblicata e verificata; nessun artifact binario di progetto o checksum applicabile
+- [x] Branch milestone locale eliminato dopo release e verifiche; branch remoto rimosso automaticamente da GitHub dopo il merge

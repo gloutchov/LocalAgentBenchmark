@@ -111,7 +111,7 @@ class DashboardDataTests(unittest.TestCase):
 
             dataset = build_dashboard_data([full, smoke, standard])
 
-            self.assertEqual(2, dataset["schema_version"])
+            self.assertEqual(3, dataset["schema_version"])
             self.assertEqual(["smoke", "standard", "full"], dataset["profile_order"])
             self.assertEqual(["smoke-run", "standard-run", "full-run"], [run["id"] for run in dataset["runs"]])
             smoke_stage = dataset["funnel"][0]
@@ -119,6 +119,10 @@ class DashboardDataTests(unittest.TestCase):
             self.assertEqual(["beta", "excluded-model"], smoke_stage["not_run_in_next"])
             self.assertEqual(["new-finalist"], dataset["funnel"][2]["new_participants"])
             self.assertEqual("integrity_excluded", dataset["runs"][0]["tasks"][2]["state"])
+            self.assertEqual(
+                [{"model": "excluded-model", "reason": "integrity_other", "case_id": None}],
+                dataset["runs"][0]["exclusions"],
+            )
             self.assertEqual(
                 {
                     "version": 0,
@@ -246,7 +250,7 @@ class DashboardDataTests(unittest.TestCase):
         fixture = json.loads(
             (ROOT / "cases" / "results_dashboard" / "fixture" / "dashboard-data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual([1, 2], schema["properties"]["schema_version"]["enum"])
+        self.assertEqual([1, 2, 3], schema["properties"]["schema_version"]["enum"])
         validate_dashboard_data(fixture)
         self.assertEqual(2, fixture["schema_version"])
         self.assertEqual(["smoke", "standard", "full"], fixture["profile_order"])
@@ -287,6 +291,51 @@ class DashboardDataTests(unittest.TestCase):
                 dataset["runs"][0]["thinking_control"],
             )
             self.assertNotIn("DO-NOT-EXPORT", json.dumps(dataset))
+
+    def test_preflight_and_workspace_exclusions_are_sanitized_without_fabricating_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = write_run(Path(directory), "excluded", "smoke", ["thinking-model", "outside-model", "task-thinking"])
+            manifest_path = run / "run.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["thinking_control"] = {
+                "version": 1, "requested": "off", "status": "failed",
+                "disqualified_models": ["thinking-model"],
+                "preflights": {"thinking-model": {
+                    "status": "unexpected_thinking", "reasoning_text": "PRIVATE-REASONING"
+                }},
+            }
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report_path = run / "report.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["results"] = []
+            report["leaderboard"] = []
+            report["integrity"]["disqualified_models"] = ["thinking-model", "outside-model", "task-thinking"]
+            report["integrity"]["violations"] = [{
+                "model": "outside-model", "kind": "external_workspace_access",
+                "case_id": "synthetic_case", "details": [{
+                    "reason": "shell_network_attempt", "target": "/Users/private/target",
+                    "evidence": "PRIVATE-EVIDENCE",
+                }],
+            }, {"model": "outside-model", "kind": ["unexpected"], "case_id": "/Users/private/target"}, {
+                "model": "task-thinking", "kind": "thinking_control_violation",
+                "case_id": "synthetic_case", "details": [{
+                    "reason": "unexpected_thinking", "evidence": "PRIVATE-EVIDENCE",
+                }],
+            }]
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+
+            dataset = build_dashboard_data([run])
+
+            self.assertEqual([], dataset["runs"][0]["tasks"])
+            self.assertEqual([
+                {"model": "thinking-model", "reason": "thinking_observed_off", "case_id": None},
+                {"model": "outside-model", "reason": "workspace_boundary", "case_id": "synthetic_case"},
+                {"model": "task-thinking", "reason": "thinking_observed_off", "case_id": "synthetic_case"},
+            ], dataset["runs"][0]["exclusions"])
+            serialized = json.dumps(dataset)
+            self.assertNotIn("PRIVATE-REASONING", serialized)
+            self.assertNotIn("PRIVATE-EVIDENCE", serialized)
+            self.assertNotIn("/Users/private", serialized)
 
     def test_public_validator_rejects_nested_non_whitelisted_fields(self):
         fixture = json.loads(

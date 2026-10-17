@@ -138,19 +138,44 @@ test("handles degenerate and missing efficiency metrics without inventing points
 test("merges alternate datasets, deduplicates identical runs, and rejects collisions", () => {
   const alternate = alternateDataset();
   const merged = Core.mergeDashboardData([fixture, fixture, alternate]);
-  assert.equal(merged.schema_version, 2);
+  assert.equal(merged.schema_version, 3);
   assert.equal(merged.runs.length, fixture.runs.length + 1);
   assert.deepEqual(merged.profile_order, ["smoke", "standard", "full", "custom"]);
   assert.deepEqual(merged.funnel.map((stage) => stage.profile), ["smoke", "standard", "full"]);
   const legacyRun = merged.runs.find((run) => run.id === "alternate-run");
   assert.equal(legacyRun.thinking_control.status, "unverified");
   assert.equal(legacyRun.thinking_control.source, "legacy_unverified");
+  assert.deepEqual(legacyRun.exclusions, []);
   assert.ok(merged.runs.filter((run) => run.id !== "alternate-run").every((run) => run.thinking_control.source === "explicit_sampling_parameter"));
 
   const collision = alternateDataset();
   collision.runs[0].id = fixture.runs[0].id;
   collision.funnel[0].run_ids = [fixture.runs[0].id];
   assert.throws(() => Core.mergeDashboardData([fixture, collision]), /collision/i);
+});
+
+test("shows preflight and workspace exclusions without counting them as tasks", () => {
+  const dataset = Core.mergeDashboardData([fixture]);
+  const run = dataset.runs[0];
+  run.participants.push("excluded-thinking", "excluded-boundary");
+  run.integrity.disqualified_models.push("excluded-thinking", "excluded-boundary");
+  run.exclusions = [
+    { model: "excluded-thinking", reason: "thinking_observed_off", case_id: null },
+    { model: "excluded-boundary", reason: "workspace_boundary", case_id: "targeted_patch" },
+  ];
+  assert.equal(Core.validateDashboardData(dataset), true);
+  const view = Core.createDashboardView(dataset, { model: "excluded-thinking" });
+  assert.equal(view.tasks.length, 0);
+  assert.equal(view.summary.taskCount, 0);
+  assert.equal(view.exclusions.length, 1);
+  assert.equal(view.exclusions[0].reason, "thinking_observed_off");
+  assert.equal(Core.createDashboardView(dataset, { query: "workspace_boundary" }).exclusions.length, 1);
+  const leaked = JSON.parse(JSON.stringify(dataset));
+  leaked.runs[0].exclusions[0].evidence = "PRIVATE-EVIDENCE";
+  assert.throws(() => Core.validateDashboardData(leaked), /fields/i);
+  const invalidPath = JSON.parse(JSON.stringify(dataset));
+  invalidPath.runs[0].exclusions[0].case_id = "/Users/private/file";
+  assert.throws(() => Core.validateDashboardData(invalidPath), /exclusion/i);
 });
 
 test("keeps thinking and showcase as independent profiles outside the funnel", () => {

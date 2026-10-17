@@ -8,7 +8,7 @@ LocalAgent Benchmark confronta modelli locali Ollama quando lavorano come coding
 
 - Python 3.10+ e Git nel `PATH`;
 - Ollama installato, avviato e raggiungibile su loopback;
-- Pi 0.85.1 installato come comando `pi` (altre versioni vengono rifiutate finché non superano il test contrattuale);
+- Pi installato come comando `pi` (ogni versione deve superare il test di compatibilità locale);
 - modelli Ollama già scaricati;
 - spazio libero sufficiente per una copia delle fixture per ogni esecuzione.
 
@@ -21,6 +21,8 @@ python3 benchmark.py doctor
 ```
 
 Il comando mostra versioni, controlli falliti, capability thinking e compatibilità preliminare dei modelli, oltre allo stato di pulizia degli input, senza eseguire task agentici. La compatibilità definitiva richiede comunque il preflight del run.
+
+`doctor` e ogni avvio di benchmark eseguono tre richieste sintetiche tramite il Pi configurato verso un server temporaneo su `127.0.0.1`: thinking disattivato, thinking `medium` ed errore provider. Il controllo verifica payload, eventi e retry senza chiamare Ollama; usa tool disabilitati, `--offline`, directory isolate e il backend sandbox selezionato. Il timeout per ciascuna richiesta è `defaults.pi_contract_timeout_seconds` (30 secondi per impostazione predefinita, valori ammessi 10–300). La GUI mostra l'esito durante il rilevamento e consente di annullarlo; ogni fase CLI ripete il controllo. Nei risultati restano solo stato e codice diagnostico, mai prompt o risposta del probe. Il preflight thinking sul modello Ollama resta separato e obbligatorio.
 
 ## 3. Primo avvio
 
@@ -47,6 +49,8 @@ python3 benchmark.py run --profile standard
 ### Percorso rapido guidato senza comandi
 
 Aprire con doppio clic `launchers/LocalAgent-Benchmark.command` su macOS, `launchers\LocalAgent-Benchmark.cmd` su Windows o `launchers/LocalAgent-Benchmark.sh` su Linux. La finestra esegue `doctor`, rileva i modelli Ollama locali, permette di scegliere i partecipanti e di ordinarli per nome, dimensione o thinking cliccando sulle intestazioni, quindi mostra thinking, sandbox, timeout e warmup effettivi prima di chiedere conferma.
+
+Usare il toggle **Thinking** per scegliere `off` (spento) o `medium` (acceso), e il toggle **Sandbox** per scegliere `audit` senza isolamento OS (spento) o `required` (acceso). `required` interrompe l'avvio se il backend OS non è applicabile. Le scelte valgono per tutte le fasi e sono registrate in `guided-run.json`; non vengono salvate come preferenze permanenti. Nel **Dettaglio task** della dashboard, i modelli esclusi al preflight per thinking osservato con `off` o dopo violazioni dei confini workspace/rete compaiono in un elenco separato dalle task svolte. È indicato il backend sandbox effettivo; l'esclusione non prova da sola un blocco OS.
 
 Il funnel esegue `smoke` su tutti i selezionati, usa l'ordine della leaderboard ufficiale per promuovere al massimo i primi quattro a `standard`, poi al massimo i primi due a `full`. Un modello con task fallita viene escluso senza fermare gli altri quando la fase è completa e verificabile; una fase parziale o incompatibile ferma invece il percorso. Al termine la dashboard ufficiale si apre sui tre run distinti. Il percorso non esegue `showcase` né il caso `results_dashboard`.
 
@@ -116,7 +120,7 @@ python3 benchmark.py dashboard-data \
   --output results/finalists-dashboard-data.json
 ```
 
-Il comando accetta `run.json` e `report.json` schema 2, 3 o 4, con massimo 32 MiB per file. Produce schema dashboard 2 e continua a leggere la fixture schema 1. Registra hash e commit e usa una whitelist: mantiene soltanto profilo, sandbox, integrità sintetica, stato/livello thinking, partecipanti, classifiche e metriche task. I run storici sono marcati `unverified`; preflight dettagliati e contenuto del reasoning non vengono esportati. Non copia path, prompt, risposte, comandi, log, evidenze di violazione o messaggi di errore liberi. Input e output devono restare nella root del progetto; non è consentito scrivere dentro un run sorgente. Per sostituire atomicamente un output già esistente aggiungere `--force`.
+Il comando accetta `run.json` e `report.json` schema 2, 3 o 4, con massimo 32 MiB per file. Produce schema dashboard 3 e continua a leggere i dataset schema 1 e 2. Registra hash e commit e usa una whitelist: mantiene soltanto profilo, sandbox, integrità sintetica, stato/livello thinking, partecipanti, classifiche, metriche task e codici d'esclusione con eventuale ID del caso. I run storici sono marcati `unverified`; preflight dettagliati e contenuto del reasoning non vengono esportati. Non copia path, prompt, risposte, comandi, log, evidenze di violazione o messaggi di errore liberi. Input e output devono restare nella root del progetto; non è consentito scrivere dentro un run sorgente. Per sostituire atomicamente un output già esistente aggiungere `--force`.
 
 Revisionare il JSON, quindi congelarlo nella fixture:
 
@@ -237,7 +241,7 @@ Senza ID, `case validate` controlla tutti i casi. Verifica schema strutturale, p
 
 Il totale combina qualità (80%), completamento (10%), velocità relativa (5%) ed efficienza token relativa (5%). Una task è completata a 60/100 con uscita Pi corretta.
 
-Leggere prima **Ambiente e isolamento** e **Integrità del run**. La prima sezione distingue backend richiesto ed effettivo e non presenta il fallback come sandbox. Un modello che riferisce esplicitamente un path risolto fuori workspace, tenta la rete, modifica il repository o lo snapshot, oppure riceve una baseline divergente viene escluso integralmente dalla classifica anche se il grader ha assegnato punti. Una mutazione dello snapshot interrompe le task successive. Il report elenca modello, caso, ripetizione, motivo, target ed evidenza; `run.json` conserva hardware, sandbox, commit e stato Git iniziali, seed, ordine, hash degli input e della policy, e violazioni. Ogni `result.json` conserva tree della baseline, versione dell'audit, metriche di sistema e dettagli originali.
+Leggere prima **Ambiente e isolamento** e **Integrità del run**. La prima sezione distingue backend richiesto ed effettivo e non presenta il fallback come sandbox. L'audit segue `$PWD` e i cambi `cd` anche nei comandi multilinea: un path `../` che resta nella workspace, per esempio nello scratch interno, non è una violazione. Un modello che riferisce esplicitamente un path risolto fuori workspace, tenta la rete, modifica il repository o lo snapshot, oppure riceve una baseline divergente viene escluso integralmente dalla classifica anche se il grader ha assegnato punti. Una mutazione dello snapshot interrompe le task successive. Il report elenca modello, caso, ripetizione, motivo, target ed evidenza; `run.json` conserva hardware, sandbox, commit e stato Git iniziali, seed, ordine, hash degli input e della policy, e violazioni. Ogni `result.json` conserva tree della baseline, versione dell'audit, metriche di sistema e dettagli originali.
 
 - Dare priorità a `quality_score` e ai casi più simili al proprio lavoro.
 - Usare `median_duration_seconds` per capire l'attesa quotidiana.
@@ -258,7 +262,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 ## 8. Risoluzione problemi
 
 - `Ollama non raggiungibile`: avviare Ollama e verificare `ollama list`.
-- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato Ollama/installato Pi 0.85.1; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
+- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato Ollama/installato Pi; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
 - percorso guidato interrotto: consultare `results/guided-*/guided-run.json` e i run già creati; nessun risultato parziale viene promosso e nessun run precedente viene cancellato.
 - dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a tre run disponibili vengono riutilizzati senza rieseguire i modelli.
 - `pi: comando non trovato`: installare Pi o modificare `pi.command` con il percorso corretto.
@@ -270,7 +274,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 - `Input benchmark modificati`: ripristinare o committare intenzionalmente `AGENTS.md`, `.gitignore` e i file dei casi prima di riprovare; non usare una fixture già completata.
 - `Manifesto mancante` o `paths.*`: completare `case.json`, usare soltanto path relativi POSIX interni al caso e rimuovere symlink sui path dichiarati; rieseguire `case validate`.
 - errore `max_score`, `points`, `earned` o baseline: correggere il contratto del grader; i check devono totalizzare 100 e la fixture iniziale deve restare sotto 60.
-- errore `Versione Pi non verificata`: installare Pi 0.85.1 oppure verificare e aggiornare intenzionalmente test contrattuale, versione supportata e documentazione;
+- errore `Controllo compatibilità Pi fallito`: leggere il controllo indicato, verificare il comando `pi` e la sandbox selezionata; Pi 0.85.1 è la versione di riferimento verificata, ma non risolve necessariamente ogni problema;
 - `thinking_control_unverified`: controllare capability, esito preflight, versione Ollama e supporto del livello richiesto; non forzare un fallback;
 - `unexpected_thinking` o `unexpected_retry`: conservare gli artefatti, escludere il modello e correggere il controllo prima di un nuovo run;
 - errore `dashboard-data`: verificare schema 2/3/4, coerenza del profilo, directory distinte e path interni alla root; usare `--force` soltanto dopo aver revisionato il file da sostituire.

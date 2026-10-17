@@ -9,8 +9,12 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SCHEMA_VERSION = 2;
-  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2]);
+  const SCHEMA_VERSION = 3;
+  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3]);
+  const EXCLUSION_REASONS = new Set([
+    "thinking_observed_off", "thinking_unverified", "workspace_boundary",
+    "repository_mutation", "snapshot_mutation", "integrity_other",
+  ]);
   const PROFILE_ORDER = ["smoke", "standard", "full", "thinking", "showcase"];
   const FUNNEL_PIPELINE = ["smoke", "standard", "full"];
   const SORT_FIELDS = new Set([
@@ -189,6 +193,7 @@
         "tasks",
       ];
       if (dataset.schema_version >= 2) runFields.push("thinking_control");
+      if (dataset.schema_version >= 3) runFields.push("exclusions");
       exactKeys(
         run,
         runFields,
@@ -209,6 +214,19 @@
       }
       exactKeys(run.integrity, ["status", "disqualified_models"], `integrity in ${run.id}`);
       uniqueTextList(run.integrity.disqualified_models, `disqualified_models in ${run.id}`);
+      if (dataset.schema_version >= 3) {
+        if (!Array.isArray(run.exclusions)) fail(`Invalid exclusions in ${run.id}`);
+        run.exclusions.forEach((exclusion) => {
+          exactKeys(exclusion, ["model", "reason", "case_id"], `exclusion in ${run.id}`);
+          if (!run.integrity.disqualified_models.includes(exclusion.model) ||
+              !EXCLUSION_REASONS.has(exclusion.reason) ||
+              (exclusion.case_id !== null &&
+                (typeof exclusion.case_id !== "string" ||
+                 !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(exclusion.case_id)))) {
+            fail(`Invalid exclusion in ${run.id}`);
+          }
+        });
+      }
       if (dataset.schema_version >= 2) {
         exactKeys(
           run.thinking_control,
@@ -352,6 +370,7 @@
         source: "legacy_unverified",
       };
     }
+    if (schemaVersion < 3) normalized.exclusions = [];
     return normalized;
   }
 
@@ -386,6 +405,7 @@
       run.leaderboard.forEach((row) => models.add(row.model));
       run.tasks.forEach((task) => models.add(task.model));
       run.integrity.disqualified_models.forEach((model) => models.add(model));
+      (run.exclusions || []).forEach((exclusion) => models.add(exclusion.model));
     }
     return [...models].sort((a, b) => a.localeCompare(b));
   }
@@ -520,6 +540,18 @@
           .some((value) => value.toLocaleLowerCase().includes(query));
       });
 
+    const exclusions = runs
+      .flatMap((run) => (run.exclusions || []).map((exclusion) => ({
+        ...clone(exclusion), run_id: run.id, profile: run.profile,
+        thinking_mode: run.thinking_control.requested,
+        sandbox_backend: run.sandbox.backend,
+        sandbox_enforced: run.sandbox.enforced,
+      })))
+      .filter((exclusion) => selectedModel === "all" || exclusion.model === selectedModel)
+      .filter((exclusion) => !query || [exclusion.model, exclusion.case_id, exclusion.reason]
+        .filter((value) => typeof value === "string")
+        .some((value) => value.toLocaleLowerCase().includes(query)));
+
     let funnel = dataset.funnel.filter((stage) => selectedProfile === "all" || stage.profile === selectedProfile);
     if (selectedModel !== "all") {
       funnel = funnel.map((stage) => ({
@@ -565,6 +597,7 @@
       efficiency,
       funnel,
       tasks,
+      exclusions,
       availableModels,
       summary,
       filters: { profile: selectedProfile, model: selectedModel, query, sortBy, sortDirection },

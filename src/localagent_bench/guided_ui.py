@@ -37,6 +37,10 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Impostazioni effettive",
+        "thinking_toggle": "Thinking attivo (medium)",
+        "sandbox_toggle": "Sandbox OS obbligatoria (required)",
+        "sandbox_note_off": "Solo audit: nessun isolamento OS.",
+        "sandbox_note_on": "Sandbox OS obbligatoria: l'avvio fallisce se il backend non è disponibile.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promozione: {first} → {second}",
         "select_all": "Seleziona tutti",
         "select_none": "Deseleziona tutti",
@@ -50,6 +54,7 @@ TEXT = {
         "running": "Fase {index}/3: {profile} · {count} modelli",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Controllo thinking: {model}",
+        "pi_compatibility": "Compatibilità Pi verificata",
         "warmup": "Warmup: {model}",
         "confirm_title": "Conferma avvio",
         "confirm": "Il benchmark può richiedere molto tempo e userà i modelli selezionati in tre fasi. Avviare ora?",
@@ -80,6 +85,10 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Effective settings",
+        "thinking_toggle": "Enable thinking (medium)",
+        "sandbox_toggle": "Require OS sandbox (required)",
+        "sandbox_note_off": "Audit only: no OS isolation.",
+        "sandbox_note_on": "OS sandbox required: startup fails if the backend is unavailable.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promotion: {first} → {second}",
         "select_all": "Select all",
         "select_none": "Select none",
@@ -93,6 +102,7 @@ TEXT = {
         "running": "Stage {index}/3: {profile} · {count} models",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Thinking check: {model}",
+        "pi_compatibility": "Pi compatibility verified",
         "warmup": "Warmup: {model}",
         "confirm_title": "Confirm start",
         "confirm": "The benchmark can take a long time and will use the selected models in three stages. Start now?",
@@ -317,6 +327,7 @@ class GuidedWindow:
         self.discovery: dict[str, Any] | None = None
         self.models: list[dict[str, Any]] = []
         self.running = False
+        self.detecting = False
         self.close_requested = False
         self.latest_manifest = find_latest_manifest(self.config)
         self.sort_column = "name"
@@ -326,6 +337,8 @@ class GuidedWindow:
         )
         self.language_choice = tk.StringVar(value=preferences.get("language", "auto"))
         self.theme_choice = tk.StringVar(value=preferences.get("theme", "auto"))
+        self.thinking_enabled = tk.BooleanVar(value=self.config.defaults.thinking != "off")
+        self.sandbox_enabled = tk.BooleanVar(value=self.config.defaults.sandbox == "required")
         self.title_var = tk.StringVar()
         self.subtitle_var = tk.StringVar()
         self.status_var = tk.StringVar()
@@ -419,7 +432,19 @@ class GuidedWindow:
 
         self.settings_frame = ttk.LabelFrame(outer, padding=12)
         self.settings_frame.pack(fill="x", pady=10)
+        toggles = ttk.Frame(self.settings_frame)
+        toggles.pack(fill="x")
+        self.thinking_toggle = ttk.Checkbutton(
+            toggles, variable=self.thinking_enabled, command=self._render_settings
+        )
+        self.thinking_toggle.pack(side="left", padx=(0, 24))
+        self.sandbox_toggle = ttk.Checkbutton(
+            toggles, variable=self.sandbox_enabled, command=self._render_settings
+        )
+        self.sandbox_toggle.pack(side="left")
         ttk.Label(self.settings_frame, textvariable=self.settings_var, justify="left", wraplength=820).pack(anchor="w")
+        self.sandbox_note = ttk.Label(self.settings_frame, style="Note.TLabel", wraplength=820)
+        self.sandbox_note.pack(anchor="w", pady=(4, 0))
         self.note_label = ttk.Label(self.settings_frame, style="Note.TLabel", wraplength=820)
         self.note_label.pack(anchor="w", pady=(6, 0))
 
@@ -462,6 +487,8 @@ class GuidedWindow:
         style.configure("TLabelframe", background=palette["background"], foreground=palette["foreground"])
         style.configure("TLabelframe.Label", background=palette["background"], foreground=palette["accent"])
         style.configure("TLabel", background=palette["background"], foreground=palette["foreground"])
+        style.configure("TCheckbutton", background=palette["background"], foreground=palette["foreground"])
+        style.map("TCheckbutton", background=[("active", palette["background"])], foreground=[("disabled", palette["muted"])])
         style.configure("Title.TLabel", font=("TkDefaultFont", 20, "bold"), foreground=palette["accent"])
         style.configure("Subtitle.TLabel", font=("TkDefaultFont", 11), foreground=palette["muted"])
         style.configure("Note.TLabel", foreground=palette["muted"])
@@ -482,6 +509,9 @@ class GuidedWindow:
         self.none_button.configure(text=self.text("select_none"))
         self.refresh_button.configure(text=self.text("refresh"))
         self.settings_frame.configure(text=self.text("settings"))
+        self.thinking_toggle.configure(text=self.text("thinking_toggle"))
+        self.sandbox_toggle.configure(text=self.text("sandbox_toggle"))
+        self._render_settings()
         self.note_label.configure(text=self.text("long_note"))
         self.status_frame.configure(text=self.text("status"))
         self.start_button.configure(text=self.text("start"))
@@ -506,17 +536,20 @@ class GuidedWindow:
         self.running = busy
         normal = "disabled" if busy else "normal"
         self.start_button.configure(state=normal if self.discovery else "disabled")
-        self.refresh_button.configure(state=normal)
+        self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
-        self.cancel_button.configure(state="normal" if busy else "disabled")
+        self.thinking_toggle.configure(state=normal)
+        self.sandbox_toggle.configure(state=normal)
+        self.cancel_button.configure(state="normal" if busy or self.detecting else "disabled")
         self.reopen_button.configure(
             state="normal" if self.latest_manifest and not busy else "disabled"
         )
 
     def refresh(self) -> None:
-        if self.running:
+        if self.running or self.detecting:
             return
+        self.detecting = True
         self.discovery = None
         self.models = []
         self.model_tree.delete(*self.model_tree.get_children())
@@ -524,6 +557,8 @@ class GuidedWindow:
         self.detail_var.set("")
         self._render_settings()
         self.start_button.configure(state="disabled")
+        self.cancel_button.configure(state="normal")
+        self.refresh_button.configure(state="disabled")
 
         def work() -> None:
             try:
@@ -545,7 +580,13 @@ class GuidedWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def _render_settings(self) -> None:
-        settings = self.orchestrator.settings_summary()
+        settings = self.orchestrator.settings_summary(
+            thinking="medium" if self.thinking_enabled.get() else "off",
+            sandbox="required" if self.sandbox_enabled.get() else "audit",
+        )
+        self.sandbox_note.configure(text=self.text(
+            "sandbox_note_on" if self.sandbox_enabled.get() else "sandbox_note_off"
+        ))
         self.settings_var.set(
             self.text(
                 "settings_line",
@@ -559,12 +600,13 @@ class GuidedWindow:
         )
 
     def _populate_models(self, payload: dict[str, Any], *, can_start: bool = True) -> None:
+        self.detecting = False
         self.discovery = payload if can_start else None
         self.models = list(payload["models"])
         self._render_model_rows({model["name"] for model in self.models})
         self._render_settings()
         self.status_var.set(self.text("ready"))
-        self.detail_var.set("")
+        self.detail_var.set(self.text("pi_compatibility") if can_start else "")
         self._set_busy(False)
 
     def _configure_model_headings(self) -> None:
@@ -642,10 +684,15 @@ class GuidedWindow:
         self.progress_var.set(0)
         self.detail_var.set("")
         discovery = self.discovery
+        thinking_mode = "medium" if self.thinking_enabled.get() else "off"
+        sandbox_mode = "required" if self.sandbox_enabled.get() else "audit"
 
         def work() -> None:
             try:
-                manifest = self.orchestrator.run(selected, discovery, callback=self.events.put)
+                manifest = self.orchestrator.run(
+                    selected, discovery, thinking=thinking_mode, sandbox=sandbox_mode,
+                    callback=self.events.put,
+                )
             except GuidedError as exc:
                 self.events.put({"type": "error", "code": exc.code, "message": str(exc)})
             except Exception as exc:
@@ -658,7 +705,7 @@ class GuidedWindow:
     def cancel(self) -> None:
         from tkinter import messagebox
 
-        if self.running and messagebox.askyesno(
+        if (self.running or self.detecting) and messagebox.askyesno(
             self.text("confirm_title"), self.text("confirm_cancel"), parent=self.root
         ):
             self.orchestrator.cancel()
@@ -726,6 +773,8 @@ class GuidedWindow:
             self.detail_var.set(self.text(kind, model=event["model"]))
         elif kind == "error":
             from tkinter import messagebox
+
+            self.detecting = False
 
             code = str(event.get("code", "unexpected"))
             message = str(event.get("message", ""))
