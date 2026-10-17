@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.12.0**
+Versione corrente / Current version: **0.12.1**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -597,3 +597,15 @@ Versione corrente / Current version: **0.12.0**
 - [x] Tag annotati `milestone/C12` e `v0.12.0` creati sul commit finale di `main`; push di `main` e tag verificati sul remoto
 - [x] GitHub Release `v0.12.0` sorgente pubblicata e verificata; nessun artifact binario di progetto o checksum applicabile
 - [x] Branch milestone locale eliminato dopo release e verifiche; branch remoto rimosso automaticamente da GitHub dopo il merge
+
+## Patch 0.12.1 – Aggiornamento dell'azione setup-node
+
+- Obiettivo: mantenere i workflow CI e Pages sulla versione revisionata di `actions/setup-node`, conservando il pin a commit e il supporto a Node 24.
+- Branch di release: `patch/0.12.1-setup-node`, creato dal merge della PR Dependabot #7 su `main`.
+- Incremento versione: `+0.0.1`, da `0.12.0` a `0.12.1`; tag previsto `v0.12.1`.
+- Attività: integrare la PR Dependabot #7 (`actions/setup-node` 7.0.0 → 7.1.0) dopo verifica del tag upstream e della CI; sincronizzare versione, README, guida rapida e test; pubblicare una release sorgente come richiesto dal progettista.
+- Criteri di accettazione: entrambi i workflow usano lo SHA ufficiale `949feb2413d6458794dcd2491c4babbbce0c15c1`; CI su macOS, Windows e Ubuntu e deploy Pages riescono dopo il merge; versione e tag coincidono; nessuna dipendenza runtime o comportamento del benchmark cambia.
+- Test: CI della PR aggiornata, CI e Pages su `main`, suite locale Python, compilazione e validazione dei casi; verificare la release e l'archivio sorgente.
+- Documentazione: `README.md`, `QUICK-START_Guided.md` e `PLAN.md`. Nessuna modifica a sicurezza, struttura, comandi o regole operative.
+- Release: `v0.12.1` sorgente, autorizzata esplicitamente dal progettista; nessun binario di progetto o relativo checksum.
+- Stato: **PR #7 integrata al commit `fd05d63`; SHA upstream verificato. CI sulla PR aggiornata (`39066068492`) e su `main` (`39066608772`) verde su macOS, Windows e Ubuntu; Pages post-merge (`39066608797`) verde. La patch `0.12.1` ha superato 147 test Python (18 skip ambientali), `compileall` e la validazione dei 6 casi; è pronta per il controllo del progettista sul commit locale. Tag e release non sono ancora stati creati.**

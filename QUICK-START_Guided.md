@@ -6,7 +6,7 @@ This workflow compares local Ollama models without requiring command composition
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.12.0;
+- checkout sorgente completo di LocalAgent Benchmark 0.12.1;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - Ollama locale avviato su `127.0.0.1` con almeno un modello tool-capable;
