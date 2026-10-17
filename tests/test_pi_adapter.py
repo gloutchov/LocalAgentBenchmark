@@ -22,7 +22,7 @@ from localagent_bench.thinking import resolve_thinking_policy
 
 class PiAdapterTests(unittest.TestCase):
     def test_current_audit_version(self):
-        self.assertEqual(3, AUDIT_VERSION)
+        self.assertEqual(4, AUDIT_VERSION)
 
     def test_extracts_usage_tools_and_final_response(self):
         lines = [
@@ -215,6 +215,57 @@ class PiAdapterTests(unittest.TestCase):
             }
             findings = audit_workspace_accesses(json.dumps(event), workspace, [workspace.parent])
             self.assertEqual([], findings)
+
+    def test_pwd_variable_tracks_nested_scratch_and_still_rejects_real_escape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "results" / "workspace"
+            workspace.mkdir(parents=True)
+            commands = {
+                "inside": (
+                    'export HOME="$PWD/.benchmark-scratch"\n'
+                    'WS="$PWD/.benchmark-scratch/smoke"\n'
+                    'mkdir -p "$WS"\n'
+                    'cd "$WS" && PYTHONPATH="$OLDPWD/src" '
+                    'python3 -m tinyjournal export note.txt ../fuori.md'
+                ),
+                "outside": (
+                    'WS="$PWD/.benchmark-scratch/smoke"\n'
+                    'cd "$WS" && python3 -m tinyjournal export note.txt ../../../fuori.md'
+                ),
+                "absolute-outside": 'cd "$PWD/.." && cat sibling.txt',
+                "oldpwd-outside": (
+                    'cd "$PWD/.benchmark-scratch/smoke"\n'
+                    'cat "$OLDPWD/../secret.txt"'
+                ),
+            }
+            events = [
+                {
+                    "type": "tool_execution_start",
+                    "toolCallId": call_id,
+                    "toolName": "bash",
+                    "args": {"command": command},
+                }
+                for call_id, command in commands.items()
+            ]
+
+            findings = audit_workspace_accesses(
+                "\n".join(json.dumps(event) for event in events),
+                workspace,
+                [workspace.parent],
+            )
+
+            self.assertEqual(
+                {
+                    "outside": {"../../../fuori.md"},
+                    "absolute-outside": {str(workspace.resolve() / "..")},
+                    "oldpwd-outside": {str(workspace.resolve() / "../secret.txt")},
+                },
+                {
+                    call_id: {item["target"] for item in findings if item["tool_call_id"] == call_id}
+                    for call_id in ("outside", "absolute-outside", "oldpwd-outside")
+                },
+            )
+            self.assertFalse(any(item["tool_call_id"] == "inside" for item in findings))
 
     def test_reports_system_temp_repository_and_network_attempts(self):
         with tempfile.TemporaryDirectory() as directory:

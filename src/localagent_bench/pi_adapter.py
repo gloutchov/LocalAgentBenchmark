@@ -20,10 +20,10 @@ from .ollama import OllamaModel
 from .thinking import PI_THINKING_LEVEL_MAP, ThinkingPolicy
 
 
-AUDIT_VERSION = 3
+AUDIT_VERSION = 4
 SCRATCH_DIRECTORY = ".benchmark-scratch"
 
-_SHELL_OPERATORS = {";", "&&", "||", "|", "&"}
+_SHELL_OPERATORS = {";", "&&", "||", "|", "&", "\n"}
 _SHELL_REDIRECTS = {"<", "<<", "<<<", ">", ">>"}
 _NETWORK_COMMANDS = {
     "curl",
@@ -324,10 +324,17 @@ def _inside(path: Path, root: Path) -> bool:
 
 def _shell_tokens(command: str) -> list[str]:
     try:
-        lexer = shlex.shlex(command, posix=(os.name != "nt"), punctuation_chars=";&|<>")
+        lexer = shlex.shlex(command, posix=(os.name != "nt"), punctuation_chars=";&|<>\n")
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         lexer.commenters = ""
-        return list(lexer)
+        tokens: list[str] = []
+        for token in lexer:
+            if "\n" in token and all(char in ";&|<>\n" for char in token):
+                tokens.extend(part for part in re.split(r"(\n)", token) if part)
+            else:
+                tokens.append(token)
+        return tokens
     except ValueError:
         return command.split()
 
@@ -431,8 +438,8 @@ def _audit_shell_command(
     findings: list[tuple[str, str, str]] = []
     control_command, heredocs = _heredoc_control_and_payloads(command)
     tokens = _shell_tokens(control_command)
-    variables: dict[str, str] = {}
     cwd = workspace.resolve(strict=False)
+    variables: dict[str, str] = {"PWD": str(cwd)}
     expect_cd_path = False
     expect_redirection_path = False
     command_name = ""
@@ -482,7 +489,7 @@ def _audit_shell_command(
         assignment = _SHELL_ASSIGNMENT.match(token)
         if assignment:
             name = token.split("=", 1)[0]
-            variables[name] = _expand_shell_variables(assignment.group(1), variables)
+            variables[name] = _path_value(token, variables)
             continue
         if not command_name:
             command_name = Path(token).name.casefold()
@@ -551,7 +558,9 @@ def _audit_shell_command(
                 )
                 findings.append((reason, value, "command_argument"))
             if expect_cd_path:
+                variables["OLDPWD"] = str(cwd)
                 cwd = resolved
+                variables["PWD"] = str(cwd)
         expect_cd_path = False
     return findings
 
