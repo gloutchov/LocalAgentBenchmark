@@ -8,6 +8,7 @@ import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -24,6 +25,7 @@ from localagent_bench.guided import (
 )
 from localagent_bench.dashboard_data import DashboardDataError
 from localagent_bench.guided_process import ManagedProcessRunner, ProcessResult
+from localagent_bench.sandbox import SandboxError
 
 
 def write_phase(
@@ -340,7 +342,7 @@ class GuidedTests(unittest.TestCase):
                 dashboard_starter=start_dashboard,
             )
             discovery = {"ok": True, "models": [{"name": model} for model in models]}
-            manifest_path = orchestrator.run(models, discovery)
+            manifest_path = orchestrator.run(models, discovery, thinking="medium", sandbox="audit")
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
             self.assertEqual(["smoke", "standard", "full"], [item["profile"] for item in payload["phases"]])
@@ -351,10 +353,36 @@ class GuidedTests(unittest.TestCase):
             self.assertNotIn("showcase", json.dumps(payload))
             self.assertNotIn("results_dashboard", json.dumps(payload))
             self.assertEqual("completed", payload["status"])
+            self.assertEqual("medium", payload["settings"]["thinking"])
+            self.assertEqual("audit", payload["settings"]["sandbox"])
             self.assertEqual(1, len(dashboard_commands))
             for command in runner.commands:
                 self.assertIsInstance(command, list)
                 self.assertNotIn("shell=True", command)
+                self.assertEqual("medium", command[command.index("--thinking") + 1])
+                self.assertEqual("audit", command[command.index("--sandbox") + 1])
+
+    def test_guided_rejects_invalid_modes_before_creating_session(self):
+        config = load_config(ROOT / "benchmark.json")
+        orchestrator = GuidedOrchestrator(config, ROOT / "benchmark.json")
+        discovery = {"ok": True, "models": [{"name": "safe-model"}]}
+        with self.assertRaises(GuidedError) as raised:
+            orchestrator.run(["safe-model"], discovery, thinking="unknown", sandbox="audit")
+        self.assertEqual("invalid_setting", raised.exception.code)
+        with self.assertRaises(GuidedError) as raised:
+            orchestrator.run(["safe-model"], discovery, thinking="off", sandbox="unsupported")
+        self.assertEqual("invalid_setting", raised.exception.code)
+        self.assertIsNone(orchestrator.manifest_path)
+
+    def test_required_sandbox_failure_does_not_create_session(self):
+        config = load_config(ROOT / "benchmark.json")
+        orchestrator = GuidedOrchestrator(config, ROOT / "benchmark.json")
+        discovery = {"ok": True, "models": [{"name": "safe-model"}]}
+        with patch("localagent_bench.guided.select_sandbox", side_effect=SandboxError("backend unavailable")):
+            with self.assertRaises(GuidedError) as raised:
+                orchestrator.run(["safe-model"], discovery, thinking="medium", sandbox="required")
+        self.assertEqual("sandbox_unavailable", raised.exception.code)
+        self.assertIsNone(orchestrator.manifest_path)
 
     def test_integration_continues_after_per_model_task_failures(self):
         base = load_config(ROOT / "benchmark.json")

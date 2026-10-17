@@ -462,8 +462,33 @@
 
   function renderTasks(view, onDetails) {
     const container = document.getElementById("tasks");
-    if (!view.tasks.length) {
+    const parts = [];
+    if (view.exclusions && view.exclusions.length) {
+      parts.push(element("h3", "", t("exclusions")));
+      parts.push(element("p", "section-note", t("exclusion_note")));
+      const exclusionList = element("div", "exclusion-list");
+      view.exclusions.forEach((exclusion) => {
+        const card = element("article", "exclusion-card");
+        card.append(element("h4", "", exclusion.model));
+        const details = element("dl", "exclusion-details");
+        const entries = [
+          ["profile", `${exclusion.profile} · ${exclusion.run_id}`],
+          ["exclusion_scope", exclusion.case_id || t("preflight_or_run")],
+          ["exclusion_reason", t(`exclusion_${exclusion.reason}`)],
+          ["sandbox", `${exclusion.sandbox_backend} · ${t(exclusion.sandbox_enforced ? "enforced" : "not_enforced")}`],
+        ];
+        entries.forEach(([label, value]) => details.append(element("dt", "", t(label)), element("dd", "", value)));
+        card.append(details);
+        exclusionList.append(card);
+      });
+      parts.push(exclusionList);
+    }
+    if (!view.tasks.length && !parts.length) {
       container.replaceChildren(emptyState("no_tasks"));
+      return;
+    }
+    if (!view.tasks.length) {
+      container.replaceChildren(...parts);
       return;
     }
     const { wrapper, body } = tableShell(["model", "case", "profile", "thinking_control", "state", "overall", "duration", "output_tokens", "actions"]);
@@ -495,7 +520,7 @@
       row.append(model, caseCell, profile, thinking, state, score, duration, tokens, actions);
       body.append(row);
     });
-    container.replaceChildren(wrapper);
+    container.replaceChildren(...parts, wrapper);
   }
 
   function renderRuns(view) {

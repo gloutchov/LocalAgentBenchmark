@@ -37,6 +37,10 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Impostazioni effettive",
+        "thinking_toggle": "Thinking attivo (medium)",
+        "sandbox_toggle": "Sandbox OS obbligatoria (required)",
+        "sandbox_note_off": "Solo audit: nessun isolamento OS.",
+        "sandbox_note_on": "Sandbox OS obbligatoria: l'avvio fallisce se il backend non è disponibile.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promozione: {first} → {second}",
         "select_all": "Seleziona tutti",
         "select_none": "Deseleziona tutti",
@@ -81,6 +85,10 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Effective settings",
+        "thinking_toggle": "Enable thinking (medium)",
+        "sandbox_toggle": "Require OS sandbox (required)",
+        "sandbox_note_off": "Audit only: no OS isolation.",
+        "sandbox_note_on": "OS sandbox required: startup fails if the backend is unavailable.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promotion: {first} → {second}",
         "select_all": "Select all",
         "select_none": "Select none",
@@ -329,6 +337,8 @@ class GuidedWindow:
         )
         self.language_choice = tk.StringVar(value=preferences.get("language", "auto"))
         self.theme_choice = tk.StringVar(value=preferences.get("theme", "auto"))
+        self.thinking_enabled = tk.BooleanVar(value=self.config.defaults.thinking != "off")
+        self.sandbox_enabled = tk.BooleanVar(value=self.config.defaults.sandbox == "required")
         self.title_var = tk.StringVar()
         self.subtitle_var = tk.StringVar()
         self.status_var = tk.StringVar()
@@ -422,7 +432,19 @@ class GuidedWindow:
 
         self.settings_frame = ttk.LabelFrame(outer, padding=12)
         self.settings_frame.pack(fill="x", pady=10)
+        toggles = ttk.Frame(self.settings_frame)
+        toggles.pack(fill="x")
+        self.thinking_toggle = ttk.Checkbutton(
+            toggles, variable=self.thinking_enabled, command=self._render_settings
+        )
+        self.thinking_toggle.pack(side="left", padx=(0, 24))
+        self.sandbox_toggle = ttk.Checkbutton(
+            toggles, variable=self.sandbox_enabled, command=self._render_settings
+        )
+        self.sandbox_toggle.pack(side="left")
         ttk.Label(self.settings_frame, textvariable=self.settings_var, justify="left", wraplength=820).pack(anchor="w")
+        self.sandbox_note = ttk.Label(self.settings_frame, style="Note.TLabel", wraplength=820)
+        self.sandbox_note.pack(anchor="w", pady=(4, 0))
         self.note_label = ttk.Label(self.settings_frame, style="Note.TLabel", wraplength=820)
         self.note_label.pack(anchor="w", pady=(6, 0))
 
@@ -465,6 +487,8 @@ class GuidedWindow:
         style.configure("TLabelframe", background=palette["background"], foreground=palette["foreground"])
         style.configure("TLabelframe.Label", background=palette["background"], foreground=palette["accent"])
         style.configure("TLabel", background=palette["background"], foreground=palette["foreground"])
+        style.configure("TCheckbutton", background=palette["background"], foreground=palette["foreground"])
+        style.map("TCheckbutton", background=[("active", palette["background"])], foreground=[("disabled", palette["muted"])])
         style.configure("Title.TLabel", font=("TkDefaultFont", 20, "bold"), foreground=palette["accent"])
         style.configure("Subtitle.TLabel", font=("TkDefaultFont", 11), foreground=palette["muted"])
         style.configure("Note.TLabel", foreground=palette["muted"])
@@ -485,6 +509,9 @@ class GuidedWindow:
         self.none_button.configure(text=self.text("select_none"))
         self.refresh_button.configure(text=self.text("refresh"))
         self.settings_frame.configure(text=self.text("settings"))
+        self.thinking_toggle.configure(text=self.text("thinking_toggle"))
+        self.sandbox_toggle.configure(text=self.text("sandbox_toggle"))
+        self._render_settings()
         self.note_label.configure(text=self.text("long_note"))
         self.status_frame.configure(text=self.text("status"))
         self.start_button.configure(text=self.text("start"))
@@ -512,6 +539,8 @@ class GuidedWindow:
         self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
+        self.thinking_toggle.configure(state=normal)
+        self.sandbox_toggle.configure(state=normal)
         self.cancel_button.configure(state="normal" if busy or self.detecting else "disabled")
         self.reopen_button.configure(
             state="normal" if self.latest_manifest and not busy else "disabled"
@@ -551,7 +580,13 @@ class GuidedWindow:
         threading.Thread(target=work, daemon=True).start()
 
     def _render_settings(self) -> None:
-        settings = self.orchestrator.settings_summary()
+        settings = self.orchestrator.settings_summary(
+            thinking="medium" if self.thinking_enabled.get() else "off",
+            sandbox="required" if self.sandbox_enabled.get() else "audit",
+        )
+        self.sandbox_note.configure(text=self.text(
+            "sandbox_note_on" if self.sandbox_enabled.get() else "sandbox_note_off"
+        ))
         self.settings_var.set(
             self.text(
                 "settings_line",
@@ -649,10 +684,15 @@ class GuidedWindow:
         self.progress_var.set(0)
         self.detail_var.set("")
         discovery = self.discovery
+        thinking_mode = "medium" if self.thinking_enabled.get() else "off"
+        sandbox_mode = "required" if self.sandbox_enabled.get() else "audit"
 
         def work() -> None:
             try:
-                manifest = self.orchestrator.run(selected, discovery, callback=self.events.put)
+                manifest = self.orchestrator.run(
+                    selected, discovery, thinking=thinking_mode, sandbox=sandbox_mode,
+                    callback=self.events.put,
+                )
             except GuidedError as exc:
                 self.events.put({"type": "error", "code": exc.code, "message": str(exc)})
             except Exception as exc:
