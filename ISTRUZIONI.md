@@ -8,7 +8,7 @@ LocalAgent Benchmark confronta modelli locali Ollama quando lavorano come coding
 
 - Python 3.10+ e Git nel `PATH`;
 - Ollama installato, avviato e raggiungibile su loopback;
-- Pi 0.85.1 installato come comando `pi` (altre versioni vengono rifiutate finché non superano il test contrattuale);
+- Pi installato come comando `pi` (ogni versione deve superare il test di compatibilità locale);
 - modelli Ollama già scaricati;
 - spazio libero sufficiente per una copia delle fixture per ogni esecuzione.
 
@@ -21,6 +21,8 @@ python3 benchmark.py doctor
 ```
 
 Il comando mostra versioni, controlli falliti, capability thinking e compatibilità preliminare dei modelli, oltre allo stato di pulizia degli input, senza eseguire task agentici. La compatibilità definitiva richiede comunque il preflight del run.
+
+`doctor` e ogni avvio di benchmark eseguono tre richieste sintetiche tramite il Pi configurato verso un server temporaneo su `127.0.0.1`: thinking disattivato, thinking `medium` ed errore provider. Il controllo verifica payload, eventi e retry senza chiamare Ollama; usa tool disabilitati, `--offline`, directory isolate e il backend sandbox selezionato. Il timeout per ciascuna richiesta è `defaults.pi_contract_timeout_seconds` (30 secondi per impostazione predefinita, valori ammessi 10–300). La GUI mostra l'esito durante il rilevamento e consente di annullarlo; ogni fase CLI ripete il controllo. Nei risultati restano solo stato e codice diagnostico, mai prompt o risposta del probe. Il preflight thinking sul modello Ollama resta separato e obbligatorio.
 
 ## 3. Primo avvio
 
@@ -258,7 +260,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 ## 8. Risoluzione problemi
 
 - `Ollama non raggiungibile`: avviare Ollama e verificare `ollama list`.
-- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato Ollama/installato Pi 0.85.1; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
+- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato Ollama/installato Pi; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
 - percorso guidato interrotto: consultare `results/guided-*/guided-run.json` e i run già creati; nessun risultato parziale viene promosso e nessun run precedente viene cancellato.
 - dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a tre run disponibili vengono riutilizzati senza rieseguire i modelli.
 - `pi: comando non trovato`: installare Pi o modificare `pi.command` con il percorso corretto.
@@ -270,7 +272,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 - `Input benchmark modificati`: ripristinare o committare intenzionalmente `AGENTS.md`, `.gitignore` e i file dei casi prima di riprovare; non usare una fixture già completata.
 - `Manifesto mancante` o `paths.*`: completare `case.json`, usare soltanto path relativi POSIX interni al caso e rimuovere symlink sui path dichiarati; rieseguire `case validate`.
 - errore `max_score`, `points`, `earned` o baseline: correggere il contratto del grader; i check devono totalizzare 100 e la fixture iniziale deve restare sotto 60.
-- errore `Versione Pi non verificata`: installare Pi 0.85.1 oppure verificare e aggiornare intenzionalmente test contrattuale, versione supportata e documentazione;
+- errore `Controllo compatibilità Pi fallito`: leggere il controllo indicato, verificare il comando `pi` e la sandbox selezionata; Pi 0.85.1 è la versione di riferimento verificata, ma non risolve necessariamente ogni problema;
 - `thinking_control_unverified`: controllare capability, esito preflight, versione Ollama e supporto del livello richiesto; non forzare un fallback;
 - `unexpected_thinking` o `unexpected_retry`: conservare gli artefatti, escludere il modello e correggere il controllo prima di un nuovo run;
 - errore `dashboard-data`: verificare schema 2/3/4, coerenza del profilo, directory distinte e path interni alla root; usare `--force` soltanto dopo aver revisionato il file da sostituire.

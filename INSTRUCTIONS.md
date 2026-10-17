@@ -8,7 +8,7 @@ LocalAgent Benchmark compares local Ollama models acting as coding agents throug
 
 - Python 3.10+ and Git on `PATH`;
 - Ollama running on the configured loopback endpoint;
-- Pi 0.85.1 available as the `pi` command (other versions are rejected until they pass the contract test);
+- Pi available as the `pi` command (every version must pass the local compatibility test);
 - one or more downloaded Ollama models;
 - enough disk space for one fixture workspace per attempt.
 
@@ -21,6 +21,8 @@ python3 benchmark.py doctor
 ```
 
 The command reports versions, model thinking capabilities and preliminary compatibility, and verifies that `AGENTS.md`, `.gitignore`, manifests, prompts, fixtures, graders, and optional rubrics are clean relative to Git. Definitive compatibility still requires the run preflight.
+
+`doctor` and every benchmark start send three synthetic requests through the configured Pi command to a temporary `127.0.0.1` server: thinking off, thinking `medium`, and a provider error. The check inspects payloads, events, and retries without contacting Ollama. It uses disabled tools, `--offline`, isolated directories, and the selected sandbox. `defaults.pi_contract_timeout_seconds` controls each request (default 30 seconds; allowed 10–300). The GUI reports the result during discovery and lets you cancel it; each CLI phase repeats the check. Results retain only status and a diagnostic code, never probe prompts or responses. The model-specific Ollama thinking preflight remains mandatory.
 
 ## 3. First run
 
@@ -237,7 +239,7 @@ Use the same configuration, profile, thinking mode, repetitions, seed, hardware,
 ## 8. Troubleshooting
 
 - `Ollama non raggiungibile`: start Ollama and check `ollama list`.
-- Guided GUI has no models or prerequisites: start Ollama or install Pi 0.85.1, then choose **Detect again**; review and commit dirty protected inputs rather than bypassing the preflight.
+- Guided GUI has no models or prerequisites: start Ollama or install Pi, then choose **Detect again**; review and commit dirty protected inputs rather than bypassing the preflight.
 - Guided path stopped: inspect `results/guided-*/guided-run.json` and existing stage runs; partial data is never promoted and earlier runs are never deleted.
 - Guided dashboard failed to start: resolve the local issue and use **Reopen dashboard**; completed run data is not regenerated.
 - `pi: command not found`: install Pi or update `pi.command`.
@@ -249,7 +251,7 @@ Use the same configuration, profile, thinking mode, repetitions, seed, hardware,
 - `Input benchmark modificati`: restore or intentionally commit the listed benchmark inputs before rerunning.
 - `Manifesto mancante` or `paths.*`: complete `case.json`, use only POSIX-style relative paths inside the case, remove symlinks from declared paths, and rerun `case validate`.
 - `max_score`, `points`, `earned`, or baseline errors: repair the grader contract; checks must total 100 and the starting fixture must remain below 60.
-- `Versione Pi non verificata`: install Pi 0.85.1, or deliberately verify and update the contract test, supported-version gate, and documentation.
+- `Controllo compatibilità Pi fallito`: inspect the failed check, configured Pi command, and selected sandbox; Pi 0.85.1 is the verified reference version but may not resolve unrelated problems.
 - `thinking_control_unverified`: inspect capabilities, preflight status, Ollama version, and support for the requested level; never force a fallback.
 - `unexpected_thinking` or `unexpected_retry`: retain the evidence, exclude the model, and correct the control before a new run.
 - `dashboard-data` error: verify schema 2/3/4, consistent profiles, distinct directories, and paths inside the project root; use `--force` only after reviewing the file being replaced.

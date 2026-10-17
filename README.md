@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli Ollama usati c
 
 Personal, repeatable, offline benchmark for comparing Ollama models used as coding agents through [Pi](https://pi.dev). Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.11.1 – landing con percorsi guidato e full immersion distinti / landing with distinct guided and full-immersion paths**
+Stato / Status: **0.12.0 – compatibilità Pi verificata all’avvio / Pi compatibility checked at startup**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **run benchmark Pi/Ollama reali verificati soltanto su macOS e Windows; Linux è coperto dalla CI, ma non è ancora stato validato con uno smoke Pi/Ollama reale. / Real Pi/Ollama benchmark runs have been verified only on macOS and Windows; Linux is covered by CI, but has not yet been validated with a real Pi/Ollama smoke run.**
 Licenza / License: Apache-2.0
@@ -39,9 +39,11 @@ La sandbox OS è opzionale: macOS usa `sandbox-exec`; Linux richiede `bwrap`, `u
 
 The OS sandbox is optional: macOS uses `sandbox-exec`; Linux requires `bwrap`, `unshare`, and usable user/network namespaces; Windows 10/11 uses AppContainer. Each backend is enabled only after a real probe. `doctor` always reports the backend and capabilities that are actually available.
 
-Non servono pacchetti Python esterni. Pi **0.85.1** è la versione supportata e coperta dal test contrattuale del payload; `doctor` rifiuta versioni diverse finché non vengono verificate.
+Non servono pacchetti Python esterni. `doctor` e ogni run verificano il comando Pi configurato su un server OpenAI-compatible sintetico in loopback prima delle task. Sono accettate le versioni che superano il contratto; se fallisce, il programma indica il controllo fallito e suggerisce Pi **0.85.1** come versione di riferimento verificata.
 
-No external Python packages are required. Pi **0.85.1** is the supported version covered by the request-payload contract test; `doctor` rejects other versions until they are verified.
+No external Python packages are required. `doctor` and every run test the configured Pi command against a synthetic OpenAI-compatible loopback server before tasks. Versions that pass the contract are accepted; on failure, the program identifies the failed check and suggests Pi **0.85.1** as the verified reference version.
+
+Il controllo Pi usa tre richieste sintetiche, tool disabilitati, `--offline` e la sandbox selezionata; `defaults.pi_contract_timeout_seconds` limita ogni richiesta (default 30 s). La GUI lo esegue nel rilevamento e lo ripete in ogni fase. Stato e versione del contratto sono registrati in `run.json`, senza contenuti del probe. Il preflight thinking del modello Ollama resta separato. / The Pi check uses three synthetic requests, disabled tools, `--offline`, and the selected sandbox; `defaults.pi_contract_timeout_seconds` limits each request (default 30 s). The GUI checks during discovery and again in every phase. `run.json` records only the contract version and status. The Ollama model thinking preflight remains separate.
 
 Per vedere subito risultati comprensibili, avviare la dashboard locale; userà automaticamente i run compatibili presenti in `results/`:
 

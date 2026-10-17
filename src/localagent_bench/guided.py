@@ -330,7 +330,13 @@ class GuidedOrchestrator:
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto Ollama locale")
-        payload = self.doctor_function(self.config)
+        self.cancel_event.clear()
+        payload = (
+            self.doctor_function(self.config, cancel_event=self.cancel_event)
+            if self.doctor_function is doctor else self.doctor_function(self.config)
+        )
+        if self.cancel_event.is_set():
+            raise GuidedError("cancelled", "Controllo prerequisiti annullato")
         if not isinstance(payload, dict):
             raise GuidedError("prerequisites", "Risposta doctor non valida")
         models = payload.get("models")
@@ -340,12 +346,12 @@ class GuidedOrchestrator:
             if not isinstance(item, dict) or not isinstance(item.get("name"), str):
                 raise GuidedError("prerequisites", "Elenco modelli non valido")
             validate_model_name(item["name"])
-        if not models:
-            raise GuidedError("no_models", "Nessun modello Ollama locale rilevato")
         if not payload.get("ok"):
             error = _error_from_doctor(payload)
             error.context = payload
             raise error
+        if not models:
+            raise GuidedError("no_models", "Nessun modello Ollama locale rilevato")
         return payload
 
     def settings_summary(self) -> dict[str, Any]:

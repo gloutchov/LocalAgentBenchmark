@@ -6,14 +6,14 @@ This workflow compares local Ollama models without requiring command composition
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.11.0;
+- checkout sorgente completo di LocalAgent Benchmark 0.12.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - Ollama locale avviato su `127.0.0.1` con almeno un modello tool-capable;
-- Pi 0.85.1 disponibile come `pi`;
+- Pi disponibile come `pi`; compatibilità verificata durante il rilevamento e prima di ogni fase;
 - `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubriche selezionati puliti rispetto a Git.
 
-The source checkout, Python 3.10+ with Tkinter, Git, local Ollama, Pi 0.85.1, and clean protected benchmark inputs are required. No third-party Python package is added.
+The source checkout, Python 3.10+ with Tkinter, Git, local Ollama, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
 
 ## Avvio con doppio clic / Double-click launch
 
@@ -102,7 +102,7 @@ The quick path never runs `showcase`, never selects `results_dashboard`, never a
 - **Tkinter non disponibile / Tkinter unavailable:** installare una distribuzione Python che includa Tk; i launcher sorgente non scaricano componenti.
 - **Ollama non raggiungibile / Ollama unavailable:** avviare Ollama localmente e usare un endpoint loopback in `benchmark.json`.
 - **Nessun modello / No models:** scaricare almeno un modello tool-capable con Ollama, poi scegliere **Rileva di nuovo / Detect again**.
-- **Pi non disponibile o versione errata / Pi missing or wrong version:** installare Pi 0.85.1 e verificare che `pi` sia nel `PATH` del launcher grafico.
+- **Pi non disponibile o versione errata / Pi missing or wrong version:** verificare che `pi` sia nel `PATH` del launcher grafico e leggere il controllo fallito; Pi 0.85.1 è la versione di riferimento verificata.
 - **Input protetti sporchi / Dirty protected inputs:** revisionare e committare legittimamente le modifiche prima del benchmark; non aggirare il preflight.
 - **Sandbox required non disponibile / required sandbox unavailable:** installare/configurare il backend previsto oppure cambiare consapevolmente `benchmark.json`; non avviene alcun downgrade automatico.
 - **Task fallita o fase incompleta / Failed task or incomplete stage:** consultare la directory mostrata e i report; il funnel non prosegue.

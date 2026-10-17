@@ -35,6 +35,7 @@
 │   ├── thinking.py                 # mapping puro e policy thinking Pi/Ollama
 │   ├── ollama.py                   # tags/version, capability, preflight, warmup e unload
 │   ├── pi_adapter.py               # config/payload Pi, JSONL, retry, scratch e audit path/rete
+│   ├── pi_compatibility.py         # server sintetico loopback e gate contrattuale Pi
 │   ├── runner.py                   # ordine seeded, preflight, workspace, controlli e artefatti
 │   ├── grading.py                  # esecuzione isolata e timeout dei grader
 │   ├── sandbox.py                  # selezione, probe e launch Seatbelt/bubblewrap/AppContainer/audit
@@ -80,6 +81,7 @@
 │   ├── test_site_javascript.py     # esecuzione della suite Node della landing page
 │   ├── test_ollama.py              # capability, mapping, preflight e warmup thinking
 │   ├── test_pi_thinking_contract.py # Pi reale contro server OpenAI-compatible fittizio
+│   ├── test_pi_compatibility.py    # regressioni del gate Pi con payload/errori simulati
 │   └── ...                         # runner, parser/status provider, sandbox, metriche, confronti e grader
 ├── results/                        # output, snapshot input, hash e workspace; ignorato da Git
 ├── .localagent-benchmark/          # preferenze GUI locali validate; generata e ignorata

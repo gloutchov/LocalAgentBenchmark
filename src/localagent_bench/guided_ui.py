@@ -50,6 +50,7 @@ TEXT = {
         "running": "Fase {index}/3: {profile} · {count} modelli",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Controllo thinking: {model}",
+        "pi_compatibility": "Compatibilità Pi verificata",
         "warmup": "Warmup: {model}",
         "confirm_title": "Conferma avvio",
         "confirm": "Il benchmark può richiedere molto tempo e userà i modelli selezionati in tre fasi. Avviare ora?",
@@ -93,6 +94,7 @@ TEXT = {
         "running": "Stage {index}/3: {profile} · {count} models",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Thinking check: {model}",
+        "pi_compatibility": "Pi compatibility verified",
         "warmup": "Warmup: {model}",
         "confirm_title": "Confirm start",
         "confirm": "The benchmark can take a long time and will use the selected models in three stages. Start now?",
@@ -317,6 +319,7 @@ class GuidedWindow:
         self.discovery: dict[str, Any] | None = None
         self.models: list[dict[str, Any]] = []
         self.running = False
+        self.detecting = False
         self.close_requested = False
         self.latest_manifest = find_latest_manifest(self.config)
         self.sort_column = "name"
@@ -506,17 +509,18 @@ class GuidedWindow:
         self.running = busy
         normal = "disabled" if busy else "normal"
         self.start_button.configure(state=normal if self.discovery else "disabled")
-        self.refresh_button.configure(state=normal)
+        self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
-        self.cancel_button.configure(state="normal" if busy else "disabled")
+        self.cancel_button.configure(state="normal" if busy or self.detecting else "disabled")
         self.reopen_button.configure(
             state="normal" if self.latest_manifest and not busy else "disabled"
         )
 
     def refresh(self) -> None:
-        if self.running:
+        if self.running or self.detecting:
             return
+        self.detecting = True
         self.discovery = None
         self.models = []
         self.model_tree.delete(*self.model_tree.get_children())
@@ -524,6 +528,8 @@ class GuidedWindow:
         self.detail_var.set("")
         self._render_settings()
         self.start_button.configure(state="disabled")
+        self.cancel_button.configure(state="normal")
+        self.refresh_button.configure(state="disabled")
 
         def work() -> None:
             try:
@@ -559,12 +565,13 @@ class GuidedWindow:
         )
 
     def _populate_models(self, payload: dict[str, Any], *, can_start: bool = True) -> None:
+        self.detecting = False
         self.discovery = payload if can_start else None
         self.models = list(payload["models"])
         self._render_model_rows({model["name"] for model in self.models})
         self._render_settings()
         self.status_var.set(self.text("ready"))
-        self.detail_var.set("")
+        self.detail_var.set(self.text("pi_compatibility") if can_start else "")
         self._set_busy(False)
 
     def _configure_model_headings(self) -> None:
@@ -658,7 +665,7 @@ class GuidedWindow:
     def cancel(self) -> None:
         from tkinter import messagebox
 
-        if self.running and messagebox.askyesno(
+        if (self.running or self.detecting) and messagebox.askyesno(
             self.text("confirm_title"), self.text("confirm_cancel"), parent=self.root
         ):
             self.orchestrator.cancel()
@@ -726,6 +733,8 @@ class GuidedWindow:
             self.detail_var.set(self.text(kind, model=event["model"]))
         elif kind == "error":
             from tkinter import messagebox
+
+            self.detecting = False
 
             code = str(event.get("code", "unexpected"))
             message = str(event.get("message", ""))

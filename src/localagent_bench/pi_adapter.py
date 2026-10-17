@@ -9,6 +9,7 @@ import shlex
 import signal
 import subprocess
 import time
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -21,7 +22,6 @@ from .thinking import PI_THINKING_LEVEL_MAP, ThinkingPolicy
 
 AUDIT_VERSION = 3
 SCRATCH_DIRECTORY = ".benchmark-scratch"
-SUPPORTED_PI_VERSIONS = ("0.85.1",)
 
 _SHELL_OPERATORS = {";", "&&", "||", "|", "&"}
 _SHELL_REDIRECTS = {"<", "<<", "<<<", ">", ">>"}
@@ -176,6 +176,9 @@ def run_pi(
     timeout_seconds: int,
     sandbox: SandboxSelection,
     ollama_url: str,
+    *,
+    tools: str = "read,bash,edit,write,grep,find,ls",
+    cancel_event: threading.Event | None = None,
 ) -> PiRun:
     command = [
         *pi_command,
@@ -190,7 +193,7 @@ def run_pi(
         "--thinking",
         thinking,
         "--tools",
-        "read,bash,edit,write,grep,find,ls",
+        tools,
         "--no-session",
         "--no-extensions",
         "--no-skills",
@@ -239,8 +242,28 @@ def run_pi(
     )
     try:
         outer_timeout = timeout_seconds + 300 if sandbox.backend == "windows-appcontainer" else timeout_seconds
-        stdout, stderr = process.communicate(timeout=outer_timeout)
-        if process.returncode == 0:
+        cancelled = False
+        if cancel_event is None:
+            stdout, stderr = process.communicate(timeout=outer_timeout)
+        else:
+            deadline = time.monotonic() + outer_timeout
+            while True:
+                if cancel_event.is_set():
+                    _terminate(process)
+                    stdout, stderr = process.communicate()
+                    cancelled = True
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(launch.command, outer_timeout)
+                try:
+                    stdout, stderr = process.communicate(timeout=min(0.2, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+                break
+        if cancelled:
+            status = "cancelled"
+        elif process.returncode == 0:
             status = "ok"
         elif process.returncode == 124 and sandbox.backend == "windows-appcontainer":
             status = "timeout"
