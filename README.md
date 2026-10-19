@@ -6,7 +6,7 @@ Personal, repeatable, offline benchmark for comparing local models used as codin
 
 Stato / Status: **0.13.0 – provider locali in verifica sul branch milestone / local providers under milestone verification**
 Piattaforme / Platforms: macOS, Windows, Linux
-Verifica reale / Real-world validation: **i run Pi/Ollama sono stati verificati su macOS e Windows; i nuovi adapter LM Studio e llama.cpp hanno test sintetici, ma attendono uno smoke con runtime e modello reali. / Pi/Ollama runs have been verified on macOS and Windows; the new LM Studio and llama.cpp adapters have synthetic tests but still need smoke tests with real runtimes and models.**
+Verifica reale / Real-world validation: **Pi/Ollama è stato verificato su macOS e Windows; LM Studio ha completato lo smoke con due modelli classificabili su macOS. Dopo la correzione del router, un percorso guidato llama.cpp ha completato smoke, standard e full su macOS, con integrità e controllo thinking regolari. Mistral 7B è arrivato fino a full, ma nessuna sua task ha raggiunto la soglia di 60/100; Gemma 4 è andato in timeout nello smoke. / Pi/Ollama has been verified on macOS and Windows; LM Studio completed a smoke run with two rankable models on macOS. After the router fix, a llama.cpp guided run completed smoke, standard, and full on macOS with integrity and thinking control passed. Mistral 7B reached full, but none of its tasks met the 60/100 completion threshold; Gemma 4 timed out during smoke.**
 Licenza / License: Apache-2.0
 
 ## Cosa misura / What it measures
@@ -260,7 +260,7 @@ In **Choose files**, select only one or more `dashboard-data.json` exports creat
 
 ## Landing page / Project landing page
 
-La landing page pubblica vive sotto [`site/`](site/) ed è pronta per GitHub Pages all'indirizzo `https://gloutchov.github.io/LocalAgentBenchmark/`. Per l'anteprima locale dalla root del repository:
+La landing page pubblica vive sotto [`site/`](site/) ed è pronta per GitHub Pages all'indirizzo `https://gloutchov.github.io/LocalAgentBenchmark/`. L'hero presenta Ollama, LM Studio e llama.cpp come provider locali e collega la [guida di configurazione](QUICK-START_LocalProviders.md), presente anche nella sezione documentazione. Per l'anteprima locale dalla root del repository:
 
 ```bash
 python3 -m http.server 8000 --bind 127.0.0.1 --directory site
@@ -268,7 +268,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 
 Aprire `http://127.0.0.1:8000/` e terminare con `Ctrl+C`. La pagina rileva la lingua del browser, usa italiano soltanto per locale italiani e inglese negli altri casi; lingua e tema possono essere scelti manualmente e sono le sole preferenze salvate in `localStorage`. Tutto il sito è statico: HTML, CSS, JavaScript, font di sistema e immagini sono locali, senza CDN, analytics, telemetria, form o richieste runtime remote. I link a repository, release, documentazione e sito personale sono navigazioni esterne esplicite.
 
-The public landing page lives under [`site/`](site/) and is ready for GitHub Pages at `https://gloutchov.github.io/LocalAgentBenchmark/`. Preview it locally with the command above. The page detects browser language, defaults to Italian only for Italian locales and to English otherwise, and persists only explicit language and theme choices. All runtime assets are local and the site has no CDN, analytics, telemetry, forms, or remote runtime requests.
+The public landing page lives under [`site/`](site/) and is ready for GitHub Pages at `https://gloutchov.github.io/LocalAgentBenchmark/`. Its hero presents Ollama, LM Studio, and llama.cpp as local providers and links to the [setup guide](QUICK-START_LocalProviders.md), also listed in the documentation section. Preview it locally with the command above. The page detects browser language, defaults to Italian only for Italian locales and to English otherwise, and persists only explicit language and theme choices. All runtime assets are local and the site has no CDN, analytics, telemetry, forms, or remote runtime requests.
 
 I fotogrammi sotto `site/assets/` sono derivati ottimizzati dei video locali `assets/Dashboard.mov` e `assets/Guided.mov`: i sorgenti restano ignorati da Git, non vengono pubblicati e non vanno modificati. Quando cambiano testi o UI, mantenere sincronizzati i dizionari in `site/js/i18n.js`, aggiornare entrambe le immagini fallback/WebP quando necessario e verificare `site/index.html`, `site/404.html`, il prefisso Pages `/LocalAgentBenchmark/` e i test statici.
 

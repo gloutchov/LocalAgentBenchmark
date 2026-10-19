@@ -47,6 +47,8 @@ Su Windows sostituire `<directory-gguf>` con il path reale fra virgolette; se ne
 
 Poi eseguire `doctor`, `list` e uno smoke su un solo modello come sopra. L'integrazione usa il server ufficiale llama.cpp. `node-llama-cpp` è una libreria: per usarla con questo benchmark occorrerebbe un bridge HTTP che implementi l'API e i controlli del provider; non è un adapter incluso.
 
+`/models/load` e `/models/unload` possono confermare le richieste prima che l'istanza del modello abbia concluso il cambio di stato. Il benchmark attende `loaded` da `/models` prima dell'inferenza e `unloaded` prima di un nuovo caricamento. Un processo fallito o un timeout di caricamento escludono il modello prima dell'inferenza. Caricamento e scaricamento non contribuiscono ai tempi della task.
+
 ### Provenienza e confronti
 
 Per `compare` su più run LM Studio/llama.cpp, aggiungere alla sezione `provider` la versione del runtime letta localmente (`lms --version` o `llama-server --version`) e il file GGUF effettivo di ogni modello selezionato:
@@ -91,6 +93,8 @@ llama-server --models-dir <gguf-directory> --no-models-autoload --jinja --host 1
 ```
 
 On Windows, replace `<gguf-directory>` with the real path in quotes; use the full path to `llama-server.exe` if needed. Keep `-c 32768` consistent with `defaults.context_window` in `benchmark.json` and ensure enough memory is available. Set `"provider": {"kind": "llama_cpp", "url": "http://127.0.0.1:8080"}`. The benchmark uses `/models/load` and `/models/unload`, so `--no-models-autoload` is supported. `--jinja` enables tool-compatible chat templates. This integration uses the official llama.cpp server. `node-llama-cpp` is a library; using it here would require a separate HTTP bridge implementing the provider API and controls.
+
+`/models/load` and `/models/unload` may acknowledge requests before the model instance has finished changing state. The benchmark waits for `/models` to report `loaded` before inference and `unloaded` before another load. A failed child process or load timeout excludes the model before inference. Loading and unloading time do not count toward task timing.
 
 To aggregate LM Studio or llama.cpp runs, set `provider.runtime_version` from the local runtime command and map each exact model ID to its local GGUF file in `provider.model_files`, as in the JSON example above. Paths stay local; `run.json` records SHA-256 and allowlisted metadata. Runtime version is **user-declared**, not checked against the server. `compare` rejects missing provenance or incompatible provider, endpoint, version, digest, thinking control, or other settings. An LM Studio MLX model can run individually but cannot be statistically aggregated without a GGUF digest. Hashing a large model adds startup time.
 

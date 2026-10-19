@@ -34,6 +34,16 @@ from localagent_bench.runner import (
 )
 
 
+def _ollama_test_config():
+    return replace(
+        load_config(ROOT / "benchmark.json"),
+        provider_kind="ollama",
+        ollama_url="http://127.0.0.1:11434",
+        provider_version=None,
+        model_files={},
+    )
+
+
 class RunnerGitTests(unittest.TestCase):
     def setUp(self):
         patcher = patch(
@@ -205,7 +215,7 @@ class RunnerGitTests(unittest.TestCase):
                 "energy": {"available": False},
             },
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
             with (
@@ -320,7 +330,7 @@ class RunnerGitTests(unittest.TestCase):
             sandbox={"backend": "audit-only", "enforced": False},
             system_metrics={"process": {"available": False}, "energy": {"available": False}},
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
             with (
@@ -372,7 +382,7 @@ class RunnerGitTests(unittest.TestCase):
         failed = ThinkingPreflight(
             "unexpected_thinking", "off", "none", True, True, 12, 4, 2
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch("localagent_bench.runner.inspect_model", return_value=model),
@@ -436,7 +446,7 @@ class RunnerGitTests(unittest.TestCase):
             system_metrics={"process": {"available": False}, "energy": {"available": False}},
         )
         passed = ThinkingPreflight("passed", "off", "none", True, False, 0, 0, 1)
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch("localagent_bench.runner.inspect_model", return_value=model),

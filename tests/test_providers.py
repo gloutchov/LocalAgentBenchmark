@@ -53,12 +53,17 @@ class LocalProviderTests(unittest.TestCase):
 
     @patch("localagent_bench.providers._request")
     def test_llama_router_discovery_and_unload(self, request):
-        request.return_value = {"data": [{"id": "coder.gguf", "status": {"value": "loaded"}}]}
+        request.side_effect = [
+            {"data": [{"id": "coder.gguf", "status": {"value": "loaded"}}]},
+            {"success": True},
+            {"data": [{"id": "coder.gguf", "status": {"value": "unloaded"}}]},
+        ]
         provider = LocalProvider("llama_cpp", "http://127.0.0.1:8080")
         self.assertEqual("coder.gguf", provider.list_models()[0].name)
         provider.unload("coder.gguf")
-        self.assertEqual("/models/unload", request.call_args.args[1])
-        self.assertEqual({"model": "coder.gguf"}, request.call_args.args[2])
+        self.assertEqual("/models/unload", request.call_args_list[1].args[1])
+        self.assertEqual({"model": "coder.gguf"}, request.call_args_list[1].args[2])
+        self.assertEqual("/models", request.call_args.args[1])
 
     @patch("localagent_bench.providers._request")
     def test_off_and_active_thinking_fail_closed(self, request):

@@ -18,7 +18,7 @@
 │   ├── js/                         # core dati, i18n, rendering e stato UI modulari
 │   └── tests/dashboard.test.js     # trasformazioni, fixture, i18n e vincoli statici
 ├── site/                           # landing page pubblica statica per GitHub Pages
-│   ├── index.html                  # contenuti, percorsi rapido/full immersion, avvio, documentazione, metadata e CSP
+│   ├── index.html                  # hero dei provider locali, percorsi, avvio, documentazione, metadata e CSP
 │   ├── 404.html                    # fallback bilingue compatibile con /LocalAgentBenchmark/
 │   ├── css/styles.css              # griglia, temi, responsive, focus e reduced motion
 │   ├── js/                         # bootstrap tema, dizionari, preferenze e interazioni

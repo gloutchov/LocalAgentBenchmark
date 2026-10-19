@@ -37,7 +37,20 @@ class _Handler(BaseHTTPRequestHandler):
                                       "loaded_instances": [{"id": "local/coder@1"}],
                                       "capabilities": {"reasoning": {"allowed_options": ["off", "medium"]}}}]})
         elif self.path == "/models":
-            self._reply({"data": [{"id": "local/coder", "status": {"value": "unloaded"}}]})
+            if self.server.unload_polls_left:
+                self.server.unload_polls_left -= 1
+                if not self.server.unload_polls_left:
+                    self.server.model_status = "unloaded"
+            elif self.server.fail_loading and self.server.model_status == "loading":
+                self.server.model_status = "unloaded"
+            elif self.server.model_status == "loading" and not self.server.stuck_loading:
+                self.server.model_polls += 1
+                if self.server.model_polls >= 2:
+                    self.server.model_status = "loaded"
+            status = {"value": self.server.model_status}
+            if self.server.fail_loading:
+                status["failed"] = True
+            self._reply({"data": [{"id": "local/coder", "status": status}]})
         else:
             self._reply({"error": "unsupported"}, 404)
 
@@ -49,7 +62,18 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply({"status": "loaded", "instance_id": "local/coder@1"})
         elif self.path == "/api/v1/models/unload":
             self._reply({"instance_id": payload["instance_id"]})
-        elif self.path in {"/models/load", "/models/unload"}:
+        elif self.path == "/models/load":
+            if self.server.model_status == "loaded":
+                self._reply({"error": {"code": 400, "message": "model is already loaded"}}, 400)
+                return
+            self.server.model_status = "loading"
+            self.server.model_polls = 0
+            self._reply({"success": True})
+        elif self.path == "/models/unload":
+            if not self.server.delayed_unload_polls:
+                self.server.model_status = "unloaded"
+            else:
+                self.server.unload_polls_left = self.server.delayed_unload_polls
             self._reply({"success": True})
         elif self.path == "/v1/chat/completions":
             message = {"content": "OK"}
@@ -68,6 +92,12 @@ class ProviderHttpTests(unittest.TestCase):
             self.skipTest("loopback non disponibile")
         self.server.calls = []
         self.server.redirect = False
+        self.server.model_status = "unloaded"
+        self.server.model_polls = 0
+        self.server.stuck_loading = False
+        self.server.fail_loading = False
+        self.server.delayed_unload_polls = 0
+        self.server.unload_polls_left = 0
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         self.addCleanup(self._stop_server)
@@ -102,6 +132,42 @@ class ProviderHttpTests(unittest.TestCase):
         provider.unload(model.name)
         self.assertIn(("POST", "/models/load", {"model": "local/coder"}), self.server.calls)
         self.assertIn(("POST", "/models/unload", {"model": "local/coder"}), self.server.calls)
+        load_index = next(i for i, call in enumerate(self.server.calls) if call[:2] == ("POST", "/models/load"))
+        chat_index = next(i for i, call in enumerate(self.server.calls) if call[:2] == ("POST", "/v1/chat/completions"))
+        self.assertGreaterEqual(sum(call[:2] == ("GET", "/models") for call in self.server.calls[load_index + 1:chat_index]), 2)
+
+    def test_llama_router_load_times_out_when_instance_stays_loading(self):
+        self.server.stuck_loading = True
+        provider = LocalProvider("llama_cpp", self.url)
+        with self.assertRaisesRegex(ProviderError, "scaduto"):
+            provider.load("local/coder", timeout=0.5)
+        provider.unload("local/coder")
+
+    def test_llama_router_load_reports_failed_child(self):
+        self.server.fail_loading = True
+        provider = LocalProvider("llama_cpp", self.url)
+        with self.assertRaisesRegex(ProviderError, "terminato"):
+            provider.load("local/coder", timeout=5)
+
+    def test_llama_router_waits_for_unload_before_reloading(self):
+        self.server.delayed_unload_polls = 3
+        provider = LocalProvider("llama_cpp", self.url)
+        provider.load("local/coder", timeout=5)
+        provider.unload("local/coder", timeout=5)
+        self.assertEqual("unloaded", self.server.model_status)
+        self.assertEqual(0, self.server.unload_polls_left)
+        provider.load("local/coder", timeout=5)
+        unload_index = next(i for i, call in enumerate(self.server.calls) if call[:2] == ("POST", "/models/unload"))
+        next_load_index = next(i for i, call in enumerate(self.server.calls[unload_index + 1:], unload_index + 1)
+                               if call[:2] == ("POST", "/models/load"))
+        self.assertEqual(3, sum(call[:2] == ("GET", "/models") for call in self.server.calls[unload_index + 1:next_load_index]))
+
+    def test_llama_router_unload_times_out_if_model_stays_loaded(self):
+        self.server.delayed_unload_polls = 1000
+        provider = LocalProvider("llama_cpp", self.url)
+        provider.load("local/coder", timeout=5)
+        with self.assertRaisesRegex(ProviderError, "scaricamento.*scaduto"):
+            provider.unload("local/coder", timeout=0.5)
 
     def test_redirect_is_rejected_before_external_request(self):
         self.server.redirect = True

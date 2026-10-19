@@ -29,7 +29,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 
-def _request(url: str, path: str, payload: dict[str, Any] | None = None, *, timeout: int = 30) -> dict[str, Any]:
+def _request(url: str, path: str, payload: dict[str, Any] | None = None, *, timeout: float = 30) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = urllib.request.Request(
         f"{url}{path}", data=data,
@@ -44,6 +44,8 @@ def _request(url: str, path: str, payload: dict[str, Any] | None = None, *, time
             if len(raw) > 1024 * 1024:
                 raise ProviderError(f"Risposta troppo grande da {path}")
             result = json.loads(raw)
+    except urllib.error.HTTPError as exc:
+        raise ProviderError(f"Endpoint locale {path}: HTTP {exc.code}") from exc
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise ProviderError(f"Endpoint locale {path} non disponibile: {type(exc).__name__}") from exc
     if not isinstance(result, dict):
@@ -186,17 +188,35 @@ class LocalProvider:
             "reasoning_effort": policy.reasoning_effort,
         }, timeout=timeout)
 
-    def load(self, model: str, *, timeout: int) -> None:
+    def load(self, model: str, *, timeout: float) -> None:
         if self.kind == "lmstudio":
             result = _request(self.url, "/api/v1/models/load", {"model": model, "context_length": self.context_window}, timeout=timeout)
             if result.get("status") != "loaded":
                 raise ProviderError("LM Studio non ha confermato il caricamento del modello")
         else:
+            deadline = time.monotonic() + timeout
             result = _request(self.url, "/models/load", {"model": model}, timeout=timeout)
             if result.get("success") is not True:
                 raise ProviderError("llama-server non ha confermato il caricamento del modello")
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ProviderError("llama-server: caricamento del modello scaduto")
+                models = _request(self.url, "/models", timeout=min(5.0, remaining)).get("data")
+                if not isinstance(models, list):
+                    raise ProviderError("llama-server: stato dei modelli non valido")
+                entry = next((item for item in models if isinstance(item, dict) and item.get("id") == model), None)
+                status = entry.get("status") if entry is not None else None
+                value = status.get("value") if isinstance(status, dict) else None
+                if isinstance(status, dict) and status.get("failed") is True:
+                    raise ProviderError("llama-server: il processo del modello è terminato durante il caricamento")
+                if value == "loaded":
+                    return
+                if value not in {"loading", "unloaded"}:
+                    raise ProviderError("llama-server: caricamento del modello non riuscito")
+                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
 
-    def unload(self, model: str) -> None:
+    def unload(self, model: str, *, timeout: float = 30) -> None:
         if self.kind == "lmstudio":
             models = _request(self.url, "/api/v1/models").get("models", [])
             for item in models if isinstance(models, list) else []:
@@ -205,4 +225,24 @@ class LocalProvider:
                         if isinstance(instance, dict) and isinstance(instance.get("id"), str):
                             _request(self.url, "/api/v1/models/unload", {"instance_id": instance["id"]})
         else:
-            _request(self.url, "/models/unload", {"model": model})
+            deadline = time.monotonic() + timeout
+            result = _request(self.url, "/models/unload", {"model": model}, timeout=timeout)
+            if result.get("success") is not True:
+                raise ProviderError("llama-server non ha confermato lo scaricamento del modello")
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ProviderError("llama-server: scaricamento del modello scaduto")
+                models = _request(self.url, "/models", timeout=min(5.0, remaining)).get("data")
+                if not isinstance(models, list):
+                    raise ProviderError("llama-server: stato dei modelli non valido")
+                entry = next((item for item in models if isinstance(item, dict) and item.get("id") == model), None)
+                status = entry.get("status") if entry is not None else None
+                value = status.get("value") if isinstance(status, dict) else None
+                if value == "unloaded":
+                    return
+                if isinstance(status, dict) and status.get("failed") is True:
+                    raise ProviderError("llama-server: il processo del modello è terminato durante lo scaricamento")
+                if value not in {"loading", "loaded", "sleeping", "unloading"}:
+                    raise ProviderError("llama-server: scaricamento del modello non riuscito")
+                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
