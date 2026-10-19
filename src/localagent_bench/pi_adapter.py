@@ -12,7 +12,7 @@ import time
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from .sandbox import SandboxSelection, prepare_sandbox_launch
 from .system_metrics import SystemMetricCollector
@@ -143,21 +143,75 @@ def write_models_config(
     )
 
 
-def _terminate(process: subprocess.Popen[str]) -> None:
-    if process.poll() is not None:
+def _windows_job_close(process: subprocess.Popen[str]) -> Callable[[], None] | None:
+    if os.name != "nt":
+        return None
+    from .windows_appcontainer import AppContainerError, _create_job, _libraries
+
+    try:
+        kernel32, _userenv, _advapi32 = _libraries()
+        job = _create_job(kernel32)
+        if not kernel32.AssignProcessToJobObject(job, process._handle):
+            kernel32.CloseHandle(job)
+            return None
+    except (AppContainerError, OSError):
+        return None
+
+    def close() -> None:
+        nonlocal job
+        if job is not None:
+            kernel32.CloseHandle(job)
+            job = None
+
+    return close
+
+
+def _terminate(process: subprocess.Popen[str], close_job: Callable[[], None] | None = None) -> None:
+    if close_job is not None:
+        close_job()
+    if os.name != "posix" and process.poll() is not None:
         return
     try:
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGTERM)
         else:
-            process.terminate()
+            # npm's pi.cmd launches Node as a child. Killing cmd.exe alone can
+            # leave Node running with our stdout/stderr pipes still open.
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
         process.wait(timeout=5)
-    except (ProcessLookupError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         if process.poll() is None:
             if os.name == "posix":
                 os.killpg(process.pid, signal.SIGKILL)
             else:
                 process.kill()
+
+
+def _collect_after_stop(process: subprocess.Popen[str]) -> tuple[str, str]:
+    """Do not wait forever if a descendant inherited a stopped process's pipes."""
+    try:
+        return process.communicate(timeout=5)
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or b""
+        stderr = exc.stderr or b""
+        for stream in (process.stdout, process.stderr):
+            if stream is not None:
+                try:
+                    os.close(stream.fileno())
+                except OSError:
+                    pass
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode(errors="replace")
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode(errors="replace")
+        return stdout, stderr
 
 
 def _refine_status_from_events(status: str, metrics: dict[str, Any]) -> str:
@@ -242,6 +296,7 @@ def run_pi(
         text=True,
         start_new_session=(os.name == "posix"),
     )
+    close_job = _windows_job_close(process)
     try:
         outer_timeout = timeout_seconds + 300 if sandbox.backend == "windows-appcontainer" else timeout_seconds
         cancelled = False
@@ -251,8 +306,8 @@ def run_pi(
             deadline = time.monotonic() + outer_timeout
             while True:
                 if cancel_event.is_set():
-                    _terminate(process)
-                    stdout, stderr = process.communicate()
+                    _terminate(process, close_job)
+                    stdout, stderr = _collect_after_stop(process)
                     cancelled = True
                     break
                 remaining = deadline - time.monotonic()
@@ -272,9 +327,12 @@ def run_pi(
         else:
             status = "pi_error"
     except subprocess.TimeoutExpired:
-        _terminate(process)
-        stdout, stderr = process.communicate()
+        _terminate(process, close_job)
+        stdout, stderr = _collect_after_stop(process)
         status = "timeout"
+    finally:
+        if close_job is not None:
+            close_job()
     duration = time.monotonic() - started
     system_metrics = collector.finish()
     metrics, final_response = parse_json_events(stdout)

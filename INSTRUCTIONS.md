@@ -56,6 +56,8 @@ Use the **Thinking** toggle to select `off` (off) or `medium` (on), and the **Sa
 
 The funnel runs `smoke` on every selected model, consumes the official leaderboard order to promote up to four rankable models to `standard`, then up to two to `full`. A model with a failed task is excluded without stopping the others when the stage is complete and verifiable; a partial or incompatible stage still stops the funnel. The official dashboard then opens on the three distinct runs. The path never runs `showcase` or `results_dashboard`.
 
+`defaults.timeout_seconds` in `benchmark.json` limits **each task** (1,200 seconds, or 20 minutes, by default), not the complete funnel. The Pi contract, thinking preflight, and warmup have separate limits; the GUI shows the task limit before confirmation. On Windows, expiry stops the Pi/Node process tree and also bounds final output collection. For a shorter first test, select one model and set `defaults.timeout_seconds` before opening the GUI, or use `--timeout 300` from the CLI. Do not change configuration during a run.
+
 **Cancel** asks for confirmation, terminates the process tree, and retains diagnostic artifacts. Interrupted sessions are not resumed; fix the issue and create a new session. **Reopen dashboard** reuses one to three available runs from the latest session without rerunning models, including after restarting the GUI. Duration is not guaranteed. See [QUICK-START_Guided.md](QUICK-START_Guided.md) for platform behavior, configuration, troubleshooting, and privacy.
 
 - `smoke` checks Pi/provider integration and basic tool calling.
@@ -248,7 +250,7 @@ Use the same configuration, profile, thinking mode, repetitions, seed, hardware,
 - Guided dashboard failed to start: resolve the local issue and use **Reopen dashboard**; completed run data is not regenerated.
 - `pi: command not found`: install Pi or update `pi.command`.
 - Missing model: use the exact name shown by `doctor`.
-- Timeout: increase `--timeout` and inspect `stderr.log`.
+- Timeout: increase `--timeout` or `defaults.timeout_seconds` for the GUI, and inspect `stderr.log`. The limit applies to each task and excludes preflight and warmup.
 - `pi_error`: inspect `pi-events.jsonl` and `stderr.log`; a terminal agent/provider failure is operational even when the Pi process exits with code zero. Free-form error text remains in local artifacts and is not exported by `dashboard-data`.
 - Low score with a successful exit: inspect `grade.json`; the model may have answered without editing or missed a constraint.
 - Zero usage tokens: some model/provider combinations omit usage; quality remains valid, while token efficiency receives no credit.

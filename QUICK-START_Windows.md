@@ -27,6 +27,8 @@ py -3 benchmark.py run --profile smoke --models NOME_ESATTO --thinking off --san
 
 Per il primo smoke selezionare un solo nome esatto mostrato da `list`; `--timeout 300` limita la durata di ciascuna task, mentre il preflight thinking e il controllo Pi restano obbligatori. Il launcher crea un profilo AppContainer senza capability di rete, prepara una copia per-task dei runtime Pi/Node/Python, configura nella copia il tool shell di Pi su `cmd.exe`, concede ACL temporanee al SID esatto soltanto per workspace, configurazione Pi e runtime staged, assegna il processo sospeso a un Job Object kill-on-close e poi lo avvia. Un named pipe nel namespace AppContainer raggiunge un broker host vincolato all'host e alla porta del provider configurato.
 
+In modalità `required` con AppContainer, il watchdog esterno può attendere fino a 300 secondi aggiuntivi rispetto a `--timeout` per lo staging e il cleanup. In modalità `audit`, il limite task è quello indicato. In entrambi i casi il runner tenta di terminare l'intero albero Pi/Node alla scadenza e limita l'attesa finale dell'output.
+
 ### Risoluzione problemi
 
 - Se il probe segnala `AppContainer non utilizzabile`, rieseguire `doctor` come lo stesso utente che lancerà il benchmark e controllare che workspace, directory Pi e installazione Pi siano accessibili.
@@ -61,6 +63,8 @@ py -3 benchmark.py run --profile smoke --models EXACT_NAME --thinking off --sand
 `doctor` must test Pi on the local synthetic server, including AppContainer staging, and accept a compatible version and report `windows-appcontainer` with filesystem, process, and network isolation. Before the task, preflight must also confirm `reasoning_effort: "none"`; `--no-warmup` does not disable it. In `required` mode, a failed probe stops before any task. `auto` permits a recorded fallback, while `audit` applies policy and detection only.
 
 For the first smoke test, select one exact model name from `list`. `--timeout 300` limits each task; the thinking preflight and Pi contract probe still run. The launcher creates an AppContainer profile without network capabilities, prepares per-task copies of the Pi/Node/Python runtimes, configures Pi's staged shell tool to use `cmd.exe`, grants temporary ACLs to the exact SID only for the workspace, Pi configuration, and staged runtime, assigns the suspended process to a kill-on-close Job Object, and then starts it. A named pipe in the AppContainer namespace reaches a trusted host broker pinned to the configured provider host and port.
+
+With `required` AppContainer, the outer watchdog may wait up to 300 additional seconds beyond `--timeout` for staging and cleanup. In `audit` mode the task uses the stated limit. In both modes the runner attempts to stop the full Pi/Node process tree on expiry and bounds final output collection.
 
 ### Troubleshooting
 

@@ -35,7 +35,7 @@
 │   ├── thinking.py                 # mapping puro e policy thinking Pi/provider
 │   ├── ollama.py                   # tags/version, capability, preflight, warmup e unload
 │   ├── providers.py                # adapter LM Studio e router llama.cpp, hash GGUF e preflight
-│   ├── pi_adapter.py               # config/payload Pi, JSONL, retry, scratch e audit path/rete
+│   ├── pi_adapter.py               # config/payload Pi, JSONL, timeout/cleanup processi, scratch e audit path/rete
 │   ├── pi_compatibility.py         # server sintetico loopback e gate contrattuale Pi
 │   ├── runner.py                   # ordine seeded, preflight, workspace, controlli e artefatti
 │   ├── grading.py                  # esecuzione isolata e timeout dei grader
@@ -84,6 +84,7 @@
 │   ├── test_providers.py           # discovery, hash GGUF, preflight e gestione modelli alternativi
 │   ├── test_pi_thinking_contract.py # Pi reale contro server OpenAI-compatible fittizio
 │   ├── test_pi_compatibility.py    # regressioni del gate Pi con payload/errori simulati
+│   ├── test_pi_adapter.py          # eventi Pi, audit e timeout con processi figli
 │   └── ...                         # runner, parser/status provider, sandbox, metriche, confronti e grader
 ├── results/                        # output, snapshot input, hash e workspace; ignorato da Git
 ├── .localagent-benchmark/          # preferenze GUI locali validate; generata e ignorata

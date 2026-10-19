@@ -1,26 +1,88 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.pi_adapter import (
     AUDIT_VERSION,
+    _collect_after_stop,
     _refine_status_from_events,
     audit_workspace_accesses,
     parse_json_events,
+    run_pi,
     write_models_config,
 )
 from localagent_bench.ollama import OllamaModel
+from localagent_bench.sandbox import select_sandbox
 from localagent_bench.thinking import resolve_thinking_policy
 
 
 class PiAdapterTests(unittest.TestCase):
+    def test_timeout_stops_launcher_and_child_holding_output_pipes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "slow_launcher.py"
+            script.write_text(
+                "import subprocess, sys, time\n"
+                "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(15)'])\n"
+                "time.sleep(15)\n",
+                encoding="utf-8",
+            )
+            workspace = root / "workspace"
+            workspace.mkdir()
+            started = time.monotonic()
+            result = run_pi(
+                (sys.executable, str(script)), "synthetic", "off", "done",
+                workspace, root / "agent", 1, select_sandbox("audit"),
+                "http://127.0.0.1:1", tools="",
+            )
+            self.assertEqual("timeout", result.status)
+            self.assertLess(time.monotonic() - started, 8)
+
+    def test_timeout_stops_child_after_launcher_exits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            script = root / "exiting_launcher.py"
+            script.write_text(
+                "import subprocess, sys, time\n"
+                "time.sleep(0.2)\n"
+                "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(15)'])\n",
+                encoding="utf-8",
+            )
+            workspace = root / "workspace"
+            workspace.mkdir()
+            started = time.monotonic()
+            result = run_pi(
+                (sys.executable, str(script)), "synthetic", "off", "done",
+                workspace, root / "agent", 1, select_sandbox("audit"),
+                "http://127.0.0.1:1", tools="",
+            )
+            self.assertEqual("timeout", result.status)
+            self.assertLess(time.monotonic() - started, 8)
+
+    def test_output_collection_remains_bounded_after_parent_stops(self):
+        process = Mock()
+        process.communicate.side_effect = subprocess.TimeoutExpired(
+            ["pi"], 5, output=b'{"type":"session"}\n', stderr=b"partial error"
+        )
+        process.stdout.fileno.return_value = 10
+        process.stderr.fileno.return_value = 11
+        with patch("localagent_bench.pi_adapter.os.close") as close:
+            self.assertEqual(
+                ('{"type":"session"}\n', "partial error"),
+                _collect_after_stop(process),
+            )
+        self.assertEqual([call(10), call(11)], close.call_args_list)
+
     def test_current_audit_version(self):
         self.assertEqual(4, AUDIT_VERSION)
 

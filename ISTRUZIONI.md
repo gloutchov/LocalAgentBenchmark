@@ -56,6 +56,8 @@ Usare il toggle **Thinking** per scegliere `off` (spento) o `medium` (acceso), e
 
 Il funnel esegue `smoke` su tutti i selezionati, usa l'ordine della leaderboard ufficiale per promuovere al massimo i primi quattro a `standard`, poi al massimo i primi due a `full`. Un modello con task fallita viene escluso senza fermare gli altri quando la fase è completa e verificabile; una fase parziale o incompatibile ferma invece il percorso. Al termine la dashboard ufficiale si apre sui tre run distinti. Il percorso non esegue `showcase` né il caso `results_dashboard`.
 
+`defaults.timeout_seconds` in `benchmark.json` limita **ogni task** (1.200 secondi, cioè 20 minuti, per default), non l'intero funnel. Il controllo Pi, il preflight thinking e il warmup hanno limiti separati; la GUI mostra il valore task prima della conferma. Su Windows, alla scadenza il runner chiude l'albero dei processi Pi/Node e limita anche la raccolta finale dell'output. Per un primo test più breve, selezionare un solo modello e impostare `defaults.timeout_seconds` prima di aprire la GUI, oppure usare `--timeout 300` da CLI. Non cambiare la configurazione durante un run.
+
 **Annulla** termina il gruppo di processi dopo conferma e conserva gli artefatti. Una sessione interrotta non è ripresa: risolvere il problema e crearne una nuova. **Riapri dashboard** riutilizza invece da uno a tre run disponibili dell'ultima sessione senza rieseguire i modelli, anche dopo il riavvio della GUI. La durata non è garantita. Procedura completa, comportamento per piattaforma e privacy: [QUICK-START_Guided.md](QUICK-START_Guided.md).
 
 ### Confronto rapido
@@ -270,7 +272,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 - dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a tre run disponibili vengono riutilizzati senza rieseguire i modelli.
 - `pi: comando non trovato`: installare Pi o modificare `pi.command` con il percorso corretto.
 - `Modelli non installati`: usare il nome esatto restituito da `doctor` e installare/importare il modello nel provider configurato.
-- `timeout`: aumentare `--timeout`; controllare anche memoria e log `stderr.log`.
+- `timeout`: aumentare `--timeout` o `defaults.timeout_seconds` per la GUI; controllare anche memoria e log `stderr.log`. Il limite riguarda ciascuna task e non include preflight e warmup.
 - `pi_error`: controllare `pi-events.jsonl` e `stderr.log`; un errore terminale agente/provider viene classificato come operativo anche quando il processo Pi termina con codice zero. Il testo libero dell'errore resta negli artefatti locali e non viene esportato da `dashboard-data`.
 - score basso con uscita corretta: leggere `grade.json`; il modello può aver risposto senza modificare i file o aver interpretato male un vincolo.
 - token a zero: alcune combinazioni provider/modello non riportano usage; la qualità resta valida, mentre l'efficienza token non viene premiata.
