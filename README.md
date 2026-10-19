@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, and the llama.cpp `llama-server` router. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.13.0 – provider locali in verifica sul branch milestone / local providers under milestone verification**
+Stato / Status: **0.13.0 – provider locali Ollama, LM Studio e llama.cpp / Ollama, LM Studio, and llama.cpp local providers**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **Pi/Ollama è stato verificato su macOS e Windows; LM Studio ha completato lo smoke con due modelli classificabili su macOS. Dopo la correzione del router, un percorso guidato llama.cpp ha completato smoke, standard e full su macOS, con integrità e controllo thinking regolari. Mistral 7B è arrivato fino a full, ma nessuna sua task ha raggiunto la soglia di 60/100; Gemma 4 è andato in timeout nello smoke. / Pi/Ollama has been verified on macOS and Windows; LM Studio completed a smoke run with two rankable models on macOS. After the router fix, a llama.cpp guided run completed smoke, standard, and full on macOS with integrity and thinking control passed. Mistral 7B reached full, but none of its tasks met the 60/100 completion threshold; Gemma 4 timed out during smoke.**
 Licenza / License: Apache-2.0
