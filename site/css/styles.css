@@ -260,6 +260,19 @@ h1 {
   line-height: 1.55;
 }
 
+.provider-update {
+  max-width: 38rem;
+  margin-top: 1.8rem;
+  padding: 1.1rem 0 0 1.2rem;
+  border-top: 1px solid var(--line-strong);
+  border-left: 3px solid var(--cyan);
+}
+.provider-update-title { margin: 0; font-size: 1.1rem; font-weight: 850; }
+.provider-list { display: flex; flex-wrap: wrap; gap: 0.45rem; margin: 0.85rem 0; padding: 0; list-style: none; }
+.provider-list li { padding: 0.3rem 0.6rem; border: 1px solid var(--line-strong); border-radius: 0.45rem; background: var(--surface); font-family: var(--font-mono); font-size: 0.75rem; font-weight: 800; white-space: nowrap; }
+.provider-update-text { margin: 0 0 0.55rem; color: var(--muted); font-size: 0.94rem; }
+.provider-update .text-link { font-size: 0.9rem; }
+
 .hero-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2rem; }
 .button {
   display: inline-flex;

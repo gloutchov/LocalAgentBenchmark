@@ -1,19 +1,19 @@
 # Percorso rapido guidato / Guided quick path
 
-Questa procedura confronta i modelli Ollama locali senza richiedere di comporre comandi. Dopo una conferma esplicita esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run.
+Questa procedura confronta i modelli del provider locale configurato in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio e il router llama.cpp; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run.
 
-This workflow compares local Ollama models without requiring command composition. After explicit confirmation it runs `smoke` on every selected model, promotes up to the first four rankable models to `standard`, promotes up to two to `full`, and opens the official dashboard on the three runs.
+This workflow compares models from the local provider configured in `benchmark.json`: Ollama, LM Studio, or the llama.cpp router. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three runs.
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.12.1;
+- checkout sorgente completo di LocalAgent Benchmark 0.13.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
-- Ollama locale avviato su `127.0.0.1` con almeno un modello tool-capable;
+- provider locale configurato su loopback con almeno un modello tool-capable;
 - Pi disponibile come `pi`; compatibilità verificata durante il rilevamento e prima di ogni fase;
 - `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubriche selezionati puliti rispetto a Git.
 
-The source checkout, Python 3.10+ with Tkinter, Git, local Ollama, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
+The source checkout, Python 3.10+ with Tkinter, Git, a configured loopback model server, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
 
 ## Avvio con doppio clic / Double-click launch
 
@@ -29,7 +29,7 @@ An installed source package also exposes `localagent-benchmark-guided`; it is no
 
 ## Prima della conferma / Before confirmation
 
-La finestra esegue i controlli equivalenti a `doctor`, rileva i modelli tramite Ollama e mostra:
+La finestra esegue i controlli equivalenti a `doctor`, rileva i modelli dal provider configurato e mostra:
 
 - nome, dimensione e capability thinking nota dei modelli locali;
 - modelli selezionati, inizialmente tutti;
@@ -41,7 +41,11 @@ Fare clic sull'intestazione modello, dimensione o thinking per ordinare la tabel
 
 Il toggle **Thinking** spento richiede `off`, acceso richiede `medium`; non c'è fallback automatico. Il toggle **Sandbox** spento usa solo l'audit senza isolamento OS; acceso richiede un backend OS applicabile e interrompe l'avvio se manca. Le scelte sono mostrate prima della conferma, valgono per tutte e tre le fasi e vengono registrate nel manifesto. Nella dashboard, **Dettaglio task** elenca separatamente i modelli esclusi prima delle task per thinking osservato con `off` e quelli esclusi dopo tentativi fuori workspace/rete o altre violazioni; la riga indica se la sandbox OS era applicata. Un'esclusione non dimostra da sola che il sistema operativo abbia bloccato l'azione.
 
-The window performs the equivalent of `doctor`, detects Ollama models, and displays the selected models, funnel, promotion limits, thinking mode, sandbox, timeout, warmup, and an explicit duration warning. Click the model, size, or thinking column heading to sort it; a second click reverses the order and the arrow shows the active direction. Selection is preserved while sorting. The benchmark starts only after confirmation.
+The window performs the equivalent of `doctor`, detects models from the configured provider, and displays the selected models, funnel, promotion limits, thinking mode, sandbox, timeout, warmup, and an explicit duration warning. Click the model, size, or thinking column heading to sort it; a second click reverses the order and the arrow shows the active direction. Selection is preserved while sorting. The benchmark starts only after confirmation.
+
+Il timeout mostrato è per **singola task** (`defaults.timeout_seconds`, default 1.200 secondi), non per l'intera sessione; controllo Pi, preflight e warmup hanno limiti propri. Per limitare un primo test, selezionare un modello e ridurre il valore in `benchmark.json` prima di aprire la GUI. Su Windows, alla scadenza vengono terminati anche i processi Pi/Node figli e l'attesa dell'output è limitata; AppContainer `required` concede al watchdog esterno fino a 300 secondi aggiuntivi.
+
+The displayed timeout is **per task** (`defaults.timeout_seconds`, 1,200 seconds by default), not for the whole session; the Pi contract, preflight, and warmup have their own limits. For a shorter first test, select one model and lower this setting in `benchmark.json` before starting the GUI. On Windows, expiry also terminates Pi/Node child processes and bounds output collection; `required` AppContainer allows the outer watchdog up to 300 additional seconds.
 
 The **Thinking** toggle selects `off` or `medium` without automatic fallback. The **Sandbox** toggle selects audit only, without OS isolation, or `required`, which stops before a run if no applicable OS backend is available. Both choices apply to all three stages and are recorded in the session manifest. In the dashboard, **Task details** lists preflight thinking exclusions and workspace/network integrity exclusions separately from executed tasks, with the effective sandbox status. An exclusion alone does not prove that the OS blocked the action.
 
@@ -91,9 +95,9 @@ Il percorso usa `benchmark.json` come fonte unica. La sezione dedicata è:
 }
 ```
 
-I profili devono restare esattamente nell'ordine indicato, i limiti devono essere interi positivi decrescenti e nessun profilo guidato può includere `results_dashboard`. Endpoint Ollama, Pi, thinking, retry, timeout, warmup, sandbox e directory risultati continuano a provenire dalle rispettive sezioni centrali. Il percorso guidato rifiuta endpoint Ollama non locali e non applica fallback silenziosi.
+I profili devono restare esattamente nell'ordine indicato, i limiti devono essere interi positivi decrescenti e nessun profilo guidato può includere `results_dashboard`. Provider/endpoint, Pi, thinking, retry, timeout, warmup, sandbox e directory risultati continuano a provenire dalle rispettive sezioni centrali. Il percorso guidato rifiuta endpoint non locali e non applica fallback silenziosi.
 
-Profiles must remain in the listed order, promotion limits must be descending positive integers, and guided profiles cannot include `results_dashboard`. All other effective settings come from the existing central sections. Non-local Ollama endpoints and silent fallback are rejected.
+Profiles must remain in the listed order, promotion limits must be descending positive integers, and guided profiles cannot include `results_dashboard`. All other effective settings come from the central configuration. Non-local provider endpoints and silent fallback are rejected.
 
 ## Cosa non esegue / What it does not run
 
@@ -104,8 +108,8 @@ The quick path never runs `showcase`, never selects `results_dashboard`, never a
 ## Risoluzione problemi / Troubleshooting
 
 - **Tkinter non disponibile / Tkinter unavailable:** installare una distribuzione Python che includa Tk; i launcher sorgente non scaricano componenti.
-- **Ollama non raggiungibile / Ollama unavailable:** avviare Ollama localmente e usare un endpoint loopback in `benchmark.json`.
-- **Nessun modello / No models:** scaricare almeno un modello tool-capable con Ollama, poi scegliere **Rileva di nuovo / Detect again**.
+- **Provider non raggiungibile / Provider unavailable:** avviare il server selezionato e usare un endpoint loopback in `benchmark.json`.
+- **Nessun modello / No models:** rendere disponibile almeno un modello tool-capable nel provider, poi scegliere **Rileva di nuovo / Detect again**.
 - **Pi non disponibile o versione errata / Pi missing or wrong version:** verificare che `pi` sia nel `PATH` del launcher grafico e leggere il controllo fallito; Pi 0.85.1 è la versione di riferimento verificata.
 - **Input protetti sporchi / Dirty protected inputs:** revisionare e committare legittimamente le modifiche prima del benchmark; non aggirare il preflight.
 - **Sandbox required non disponibile / required sandbox unavailable:** installare/configurare il backend previsto oppure cambiare consapevolmente `benchmark.json`; non avviene alcun downgrade automatico.
@@ -115,9 +119,9 @@ The quick path never runs `showcase`, never selects `results_dashboard`, never a
 
 ## Privacy e distribuzione / Privacy and distribution
 
-La GUI non introduce telemetria, CDN o chiamate Internet. I soli endpoint applicativi sono Ollama locale e la dashboard su loopback. I processi ricevono argomenti strutturati, non comandi shell interpolati. Non vengono cancellati automaticamente run precedenti.
+La GUI non introduce telemetria, CDN o chiamate Internet. I soli endpoint applicativi sono il provider locale e la dashboard su loopback. I processi ricevono argomenti strutturati, non comandi shell interpolati. Non vengono cancellati automaticamente run precedenti.
 
-The GUI adds no telemetry, CDN, or Internet call. Its application endpoints are local Ollama and the loopback dashboard. Child processes receive structured arguments rather than interpolated shell commands, and prior runs are never deleted automatically.
+The GUI adds no telemetry, CDN, or Internet call. Its application endpoints are the local model provider and the loopback dashboard. Child processes receive structured arguments rather than interpolated shell commands, and prior runs are never deleted automatically.
 
 La release 0.11.0 distribuisce questi launcher come file sorgente nel repository e negli archivi sorgente generati da GitHub. Non promette installer, app bundle, eseguibili firmati o artifact binari multipiattaforma.
 

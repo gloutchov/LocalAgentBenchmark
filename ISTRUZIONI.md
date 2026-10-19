@@ -2,15 +2,17 @@
 
 ## 1. Scopo
 
-LocalAgent Benchmark confronta modelli locali Ollama quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale.
+LocalAgent Benchmark confronta modelli locali Ollama, LM Studio o llama.cpp quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
 
 ## 2. Requisiti
 
 - Python 3.10+ e Git nel `PATH`;
-- Ollama installato, avviato e raggiungibile su loopback;
+- un server locale configurato e raggiungibile su loopback: Ollama, LM Studio 0.4+ oppure il router `llama-server`;
 - Pi installato come comando `pi` (ogni versione deve superare il test di compatibilità locale);
-- modelli Ollama già scaricati;
+- modelli locali già scaricati e adatti al tool calling;
 - spazio libero sufficiente per una copia delle fixture per ogni esecuzione.
+
+La procedura di installazione e verifica su Windows per Pi, Ollama, LM Studio e `llama-server`, con link alle fonti ufficiali, è in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Se Pi è già installato e supera `doctor`, non serve aggiornarlo prima di un benchmark.
 
 Per l'isolamento OS opzionale servono `sandbox-exec` utilizzabile su macOS; `bwrap`, `unshare` e user/network namespace utilizzabili su Linux; oppure Windows 10/11 con AppContainer. `doctor` esegue un probe reale e mostra disponibilità, backend e capacità effettive senza installare componenti. Le procedure specifiche sono in [QUICK-START_Linux.md](QUICK-START_Linux.md) e [QUICK-START_Windows.md](QUICK-START_Windows.md).
 
@@ -22,7 +24,7 @@ python3 benchmark.py doctor
 
 Il comando mostra versioni, controlli falliti, capability thinking e compatibilità preliminare dei modelli, oltre allo stato di pulizia degli input, senza eseguire task agentici. La compatibilità definitiva richiede comunque il preflight del run.
 
-`doctor` e ogni avvio di benchmark eseguono tre richieste sintetiche tramite il Pi configurato verso un server temporaneo su `127.0.0.1`: thinking disattivato, thinking `medium` ed errore provider. Il controllo verifica payload, eventi e retry senza chiamare Ollama; usa tool disabilitati, `--offline`, directory isolate e il backend sandbox selezionato. Il timeout per ciascuna richiesta è `defaults.pi_contract_timeout_seconds` (30 secondi per impostazione predefinita, valori ammessi 10–300). La GUI mostra l'esito durante il rilevamento e consente di annullarlo; ogni fase CLI ripete il controllo. Nei risultati restano solo stato e codice diagnostico, mai prompt o risposta del probe. Il preflight thinking sul modello Ollama resta separato e obbligatorio.
+`doctor` e ogni avvio di benchmark eseguono tre richieste sintetiche tramite il Pi configurato verso un server temporaneo su `127.0.0.1`: thinking disattivato, thinking `medium` ed errore provider. Il controllo verifica payload, eventi e retry senza chiamare il server di modelli; usa tool disabilitati, `--offline`, directory isolate e il backend sandbox selezionato. Il timeout per ciascuna richiesta è `defaults.pi_contract_timeout_seconds` (30 secondi per impostazione predefinita, valori ammessi 10–300). La GUI mostra l'esito durante il rilevamento e consente di annullarlo; ogni fase CLI ripete il controllo. Nei risultati restano solo stato e codice diagnostico, mai prompt o risposta del probe. Il preflight thinking sul modello selezionato resta separato e obbligatorio.
 
 ## 3. Primo avvio
 
@@ -48,11 +50,13 @@ python3 benchmark.py run --profile standard
 
 ### Percorso rapido guidato senza comandi
 
-Aprire con doppio clic `launchers/LocalAgent-Benchmark.command` su macOS, `launchers\LocalAgent-Benchmark.cmd` su Windows o `launchers/LocalAgent-Benchmark.sh` su Linux. La finestra esegue `doctor`, rileva i modelli Ollama locali, permette di scegliere i partecipanti e di ordinarli per nome, dimensione o thinking cliccando sulle intestazioni, quindi mostra thinking, sandbox, timeout e warmup effettivi prima di chiedere conferma.
+Aprire con doppio clic `launchers/LocalAgent-Benchmark.command` su macOS, `launchers\LocalAgent-Benchmark.cmd` su Windows o `launchers/LocalAgent-Benchmark.sh` su Linux. La finestra esegue `doctor`, rileva i modelli del provider locale configurato, permette di scegliere i partecipanti e di ordinarli per nome, dimensione o thinking cliccando sulle intestazioni, quindi mostra thinking, sandbox, timeout e warmup effettivi prima di chiedere conferma.
 
 Usare il toggle **Thinking** per scegliere `off` (spento) o `medium` (acceso), e il toggle **Sandbox** per scegliere `audit` senza isolamento OS (spento) o `required` (acceso). `required` interrompe l'avvio se il backend OS non è applicabile. Le scelte valgono per tutte le fasi e sono registrate in `guided-run.json`; non vengono salvate come preferenze permanenti. Nel **Dettaglio task** della dashboard, i modelli esclusi al preflight per thinking osservato con `off` o dopo violazioni dei confini workspace/rete compaiono in un elenco separato dalle task svolte. È indicato il backend sandbox effettivo; l'esclusione non prova da sola un blocco OS.
 
 Il funnel esegue `smoke` su tutti i selezionati, usa l'ordine della leaderboard ufficiale per promuovere al massimo i primi quattro a `standard`, poi al massimo i primi due a `full`. Un modello con task fallita viene escluso senza fermare gli altri quando la fase è completa e verificabile; una fase parziale o incompatibile ferma invece il percorso. Al termine la dashboard ufficiale si apre sui tre run distinti. Il percorso non esegue `showcase` né il caso `results_dashboard`.
+
+`defaults.timeout_seconds` in `benchmark.json` limita **ogni task** (1.200 secondi, cioè 20 minuti, per default), non l'intero funnel. Il controllo Pi, il preflight thinking e il warmup hanno limiti separati; la GUI mostra il valore task prima della conferma. Su Windows, alla scadenza il runner chiude l'albero dei processi Pi/Node e limita anche la raccolta finale dell'output. Per un primo test più breve, selezionare un solo modello e impostare `defaults.timeout_seconds` prima di aprire la GUI, oppure usare `--timeout 300` da CLI. Non cambiare la configurazione durante un run.
 
 **Annulla** termina il gruppo di processi dopo conferma e conserva gli artefatti. Una sessione interrotta non è ripresa: risolvere il problema e crearne una nuova. **Riapri dashboard** riutilizza invece da uno a tre run disponibili dell'ultima sessione senza rieseguire i modelli, anche dopo il riavvio della GUI. La durata non è garantita. Procedura completa, comportamento per piattaforma e privacy: [QUICK-START_Guided.md](QUICK-START_Guided.md).
 
@@ -85,11 +89,13 @@ Quando i finalisti sono definiti, usare il profilo separato `showcase`: il caso 
 
 ### Selezione manuale
 
-`--models` accetta uno o più nomi esatti mostrati da `ollama list`. `--cases` accetta gli ID elencati dal comando `list`. `--timeout` è espresso in secondi; `--output` sceglie una directory nuova o vuota. `--thinking` accetta `off`, `minimal`, `low`, `medium`, `high`, `xhigh` o `max` e prevale sul default senza fallback. Il runner randomizza l'ordine delle task; `--seed NUMERO` permette di riprodurre esattamente lo stesso ordine, registrato anche in `run.json`. `--sandbox` accetta `audit`, `auto` o `required`: `required` è la scelta corretta quando il run non deve continuare senza isolamento OS.
+`--models` accetta uno o più nomi esatti mostrati da `benchmark.py list`. `--cases` accetta gli ID elencati dal comando `list`. `--timeout` è espresso in secondi; `--output` sceglie una directory nuova o vuota. `--thinking` accetta `off`, `minimal`, `low`, `medium`, `high`, `xhigh` o `max` e prevale sul default senza fallback. Il runner randomizza l'ordine delle task; `--seed NUMERO` permette di riprodurre esattamente lo stesso ordine, registrato anche in `run.json`. `--sandbox` accetta `audit`, `auto` o `required`: `required` è la scelta corretta quando il run non deve continuare senza isolamento OS.
 
 ### Controllo thinking
 
-Il benchmark ufficiale usa `--thinking off`. Prima di eseguire qualsiasi caso, per ogni modello il runner legge `/api/show` e invia una richiesta minima a `/v1/chat/completions` con `reasoning_effort: "none"`. La configurazione isolata di Pi contiene lo stesso parametro, `max_tokens`, timeout idle disabilitato e zero retry; il warmup nativo usa `think: false`. `--no-warmup` evita solo il warmup aggiuntivo, non il preflight obbligatorio.
+Il benchmark ufficiale usa `--thinking off`. Prima di eseguire qualsiasi caso, per ogni modello Ollama il runner legge `/api/show`; per LM Studio e llama.cpp usa i metadati dell'endpoint modelli. Poi invia una richiesta minima a `/v1/chat/completions` con `reasoning_effort: "none"`. La configurazione isolata di Pi contiene lo stesso parametro, `max_tokens`, timeout idle disabilitato e zero retry; il warmup usa l'API del provider scelto. `--no-warmup` evita solo il warmup aggiuntivo, non il preflight obbligatorio.
+
+Con llama.cpp, il runner attende che `/models` confermi `loaded` dopo `/models/load`, sia nel preflight sia prima delle task, e `unloaded` dopo `/models/unload` prima di cambiare modello. Se il processo del modello fallisce o il caricamento supera il timeout, il modello viene escluso senza avviare l'inferenza. Se lo scaricamento fallisce o scade, il runner segnala l'errore; il caricamento successivo può fallire e il modello viene escluso.
 
 Un preflight rifiutato o non verificabile esclude il modello prima delle task senza fermare gli altri. In una coorte `off`, reasoning osservabile o retry inattesi durante una task escludono l'intero modello. Il preflight registra solo stato, durata e conteggi: non conserva la traccia di reasoning. Le modalità attive richiedono la capability `thinking` e un segnale osservabile; devono essere eseguite in directory e coorti separate. Non usare una seconda modalità solo per i modelli falliti: se si confrontano `off` e `medium`, tutti i modelli devono ricevere entrambe con condizioni simmetriche.
 
@@ -203,7 +209,8 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 
 `benchmark.json` contiene tutti i parametri modificabili:
 
-- `ollama.url`: endpoint locale;
+- `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;
+- `provider.runtime_version` e `provider.model_files`: versione dichiarata e path GGUF opzionali per il singolo run, obbligatori per aggregare run dei provider alternativi;
 - `pi.command`: comando e argomenti iniziali di Pi;
 - `models`: `installed` oppure lista stabile;
 - `defaults`: timeout task/preflight, ripetizioni, thinking, timeout idle HTTP, retry agente/provider, warmup, keep-alive, contesto, output massimo, temperatura e modalità sandbox;
@@ -212,7 +219,7 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 - `dashboard`: directory degli asset, directory dei risultati, sorgente dello snapshot, host loopback, porta e apertura automatica del browser.
 - `guided`: sequenza obbligatoria `smoke`, `standard`, `full`, limiti di promozione decrescenti `4`, `2` e file locale delle preferenze GUI.
 
-La configurazione viene validata all'avvio. Non contiene e non deve contenere segreti. Il valore `apiKey` generato per il provider Ollama è il placeholder letterale `ollama`, ignorato dal server locale.
+La configurazione viene validata all'avvio. Non contiene e non deve contenere segreti. Pi riceve una chiave fittizia pari all'ID del provider; sono supportati server locali senza autenticazione. I GGUF dichiarati sono letti dall'host per calcolare SHA-256, senza copiarli nei risultati; la corrispondenza fra ID modello e file è dichiarata dall'utente. La versione runtime non è verificata automaticamente. Un run singolo funziona senza questi campi, ma `compare` richiede versione e digest per LM Studio/llama.cpp. La GUI e la CLI usano la stessa selezione; per cambiarla occorre modificare `benchmark.json` prima di avviare un nuovo run.
 
 ### Creazione e validazione di casi personali
 
@@ -261,13 +268,13 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 
 ## 8. Risoluzione problemi
 
-- `Ollama non raggiungibile`: avviare Ollama e verificare `ollama list`.
-- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato Ollama/installato Pi; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
+- Provider locale non raggiungibile: avviare il server configurato in `benchmark.json` e verificare `benchmark.py doctor`.
+- GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato il provider/installato Pi; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
 - percorso guidato interrotto: consultare `results/guided-*/guided-run.json` e i run già creati; nessun risultato parziale viene promosso e nessun run precedente viene cancellato.
 - dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a tre run disponibili vengono riutilizzati senza rieseguire i modelli.
 - `pi: comando non trovato`: installare Pi o modificare `pi.command` con il percorso corretto.
-- `Modelli non installati`: usare il nome esatto restituito da `doctor` oppure eseguire `ollama pull` separatamente.
-- `timeout`: aumentare `--timeout`; controllare anche memoria e log `stderr.log`.
+- `Modelli non installati`: usare il nome esatto restituito da `doctor` e installare/importare il modello nel provider configurato.
+- `timeout`: aumentare `--timeout` o `defaults.timeout_seconds` per la GUI; controllare anche memoria e log `stderr.log`. Il limite riguarda ciascuna task e non include preflight e warmup.
 - `pi_error`: controllare `pi-events.jsonl` e `stderr.log`; un errore terminale agente/provider viene classificato come operativo anche quando il processo Pi termina con codice zero. Il testo libero dell'errore resta negli artefatti locali e non viene esportato da `dashboard-data`.
 - score basso con uscita corretta: leggere `grade.json`; il modello può aver risposto senza modificare i file o aver interpretato male un vincolo.
 - token a zero: alcune combinazioni provider/modello non riportano usage; la qualità resta valida, mentre l'efficienza token non viene premiata.
@@ -275,7 +282,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 - `Manifesto mancante` o `paths.*`: completare `case.json`, usare soltanto path relativi POSIX interni al caso e rimuovere symlink sui path dichiarati; rieseguire `case validate`.
 - errore `max_score`, `points`, `earned` o baseline: correggere il contratto del grader; i check devono totalizzare 100 e la fixture iniziale deve restare sotto 60.
 - errore `Controllo compatibilità Pi fallito`: leggere il controllo indicato, verificare il comando `pi` e la sandbox selezionata; Pi 0.85.1 è la versione di riferimento verificata, ma non risolve necessariamente ogni problema;
-- `thinking_control_unverified`: controllare capability, esito preflight, versione Ollama e supporto del livello richiesto; non forzare un fallback;
+- `thinking_control_unverified`: controllare capability, esito preflight, versione del provider e supporto del livello richiesto; non forzare un fallback;
 - `unexpected_thinking` o `unexpected_retry`: conservare gli artefatti, escludere il modello e correggere il controllo prima di un nuovo run;
 - errore `dashboard-data`: verificare schema 2/3/4, coerenza del profilo, directory distinte e path interni alla root; usare `--force` soltanto dopo aver revisionato il file da sostituire.
 - dashboard senza dati aprendo direttamente `index.html`: usare `python3 dashboard.py` oppure generare prima lo snapshot locale opzionale.
@@ -293,23 +300,23 @@ Il runner restituisce exit code `1` se una o più task terminano con errore o ti
 
 ## 9. Sicurezza e privacy
 
-Non inserire dati privati, repository reali o credenziali nelle fixture. Manifesti e template non concedono permessi: un grader importato resta codice non fidato finché non viene revisionato, perché validazione e grading lo eseguono sul processo host. `audit` e il fallback di `auto` non sono sandbox. Il percorso guidato usa argomenti strutturati senza shell, accetta soltanto Ollama locale, conserva manifesto e risultati dentro la root e richiede conferma prima dell'avvio e dell'annullamento; `results/` resta potenzialmente sensibile. Il backend macOS restringe file utente esterni e rete salvo Ollama loopback ed è basato sulla deprecata interfaccia `sandbox-exec`. Su Linux Pi opera in un network namespace vuoto e raggiunge soltanto il broker Ollama tramite un socket Unix interno alla workspace. Su Windows AppContainer non riceve capability di rete e usa un named pipe dedicato al suo SID; ACL temporanee concedono solo i path necessari e un Job Object termina i discendenti. Broker e grader restano processi fidati eseguiti fuori sandbox. Il dataset dashboard omette contenuti raw ma conserva nomi modello, titoli, metriche e hash: resta un file locale potenzialmente sensibile e non deve essere pubblicato automaticamente. Il server ufficiale è confinato a `127.0.0.1`, serve soltanto asset autorizzati e il dataset pubblico in memoria, ma altri processi locali e le estensioni del browser restano fuori dal suo confine di fiducia. Consultare `SECURITY_MODEL.md`.
+Non inserire dati privati, repository reali o credenziali nelle fixture. Manifesti e template non concedono permessi: un grader importato resta codice non fidato finché non viene revisionato, perché validazione e grading lo eseguono sul processo host. `audit` e il fallback di `auto` non sono sandbox. Il percorso guidato usa argomenti strutturati senza shell, accetta soltanto provider HTTP su loopback, conserva manifesto e risultati dentro la root e richiede conferma prima dell'avvio e dell'annullamento; `results/` resta potenzialmente sensibile. Il backend macOS restringe file utente esterni e rete salvo la porta loopback del provider ed è basato sulla deprecata interfaccia `sandbox-exec`. Su Linux Pi opera in un network namespace vuoto e raggiunge soltanto il broker del provider tramite un socket Unix interno alla workspace. Su Windows AppContainer non riceve capability di rete e usa un named pipe dedicato al suo SID; ACL temporanee concedono solo i path necessari e un Job Object termina i discendenti. Broker e grader restano processi fidati eseguiti fuori sandbox. Il dataset dashboard omette contenuti raw ma conserva nomi modello, titoli, metriche e hash: resta un file locale potenzialmente sensibile e non deve essere pubblicato automaticamente. Il server ufficiale è confinato a `127.0.0.1`, serve soltanto asset autorizzati e il dataset pubblico in memoria, ma altri processi locali e le estensioni del browser restano fuori dal suo confine di fiducia. Consultare `SECURITY_MODEL.md`.
 
 ## 10. Limiti noti
 
 - I grader automatici non misurano interamente leggibilità o qualità delle spiegazioni.
 - Le rubriche manuali sono artefatti di supporto: il runner non raccoglie né aggrega il punteggio umano.
 - I tempi dipendono da hardware, quantizzazione, pressione di memoria e temperatura.
-- Il runner è progettato per provider Ollama; non offre ancora un adapter Codex di controllo.
+- Il runner supporta Ollama, LM Studio e il router llama.cpp; non offre ancora un adapter Codex di controllo né un bridge `node-llama-cpp` diretto.
 - I task sono sintetici e devono essere ampliati quando cambia il tipo di lavoro abituale.
 - Il backend Linux dipende da user/network namespace non privilegiati; su host con policy kernel o AppArmor più restrittive il probe fallisce e `required` interrompe il run.
 - AppContainer concede lettura al runtime Pi e applica/rimuove ACL e profilo in best effort; un arresto anomalo del launcher può richiedere pulizia o diagnosi manuale.
-- Il broker inoltra soltanto alla destinazione Ollama configurata, ma non autentica né filtra semanticamente il contenuto delle richieste.
+- Il broker inoltra soltanto alla destinazione provider configurata, ma non autentica né filtra semanticamente il contenuto delle richieste.
 - Comandi dinamici o offuscati possono ancora eludere l'audit quando non è attivo un backend enforced.
 - `sandbox-exec` è deprecato e può non essere disponibile in future versioni macOS; `required` evita fallback silenziosi.
 - Le metriche POSIX possono non includere integralmente tutti i discendenti; RAPL misura il sistema host e può non essere leggibile senza privilegi.
 - Il grader della dashboard verifica trasformazioni e requisiti osservabili, ma responsive, resa visuale, tastiera e assenza di richieste remote richiedono anche una prova in browser e la rubrica manuale sul workspace candidato.
 - La dashboard ufficiale non rende anonimo un export e non pubblica risultati: nomi, punteggi e hash vanno revisionati prima di condividere lo snapshot o un `dashboard-data.json`.
-- Il preflight prova il comportamento osservabile dell'endpoint, non può dimostrare processi interni che Ollama o il modello non espongono. Un modello che non espone reasoning in modalità attiva viene escluso come non verificabile.
+- Il preflight prova il comportamento osservabile dell'endpoint, non può dimostrare processi interni che il provider o il modello non espongono. Un modello che non espone reasoning in modalità attiva viene escluso come non verificabile.
 - I launcher guidati sono script sorgente, non installer o applicazioni firmate; il doppio clic Linux dipende dal file manager e Tkinter deve essere incluso nella distribuzione Python.
 - Una sessione guidata annullata o fallita viene conservata ma non può essere ripresa dal punto interrotto; la dashboard può comunque riaprire da uno a tre run già disponibili senza un nuovo benchmark.

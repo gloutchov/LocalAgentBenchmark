@@ -45,13 +45,15 @@ class PiCompatibilityTests(unittest.TestCase):
             self.assertEqual("cancelled", result.status)
             self.assertLess(time.monotonic() - start, 5)
 
-    def _probe(self, *, bad_effort=False, retry=False, broken_events=False, wrong_error=False):
-        def fake_run(pi_command, model, thinking, prompt, workspace, agent_dir, timeout, sandbox, url, *, tools, cancel_event):
+    def _probe(self, *, bad_effort=False, retry=False, broken_events=False, wrong_error=False,
+               provider_kind="ollama"):
+        def fake_run(pi_command, model, thinking, prompt, workspace, agent_dir, timeout, sandbox, url, *, tools, cancel_event,
+                     provider_kind=provider_kind):
             self.assertEqual(("pi",), pi_command)
             self.assertEqual("", tools)
             settings = json.loads((agent_dir / "models.json").read_text(encoding="utf-8"))
-            self.assertEqual(f"{url}/v1", settings["providers"]["ollama"]["baseUrl"])
-            effort = settings["providers"]["ollama"]["models"][0]["samplingParams"]["reasoning_effort"]
+            self.assertEqual(f"{url}/v1", settings["providers"][provider_kind]["baseUrl"])
+            effort = settings["providers"][provider_kind]["models"][0]["samplingParams"]["reasoning_effort"]
             payload = {
                 "model": model,
                 "reasoning_effort": "wrong" if bad_effort else effort,
@@ -81,7 +83,7 @@ class PiCompatibilityTests(unittest.TestCase):
             )
 
         with patch("localagent_bench.pi_compatibility.run_pi", side_effect=fake_run):
-            return check_pi_compatibility(("pi",), 10)
+            return check_pi_compatibility(("pi",), 10, provider_kind=provider_kind)
 
     def test_compatible_binary_passes_synthetic_contract(self):
         result = self._probe()
@@ -89,6 +91,14 @@ class PiCompatibilityTests(unittest.TestCase):
             self.skipTest("loopback non disponibile")
         self.assertTrue(result.passed, result)
         self.assertEqual(("off_200", "medium_200", "off_500"), result.checks)
+
+    def test_custom_local_provider_uses_same_pi_contract(self):
+        for kind in ("lmstudio", "llama_cpp"):
+            with self.subTest(provider=kind):
+                result = self._probe(provider_kind=kind)
+                if result.failed_check == "loopback_unavailable":
+                    self.skipTest("loopback non disponibile")
+                self.assertTrue(result.passed, result)
 
     def test_bad_payload_fails_closed(self):
         result = self._probe(bad_effort=True)

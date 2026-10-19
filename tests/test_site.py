@@ -100,6 +100,17 @@ class LandingPageTests(unittest.TestCase):
             links,
         )
 
+    def test_local_provider_extension_is_visible_and_links_its_guide(self) -> None:
+        index, parser = self.parse("index.html")
+        hero = index.split('<section class="hero"', 1)[1].split('</section>', 1)[0]
+        for provider in ("Ollama", "LM Studio", "llama.cpp"):
+            self.assertIn(f"<li>{provider}</li>", hero)
+        self.assertIn('data-i18n="provider_update_title"', hero)
+        self.assertIn('data-i18n="provider_update_text"', hero)
+        guide = "https://github.com/gloutchov/LocalAgentBenchmark/blob/main/QUICK-START_LocalProviders.md"
+        self.assertIn(guide, {link.get("href", "") for link in parser.links})
+        self.assertEqual(2, index.count(f'href="{guide}"'))
+
     def test_full_immersion_start_and_language_scoped_documentation(self) -> None:
         index, parser = self.parse("index.html")
         self.assertIn('id="immersion"', index)
@@ -114,6 +125,7 @@ class LandingPageTests(unittest.TestCase):
             "ISTRUZIONI.md",
             "INSTRUCTIONS.md",
             "QUICK-START_Guided.md",
+            "QUICK-START_LocalProviders.md",
             "QUICK-START_Dashboard.md",
             "QUICK-START_Showcase.md",
             "QUICK-START_Case-Author.md",

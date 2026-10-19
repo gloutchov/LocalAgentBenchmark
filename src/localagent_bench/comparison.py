@@ -119,6 +119,9 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         "pi_contract_version": (manifest.get("pi_compatibility") or {}).get("contract_version", 0),
         "pi_contract_status": (manifest.get("pi_compatibility") or {}).get("status", "unverified"),
         "ollama_version": environment.get("ollama"),
+        "provider_kind": configuration.get("provider_kind", environment.get("provider_kind", "ollama")),
+        "provider_url": configuration.get("provider_url", configuration.get("ollama_url")),
+        "provider_version": environment.get("provider_version", environment.get("ollama")),
         "model_capabilities": tuple(capability_signature),
         "warmup": configuration.get("warmup", manifest.get("warmup")),
         "context_window": configuration.get("context_window"),
@@ -175,6 +178,15 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
         loaded.append((run_dir, manifest, report))
 
     reference = _compatibility_signature(loaded[0][1], loaded[0][2])
+    if reference["provider_kind"] != "ollama":
+        for run_dir, manifest, report in loaded:
+            if not _compatibility_signature(manifest, report).get("provider_version"):
+                raise ComparisonError(f"Versione runtime locale non registrata in {run_dir.name}")
+            metadata = manifest.get("model_metadata", {})
+            if not isinstance(metadata, dict) or not metadata or any(
+                not isinstance(item, dict) or not item.get("digest") for item in metadata.values()
+            ):
+                raise ComparisonError(f"Hash GGUF mancanti in {run_dir.name}")
     mismatches: list[dict[str, Any]] = []
     for run_dir, manifest, report in loaded[1:]:
         current = _compatibility_signature(manifest, report)
@@ -203,7 +215,8 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
                 samples[row["model"]].append(row)
     changed_models = sorted(model for model, values in digests.items() if len(values) > 1)
     if changed_models:
-        raise ComparisonError("Digest Ollama divergente per: " + ", ".join(changed_models))
+        label = "Ollama" if reference["provider_kind"] == "ollama" else "GGUF"
+        raise ComparisonError(f"Digest {label} divergente per: " + ", ".join(changed_models))
 
     metrics = (
         "overall_score",

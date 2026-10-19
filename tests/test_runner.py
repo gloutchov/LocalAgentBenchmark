@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -31,6 +32,16 @@ from localagent_bench.runner import (
     _prepare_workspace,
     run_benchmark,
 )
+
+
+def _ollama_test_config():
+    return replace(
+        load_config(ROOT / "benchmark.json"),
+        provider_kind="ollama",
+        ollama_url="http://127.0.0.1:11434",
+        provider_version=None,
+        model_files={},
+    )
 
 
 class RunnerGitTests(unittest.TestCase):
@@ -141,6 +152,37 @@ class RunnerGitTests(unittest.TestCase):
                 )
         list_models_mock.assert_not_called()
 
+    def test_local_provider_loads_model_even_without_warmup(self):
+        model = OllamaModel("local/coder", 1, "gguf-digest", None, {})
+        config = replace(load_config(ROOT / "benchmark.json"), provider_kind="lmstudio",
+                         ollama_url="http://127.0.0.1:1234", provider_version="0.4.0")
+        pi_result = PiRun("ok", 0, 0.1, "", "", {"usage": {"output": 1}, "tool_calls": 0,
+                                                    "tool_errors": 0}, "done", ["pi"])
+        with tempfile.TemporaryDirectory() as directory:
+            with (patch("localagent_bench.runner.require_clean_inputs"),
+                  patch("localagent_bench.runner._command_version", return_value="0.84.3"),
+                  patch("localagent_bench.runner.LocalProvider") as provider_class,
+                  patch("localagent_bench.runner.run_pi", return_value=pi_result) as pi_mock):
+                provider = provider_class.return_value
+                provider.list_models.return_value = [model]
+                provider.fingerprint_model.return_value = model
+                provider.inspect_model.return_value = model
+                provider.version.return_value = "0.4.0"
+                provider.preflight_thinking.return_value = ThinkingPreflight(
+                    "passed", "off", "none", None, False, 0, None, 1)
+                run_dir = run_benchmark(
+                    config, profile="smoke", requested_models=[model.name],
+                    requested_cases=["milestone_closure"], repetitions=1,
+                    timeout_seconds=30, thinking_level="off", use_warmup=False,
+                    output_dir=Path(directory) / "run", order_seed=1,
+                )
+            provider.load.assert_called_once_with(model.name, timeout=30)
+            self.assertEqual("lmstudio", pi_mock.call_args.kwargs["provider_kind"])
+            settings = next(run_dir.glob("models/*/cases/*/.pi-agent/models.json"))
+            self.assertIn("lmstudio", json.loads(settings.read_text(encoding="utf-8"))["providers"])
+            manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual("loaded", manifest["load_events"][0]["status"])
+
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")
     @patch("localagent_bench.runner.unload")
@@ -173,7 +215,7 @@ class RunnerGitTests(unittest.TestCase):
                 "energy": {"available": False},
             },
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
             with (
@@ -201,7 +243,7 @@ class RunnerGitTests(unittest.TestCase):
             self.assertEqual("passed", report["integrity"]["status"])
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(7, manifest["order_seed"])
-            self.assertEqual("0.12.1", manifest["benchmark_version"])
+            self.assertEqual("0.13.0", manifest["benchmark_version"])
             self.assertEqual("passed", manifest["pi_compatibility"]["status"])
             self.assertEqual(32768, manifest["configuration"]["context_window"])
             self.assertEqual(30, manifest["configuration"]["timeout_seconds"])
@@ -288,7 +330,7 @@ class RunnerGitTests(unittest.TestCase):
             sandbox={"backend": "audit-only", "enforced": False},
             system_metrics={"process": {"available": False}, "energy": {"available": False}},
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
             with (
@@ -340,7 +382,7 @@ class RunnerGitTests(unittest.TestCase):
         failed = ThinkingPreflight(
             "unexpected_thinking", "off", "none", True, True, 12, 4, 2
         )
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch("localagent_bench.runner.inspect_model", return_value=model),
@@ -404,7 +446,7 @@ class RunnerGitTests(unittest.TestCase):
             system_metrics={"process": {"available": False}, "energy": {"available": False}},
         )
         passed = ThinkingPreflight("passed", "off", "none", True, False, 0, 0, 1)
-        config = load_config(ROOT / "benchmark.json")
+        config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             with (
                 patch("localagent_bench.runner.inspect_model", return_value=model),

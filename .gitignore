@@ -20,3 +20,4 @@ dashboard/data/snapshot.js
 assets/Dashboard.mov
 assets/Guided.mov
 .localagent-benchmark/
+/.test-temp/

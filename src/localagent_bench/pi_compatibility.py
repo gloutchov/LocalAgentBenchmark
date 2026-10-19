@@ -16,7 +16,7 @@ from .sandbox import SandboxError, SandboxSelection, select_sandbox
 from .thinking import resolve_thinking_policy
 
 
-CONTRACT_VERSION = 1
+CONTRACT_VERSION = 2
 REFERENCE_PI_VERSION = "0.85.1"
 PROBE_MODEL = "pi-contract-probe"
 PROBE_MAX_TOKENS = 321
@@ -115,6 +115,7 @@ def _event_contract(stdout: str) -> bool:
 def check_pi_compatibility(
     pi_command: tuple[str, ...], timeout_seconds: int, sandbox: SandboxSelection | None = None,
     cancel_event: threading.Event | None = None,
+    *, provider_kind: str = "ollama",
 ) -> PiCompatibility:
     """Fail closed; only fixed diagnostics leave this function, never Pi output."""
     checks: list[str] = []
@@ -144,12 +145,14 @@ def check_pi_compatibility(
                     agent_dir, url, [model], 8192, PROBE_MAX_TOKENS, 0,
                     resolve_thinking_policy(thinking), http_idle_timeout_ms=0,
                     agent_max_retries=0, provider_max_retries=0,
+                    **({"provider_kind": provider_kind} if provider_kind != "ollama" else {}),
                 )
                 try:
                     result = run_pi(
                         pi_command, PROBE_MODEL, thinking, "Reply with exactly: done",
                         workspace, agent_dir, timeout_seconds, sandbox or select_sandbox("audit"), url,
                         tools="", cancel_event=cancel_event,
+                        **({"provider_kind": provider_kind} if provider_kind != "ollama" else {}),
                     )
                 except (OSError, ValueError, SandboxError):
                     return PiCompatibility("failed", CONTRACT_VERSION, tuple(checks), "pi_launch")

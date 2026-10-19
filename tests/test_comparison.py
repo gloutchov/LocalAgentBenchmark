@@ -13,6 +13,26 @@ from localagent_bench.comparison import ComparisonError, write_comparison
 
 
 class ComparisonTests(unittest.TestCase):
+    def test_local_provider_requires_runtime_version_and_gguf_digest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first = self._write_run(root, "local-a", overall=70, verified_thinking=True)
+            second = self._write_run(root, "local-b", overall=72, verified_thinking=True)
+            for run in (first, second):
+                path = run / "run.json"
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                manifest["configuration"].update({"provider_kind": "lmstudio", "provider_url": "http://127.0.0.1:1234"})
+                manifest["environment"].update({"provider_kind": "lmstudio", "provider_version": "0.4.0"})
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+            comparison = write_comparison([first, second], root / "compatible")
+            self.assertEqual("lmstudio", comparison["compatibility"]["provider_kind"])
+            path = second / "run.json"
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            manifest["model_metadata"]["model:a"]["digest"] = None
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ComparisonError, "Hash GGUF"):
+                write_comparison([first, second], root / "missing-hash")
+
     def _write_run(
         self,
         root: Path,

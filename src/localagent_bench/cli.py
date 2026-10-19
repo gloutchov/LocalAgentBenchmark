@@ -29,7 +29,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="benchmark.py",
-        description="Benchmark personale offline per Pi + Ollama",
+        description="Benchmark personale offline per Pi e provider locali",
     )
     parser.add_argument(
         "--config",
@@ -39,12 +39,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("doctor", help="Verifica Pi, Git, Ollama, modelli e casi")
+    subparsers.add_parser("doctor", help="Verifica Pi, Git, provider, modelli e casi")
     subparsers.add_parser("list", help="Elenca profili, casi e modelli rilevati")
 
     run = subparsers.add_parser("run", help="Esegue il benchmark")
     run.add_argument("--profile", default="standard", help="Profilo da eseguire")
-    run.add_argument("--models", nargs="+", help="Modelli Ollama (default dalla configurazione)")
+    run.add_argument("--models", nargs="+", help="Modelli locali (default dalla configurazione)")
     run.add_argument("--cases", nargs="+", help="Casi specifici, ignorando il profilo")
     run.add_argument("--repetitions", type=int, help="Ripetizioni per modello/caso")
     run.add_argument("--timeout", type=int, help="Timeout di ogni task in secondi")
@@ -106,7 +106,7 @@ def _print_doctor(payload: dict) -> None:
         mark = "OK" if check["ok"] else "ERRORE"
         print(f"[{mark:6}] {check['name']}: {check['detail']}")
     if payload["models"]:
-        print("\nModelli Ollama:")
+        print("\nModelli locali:")
         for model in payload["models"]:
             size = model.get("size")
             size_text = f"{size / (1024 ** 3):.1f} GiB" if size else "dimensione sconosciuta"
@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
             print("\nCasi:")
             for case in config.cases.values():
                 print(f"  - {case.id}: {case.title} [{case.category}, peso {case.weight:g}]")
-            print("\nModelli Ollama:")
+            print("\nModelli locali:")
             for model in payload["models"]:
                 print(f"  - {model['name']}")
             return 0 if payload["ok"] else 1

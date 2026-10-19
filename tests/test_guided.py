@@ -237,6 +237,7 @@ class GuidedTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(GuidedError):
                 validate_model_name(name)
         self.assertEqual("namespace/model:tag", validate_model_name("namespace/model:tag"))
+        self.assertEqual("publisher/model@q4_k_m", validate_model_name("publisher/model@q4_k_m"))
 
     def test_discovery_distinguishes_ollama_pi_dirty_inputs_and_no_models(self):
         base = load_config(ROOT / "benchmark.json")

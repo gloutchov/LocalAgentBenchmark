@@ -5,7 +5,7 @@
 ├── benchmark.py                    # entry point locale senza installazione
 ├── dashboard.py                    # launcher loopback della dashboard ufficiale
 ├── guided_benchmark.py             # entry point Tkinter del percorso rapido
-├── benchmark.json                  # configurazione centrale, profili, guided e root casi
+├── benchmark.json                  # provider locale, profili, guided e root casi
 ├── launchers/                      # launcher sorgente sottili, nessun binario incluso
 │   ├── LocalAgent-Benchmark.command # doppio clic macOS
 │   ├── LocalAgent-Benchmark.cmd    # doppio clic Windows
@@ -18,7 +18,7 @@
 │   ├── js/                         # core dati, i18n, rendering e stato UI modulari
 │   └── tests/dashboard.test.js     # trasformazioni, fixture, i18n e vincoli statici
 ├── site/                           # landing page pubblica statica per GitHub Pages
-│   ├── index.html                  # contenuti, percorsi rapido/full immersion, avvio, documentazione, metadata e CSP
+│   ├── index.html                  # hero dei provider locali, percorsi, avvio, documentazione, metadata e CSP
 │   ├── 404.html                    # fallback bilingue compatibile con /LocalAgentBenchmark/
 │   ├── css/styles.css              # griglia, temi, responsive, focus e reduced motion
 │   ├── js/                         # bootstrap tema, dizionari, preferenze e interazioni
@@ -32,14 +32,15 @@
 │   ├── config.py                   # modello e validazione configurazione
 │   ├── case_sdk.py                 # discovery, manifesti, validatore e template atomico dei casi
 │   ├── integrity.py                # preflight Git, snapshot, SHA-256 e drift repository
-│   ├── thinking.py                 # mapping puro e policy thinking Pi/Ollama
+│   ├── thinking.py                 # mapping puro e policy thinking Pi/provider
 │   ├── ollama.py                   # tags/version, capability, preflight, warmup e unload
-│   ├── pi_adapter.py               # config/payload Pi, JSONL, retry, scratch e audit path/rete
+│   ├── providers.py                # adapter LM Studio e router llama.cpp, hash GGUF e preflight
+│   ├── pi_adapter.py               # config/payload Pi, JSONL, timeout/cleanup processi, scratch e audit path/rete
 │   ├── pi_compatibility.py         # server sintetico loopback e gate contrattuale Pi
 │   ├── runner.py                   # ordine seeded, preflight, workspace, controlli e artefatti
 │   ├── grading.py                  # esecuzione isolata e timeout dei grader
 │   ├── sandbox.py                  # selezione, probe e launch Seatbelt/bubblewrap/AppContainer/audit
-│   ├── sandbox_transport.py        # broker Ollama Unix e shim Node a destinazione fissa
+│   ├── sandbox_transport.py        # broker provider Unix e shim Node a destinazione fissa
 │   ├── windows_appcontainer.py     # profilo, ACL/DACL, named pipe e Job Object Windows
 │   ├── system_metrics.py           # hardware, rusage POSIX e RAPL opzionale
 │   ├── comparison.py               # compatibilità e statistiche tra più run
@@ -80,15 +81,17 @@
 │   ├── test_site.py                # asset, link, anchor, metadata, CSP e prefisso Pages
 │   ├── test_site_javascript.py     # esecuzione della suite Node della landing page
 │   ├── test_ollama.py              # capability, mapping, preflight e warmup thinking
+│   ├── test_providers.py           # discovery, hash GGUF, preflight e gestione modelli alternativi
 │   ├── test_pi_thinking_contract.py # Pi reale contro server OpenAI-compatible fittizio
 │   ├── test_pi_compatibility.py    # regressioni del gate Pi con payload/errori simulati
+│   ├── test_pi_adapter.py          # eventi Pi, audit e timeout con processi figli
 │   └── ...                         # runner, parser/status provider, sandbox, metriche, confronti e grader
 ├── results/                        # output, snapshot input, hash e workspace; ignorato da Git
 ├── .localagent-benchmark/          # preferenze GUI locali validate; generata e ignorata
 ├── assets/                         # sorgenti video locali ignorate; mai pubblicate o modificate
 │   ├── Dashboard.mov               # sorgente dei fotogrammi della dashboard
 │   └── Guided.mov                  # sorgente del fotogramma del percorso guidato
-├── .github/workflows/ci.yml        # Pi 0.85.1, Node 24, compile, test e documenti su tre OS
+├── .github/workflows/ci.yml        # Pi, Node 24, compile, test e documenti su tre OS
 ├── .github/workflows/pages.yml     # valida e pubblica soltanto site/ su GitHub Pages
 ├── .github/dependabot.yml          # aggiornamenti settimanali delle GitHub Actions
 ├── AGENTS.md                       # modus operandi copiato in ogni fixture
@@ -101,6 +104,7 @@
 ├── QUICK-START_Showcase.md          # export, freeze, run finalisti e verifica browser
 ├── QUICK-START_Dashboard.md         # launcher, import, snapshot locale e troubleshooting
 ├── QUICK-START_Guided.md            # funnel senza terminale, piattaforme, privacy e limiti
+├── QUICK-START_LocalProviders.md    # installazione Pi/provider, router GGUF e provenienza
 ├── SECURITY_MODEL.md               # controlli, rischi e limiti bilingui
 ├── SECURITY.md                     # canale privato e ambito delle segnalazioni
 ├── CONTRIBUTING.md                 # regole e verifiche per contribuire
