@@ -83,7 +83,7 @@ def _native_candidate(
                 filesystem_isolation=True,
                 process_isolation=True,
                 network_isolation=True,
-                detail="Seatbelt limita file utente e rete; Ollama resta consentito solo su loopback",
+                detail="Seatbelt limita file utente e rete; il provider resta consentito solo su loopback",
                 deprecated_backend=True,
             ),
             detail,
@@ -122,7 +122,7 @@ def _native_candidate(
                 filesystem_isolation=True,
                 process_isolation=True,
                 network_isolation=True,
-                detail="unshare crea una rete vuota e bubblewrap isola file e processi; un broker Unix inoltra soltanto verso Ollama",
+                detail="unshare crea una rete vuota e bubblewrap isola file e processi; un broker Unix inoltra soltanto verso il provider locale",
             ),
             detail,
         )
@@ -139,7 +139,7 @@ def _native_candidate(
                 filesystem_isolation=True,
                 process_isolation=True,
                 network_isolation=True,
-                detail="AppContainer limita file, credenziali e rete; un named pipe inoltra soltanto verso Ollama",
+                detail="AppContainer limita file, credenziali e rete; un named pipe inoltra soltanto verso il provider locale",
             ),
             detail,
         )

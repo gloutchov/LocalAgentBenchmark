@@ -84,12 +84,13 @@ def write_models_config(
     http_idle_timeout_ms: int,
     agent_max_retries: int,
     provider_max_retries: int,
+    provider_kind: str = "ollama",
 ) -> None:
     agent_dir.mkdir(parents=True, exist_ok=True)
     model_items = [
         {
             "id": model.name,
-            "name": f"{model.name} (Ollama locale)",
+            "name": f"{model.name} ({provider_kind} locale)",
             "reasoning": model.thinking_capable is True,
             **(
                 {"thinkingLevelMap": PI_THINKING_LEVEL_MAP}
@@ -109,10 +110,10 @@ def write_models_config(
     ]
     payload = {
         "providers": {
-            "ollama": {
+            provider_kind: {
                 "baseUrl": f"{ollama_url.rstrip('/')}/v1",
                 "api": "openai-completions",
-                "apiKey": "ollama",
+                "apiKey": provider_kind,
                 "compat": {
                     "supportsDeveloperRole": False,
                     "supportsReasoningEffort": True,
@@ -179,17 +180,18 @@ def run_pi(
     *,
     tools: str = "read,bash,edit,write,grep,find,ls",
     cancel_event: threading.Event | None = None,
+    provider_kind: str = "ollama",
 ) -> PiRun:
     command = [
         *pi_command,
         "--mode",
         "json",
         "--provider",
-        "ollama",
+        provider_kind,
         "--model",
         model,
         "--api-key",
-        "ollama",
+        provider_kind,
         "--thinking",
         thinking,
         "--tools",

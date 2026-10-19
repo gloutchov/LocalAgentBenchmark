@@ -389,6 +389,7 @@ def render_markdown(report: dict[str, Any], run_dir: Path) -> str:
         "## Ambiente e isolamento",
         "",
         f"Sandbox: **{backend}** ({'enforced' if enforced else 'audit-only'}); capacità applicate: {capabilities}.",
+        f"Provider: `{environment.get('provider_kind') or 'ollama'}`; runtime: `{environment.get('provider_version') or 'non verificato'}` ({'dichiarato in configurazione' if environment.get('provider_kind') not in (None, 'ollama') else 'API'}).",
         f"Hardware: `{hardware.get('machine') or 'n/d'}`, CPU logiche: {hardware.get('logical_cpu_count') or 'n/d'}, memoria: {memory_text}.",
         "",
         "## Controllo thinking",
@@ -396,7 +397,7 @@ def render_markdown(report: dict[str, Any], run_dir: Path) -> str:
         (
             f"Stato: **{thinking_control.get('status', 'unverified')}**; "
             f"richiesto: `{thinking_control.get('requested') or 'n/d'}`; "
-            f"inviato a Ollama: `{thinking_control.get('reasoning_effort') or 'non verificato'}`; "
+            f"inviato al provider: `{thinking_control.get('reasoning_effort') or 'non verificato'}`; "
             f"versione controllo: {thinking_control.get('version', 0)}."
         ),
         "",
@@ -625,7 +626,7 @@ def render_markdown(report: dict[str, Any], run_dir: Path) -> str:
     lines.extend(
         [
             "",
-            "I tempi includono ragionamento, chiamate agli strumenti e test: rappresentano la produttività end-to-end, non il throughput puro di Ollama. "
+            "I tempi includono ragionamento, chiamate agli strumenti e test: rappresentano la produttività end-to-end, non il throughput puro del provider. "
             "Confronta i tempi solo sullo stesso computer, con lo stesso profilo e senza altri carichi pesanti.",
             "",
         ]

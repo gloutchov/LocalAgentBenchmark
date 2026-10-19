@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.12.1**
+Versione corrente / Current version: **0.13.0 (branch milestone)**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -609,3 +609,28 @@ Versione corrente / Current version: **0.12.1**
 - Documentazione: `README.md`, `QUICK-START_Guided.md` e `PLAN.md`. Nessuna modifica a sicurezza, struttura, comandi o regole operative.
 - Release: `v0.12.1` sorgente, autorizzata esplicitamente dal progettista; nessun binario di progetto o relativo checksum.
 - Stato: **PR #7 integrata al commit `fd05d63`; SHA upstream verificato. CI sulla PR aggiornata (`39066068492`) e su `main` (`39066608772`) verde su macOS, Windows e Ubuntu; Pages post-merge (`39066608797`) verde. La patch `0.12.1` ha superato 147 test Python (18 skip ambientali), `compileall` e la validazione dei 6 casi; è pronta per il controllo del progettista sul commit locale. Tag e release non sono ancora stati creati.**
+
+## Milestone 13 – Provider locali alternativi
+
+- Obiettivo: eseguire lo stesso benchmark Pi su Ollama, LM Studio e router `llama-server` con GGUF locali, conservando controlli, isolamento e provenienza. `node-llama-cpp` resta una libreria utilizzabile tramite un futuro bridge HTTP dedicato, senza introdurre una dipendenza runtime oggi.
+- Branch: `milestone/13-local-providers`.
+- Incremento versione: `+0.1.0`, da `0.12.1` a `0.13.0`; tag `v0.13.0` e release sorgente soltanto dopo approvazione, CI e smoke reali.
+- Attività: configurazione `provider` retrocompatibile con `ollama`; adapter LM Studio v1 e llama.cpp router; discovery, capability, caricamento, preflight thinking e warmup; provider Pi isolato per task e nel probe contrattuale sintetico; trasporto loopback unico nei backend sandbox; versione runtime dichiarata e hash SHA-256 dei GGUF opzionali per singolo run e obbligatori per l'aggregazione; confronto separato per provider/endpoint/versione/hash; percorso guidato e testi bilingui aggiornati; manuali, quick start, sicurezza, mappa, landing e test.
+- Criteri di accettazione: `doctor`, `list` e `run` selezionano un solo provider senza rete esterna; Pi supera il contratto con l'ID selezionato; `off` rifiuta reasoning osservabile e le modalità attive senza segnale non entrano in classifica; `required` inoltra soltanto alla porta configurata; LM Studio e router caricano/scaricano il modello selezionato; Pi riceve sempre una directory isolata; `compare` rifiuta coorti diverse o run alternativi privi di provenienza; la GUI applica lo stesso percorso; i vecchi run Ollama restano leggibili.
+- Test richiesti: unit e integrazione HTTP fittizia per discovery, load/unload, preflight, payload e risposte ostili; test config/CLI/GUI/comparison e Pi reale contro server sintetico sui tre ID provider; suite Python, `compileall`, validazione dei casi, suite Node e verifica browser della landing; smoke con LM Studio e llama.cpp reali su host disponibili e CI multipiattaforma prima del merge.
+- Documentazione: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_Guided.md`, `QUICK-START_LocalProviders.md`, `SECURITY_MODEL.md`, `MAP.md`, `AGENTS.md`, landing bilingue e questo piano.
+- Stato: **implementazione sul branch; probe contrattuale con Pi 0.84.3 e server sintetico riuscito per tutti e tre gli ID provider. Passano 52 test Python mirati, 17 test JavaScript, `compileall`, validazione dei sei casi e `git diff --check`. La suite Python completa locale incontra restrizioni dell'ambiente Windows sui processi Node e sui profili AppContainer; i test coinvolti restano da verificare in CI. Smoke con LM Studio/llama.cpp reali e verifica browser ancora da completare perché i runtime e il browser non sono disponibili in questa sessione. Revisione progettista, merge, tag e release ancora da completare.**
+
+### Checklist chiusura M13
+
+- [x] Branch dedicato creato da `main` pulito
+- [x] Adapter, configurazione, percorso guidato e confronto implementati
+- [x] Test unitari e probe Pi sintetico aggiunti
+- [x] Test mirati, suite JavaScript, compilazione e validazione dei casi eseguiti
+- [x] Versione e documentazione predisposte sul branch
+- [ ] Suite locale completa e validazione dei casi verdi
+- [ ] Smoke reali LM Studio e llama.cpp sui sistemi disponibili
+- [ ] Verifica browser landing desktop/mobile, lingue, temi e richieste di rete
+- [ ] Revisione del diff e avallo esplicito del progettista
+- [ ] Commit finale, PR, CI multipiattaforma e merge autorizzato
+- [ ] CI su `main`, tag `v0.13.0`, release e branch cleanup verificati

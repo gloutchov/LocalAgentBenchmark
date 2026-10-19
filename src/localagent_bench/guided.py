@@ -33,7 +33,7 @@ from .thinking import THINKING_LEVELS
 
 MANIFEST_NAME = "guided-run.json"
 MAX_ARTIFACT_BYTES = 16 * 1024 * 1024
-MODEL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$")
+MODEL_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,254}$")
 TASK_PATTERN = re.compile(
     r"^\[(?P<current>\d+)/(?P<total>\d+)\] (?P<model>.+?) · (?P<case>.+?) · ripetizione (?P<repeat>\d+)$"
 )
@@ -291,6 +291,8 @@ def _error_from_doctor(payload: dict[str, Any]) -> GuidedError:
     detail = "; ".join(str(item.get("detail", "")) for item in failed)
     if "ollama" in names:
         return GuidedError("ollama_unavailable", detail or "Ollama non raggiungibile")
+    if "lmstudio" in names or "llama_cpp" in names:
+        return GuidedError("provider_unavailable", detail or "Provider locale non raggiungibile")
     if "pi" in names:
         return GuidedError("pi_unavailable", detail or "Pi non disponibile")
     if "inputs" in names:
@@ -331,7 +333,7 @@ class GuidedOrchestrator:
     def discover(self) -> dict[str, Any]:
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto Ollama locale")
+            raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto provider locali")
         self.cancel_event.clear()
         payload = (
             self.doctor_function(self.config, cancel_event=self.cancel_event)
@@ -353,7 +355,7 @@ class GuidedOrchestrator:
             error.context = payload
             raise error
         if not models:
-            raise GuidedError("no_models", "Nessun modello Ollama locale rilevato")
+            raise GuidedError("no_models", "Nessun modello locale rilevato")
         return payload
 
     def settings_summary(self, *, thinking: str | None = None, sandbox: str | None = None) -> dict[str, Any]:
@@ -362,6 +364,8 @@ class GuidedOrchestrator:
             "profiles": list(self.guided.profiles),
             "promotion_limits": list(self.guided.promotion_limits),
             "ollama_url": self.config.ollama_url,
+            "provider_kind": self.config.provider_kind,
+            "provider_url": self.config.ollama_url,
             "pi_command": list(self.config.pi_command),
             "thinking": thinking if thinking is not None else defaults.thinking,
             "sandbox": sandbox if sandbox is not None else defaults.sandbox,

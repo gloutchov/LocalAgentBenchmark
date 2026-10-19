@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -70,6 +72,9 @@ class BenchmarkConfig:
     cases_directory: Path
     dashboard: DashboardSettings
     guided: GuidedSettings | None
+    provider_kind: str = "ollama"
+    model_files: dict[str, Path] | None = None
+    provider_version: str | None = None
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -103,16 +108,44 @@ def load_config(path: Path) -> BenchmarkConfig:
         raise ConfigError("Versione configurazione non supportata (attesa: 1)")
 
     root = path.parent
-    ollama = _require(raw, "ollama", dict)
-    ollama_url = _require(ollama, "url", str).rstrip("/")
+    provider = raw.get("provider")
+    if provider is None:
+        provider = _require(raw, "ollama", dict)
+        provider_kind = "ollama"
+    elif isinstance(provider, dict):
+        provider_kind = _require(provider, "kind", str)
+    else:
+        raise ConfigError("'provider' deve essere un oggetto")
+    if provider_kind not in {"ollama", "lmstudio", "llama_cpp"}:
+        raise ConfigError("provider.kind non supportato")
+    ollama_url = _require(provider, "url", str).rstrip("/")
     parsed_url = urlparse(ollama_url)
-    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
-        raise ConfigError("ollama.url deve essere un URL HTTP(S) valido")
+    try:
+        parsed_url.port
+    except ValueError as exc:
+        raise ConfigError("provider.url deve avere una porta valida") from exc
+    if (parsed_url.scheme != "http" or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed_url.username or parsed_url.password or parsed_url.path or parsed_url.query or parsed_url.fragment):
+        raise ConfigError("provider.url deve essere un URL HTTP locale su loopback, senza path o credenziali")
+    raw_files = provider.get("model_files", {})
+    if not isinstance(raw_files, dict) or any(
+        not isinstance(name, str) or not isinstance(value, str) or not value
+        for name, value in raw_files.items()
+    ):
+        raise ConfigError("provider.model_files deve associare nomi modello a path GGUF")
+    model_files = {name: Path(value).expanduser().resolve() for name, value in raw_files.items()}
+    provider_version = provider.get("runtime_version")
+    if provider_version is not None and (not isinstance(provider_version, str) or not provider_version.strip() or len(provider_version) > 128):
+        raise ConfigError("provider.runtime_version deve essere una stringa breve non vuota")
 
     pi = _require(raw, "pi", dict)
     pi_command_raw = _require(pi, "command", list)
     if not pi_command_raw or not all(isinstance(item, str) and item for item in pi_command_raw):
         raise ConfigError("pi.command deve contenere almeno una stringa non vuota")
+    if os.name == "nt" and not Path(pi_command_raw[0]).suffix:
+        resolved_executable = shutil.which(pi_command_raw[0])
+        if resolved_executable and Path(resolved_executable).suffix.lower() in {".exe", ".cmd", ".bat"}:
+            pi_command_raw = [resolved_executable, *pi_command_raw[1:]]
 
     defaults_raw = _require(raw, "defaults", dict)
     defaults = Defaults(
@@ -315,4 +348,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         cases_directory=cases_directory,
         dashboard=dashboard,
         guided=guided,
+        provider_kind=provider_kind,
+        model_files=model_files,
+        provider_version=provider_version,
     )
