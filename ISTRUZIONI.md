@@ -12,6 +12,8 @@ LocalAgent Benchmark confronta modelli locali Ollama, LM Studio o llama.cpp quan
 - modelli locali già scaricati e adatti al tool calling;
 - spazio libero sufficiente per una copia delle fixture per ogni esecuzione.
 
+La procedura di installazione e verifica su Windows per Pi, Ollama, LM Studio e `llama-server`, con link alle fonti ufficiali, è in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Se Pi è già installato e supera `doctor`, non serve aggiornarlo prima di un benchmark.
+
 Per l'isolamento OS opzionale servono `sandbox-exec` utilizzabile su macOS; `bwrap`, `unshare` e user/network namespace utilizzabili su Linux; oppure Windows 10/11 con AppContainer. `doctor` esegue un probe reale e mostra disponibilità, backend e capacità effettive senza installare componenti. Le procedure specifiche sono in [QUICK-START_Linux.md](QUICK-START_Linux.md) e [QUICK-START_Windows.md](QUICK-START_Windows.md).
 
 Verificare l'ambiente:

@@ -103,7 +103,7 @@
 ├── QUICK-START_Showcase.md          # export, freeze, run finalisti e verifica browser
 ├── QUICK-START_Dashboard.md         # launcher, import, snapshot locale e troubleshooting
 ├── QUICK-START_Guided.md            # funnel senza terminale, piattaforme, privacy e limiti
-├── QUICK-START_LocalProviders.md    # LM Studio, router GGUF, provenienza e confronti
+├── QUICK-START_LocalProviders.md    # installazione Pi/provider, router GGUF e provenienza
 ├── SECURITY_MODEL.md               # controlli, rischi e limiti bilingui
 ├── SECURITY.md                     # canale privato e ambito delle segnalazioni
 ├── CONTRIBUTING.md                 # regole e verifiche per contribuire

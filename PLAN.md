@@ -628,6 +628,7 @@ Versione corrente / Current version: **0.13.0 (branch milestone)**
 - [x] Test unitari e probe Pi sintetico aggiunti
 - [x] Test mirati, suite JavaScript, compilazione e validazione dei casi eseguiti
 - [x] Versione e documentazione predisposte sul branch
+- [x] Installazione e verifica Windows di Pi, Ollama, LM Studio e llama.cpp documentate in italiano e inglese
 - [ ] Suite locale completa e validazione dei casi verdi
 - [ ] Smoke reali LM Studio e llama.cpp sui sistemi disponibili
 - [ ] Verifica browser landing desktop/mobile, lingue, temi e richieste di rete

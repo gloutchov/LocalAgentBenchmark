@@ -35,6 +35,10 @@ Il punteggio composito pesa **qualità 80%**, **completamento 10%**, **velocità
 - Pi installato e disponibile come comando `pi`;
 - almeno un modello locale già scaricato e capace di tool calling.
 
+Installazione e verifica di Pi, Ollama, LM Studio e `llama-server` su Windows: [guida ai provider locali](QUICK-START_LocalProviders.md). Per un primo smoke selezionare un solo modello; la [guida Windows](QUICK-START_Windows.md) mostra un comando con timeout limitato.
+
+Windows installation and verification for Pi, Ollama, LM Studio, and `llama-server`: [local provider guide](QUICK-START_LocalProviders.md). Select one model for an initial smoke test; the [Windows quick start](QUICK-START_Windows.md) includes a bounded timeout.
+
 Per LM Studio e `llama-server`, modificare `provider.kind` e `provider.url` in `benchmark.json`, poi eseguire `python3 benchmark.py doctor`. I GGUF esterni possono essere importati in LM Studio o messi nella directory modelli del router llama.cpp. Per aggregare statisticamente più run dei nuovi provider, configurare anche `provider.runtime_version` e `provider.model_files` con i path locali dei GGUF: il benchmark ne calcola SHA-256 senza copiare i file. Senza versione o hash il singolo run resta disponibile, mentre `compare` rifiuta l'aggregazione. Vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
 
 For LM Studio or `llama-server`, set `provider.kind` and `provider.url` in `benchmark.json`, then run `python3 benchmark.py doctor`. LM Studio can import external GGUF files; the llama.cpp router discovers GGUF files in its model directory. Statistical aggregation of these runs also requires `provider.runtime_version` and `provider.model_files` pointing to local GGUF files; the benchmark hashes them without copying them. A single run works without that provenance, while `compare` rejects aggregation. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).

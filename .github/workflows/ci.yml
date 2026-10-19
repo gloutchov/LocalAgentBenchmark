@@ -48,6 +48,7 @@ jobs:
               "SECURITY.md", "CONTRIBUTING.md", "PLAN.md", "MAP.md", "AGENTS.md", "LICENSE", "VERSION",
               "QUICK-START_Case-Author.md", "QUICK-START_Showcase.md",
               "QUICK-START_Dashboard.md", "QUICK-START_Guided.md",
+              "QUICK-START_LocalProviders.md", "QUICK-START_Windows.md",
               "guided_benchmark.py", "launchers/LocalAgent-Benchmark.command",
               "launchers/LocalAgent-Benchmark.cmd", "launchers/LocalAgent-Benchmark.sh",
               "schemas/case.schema.json", "schemas/dashboard-data.schema.json",

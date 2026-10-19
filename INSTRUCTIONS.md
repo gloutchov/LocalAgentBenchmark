@@ -12,6 +12,8 @@ LocalAgent Benchmark compares local Ollama, LM Studio, or llama.cpp models actin
 - one or more downloaded local models suitable for tool calling;
 - enough disk space for one fixture workspace per attempt.
 
+Windows installation and verification steps for Pi, Ollama, LM Studio, and `llama-server`, with links to official sources, are in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). An existing Pi installation that passes `doctor` does not need an upgrade before a run.
+
 Optional OS enforcement requires a usable `sandbox-exec` on macOS; `bwrap`, `unshare`, and usable user/network namespaces on Linux; or Windows 10/11 with AppContainer. `doctor` performs a real probe and reports availability, the effective backend, and its capabilities without installing components. Platform-specific procedures are in [QUICK-START_Linux.md](QUICK-START_Linux.md) and [QUICK-START_Windows.md](QUICK-START_Windows.md).
 
 Verify the environment without running an agent task:
