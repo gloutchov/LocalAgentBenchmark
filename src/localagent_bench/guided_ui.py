@@ -20,6 +20,35 @@ from .guided import GuidedError, GuidedOrchestrator, find_latest_manifest
 
 ROOT = Path(__file__).resolve().parents[2]
 
+THEME_PALETTES = {
+    "dark": {
+        "background": "#0b1623",
+        "surface": "#122235",
+        "foreground": "#edf4fb",
+        "muted": "#a9bacb",
+        "accent": "#5fd0c2",
+        "border": "#5e7c90",
+        "selection": "#176b65",
+        "selection_text": "#ffffff",
+        "disabled_background": "#223345",
+        "disabled_foreground": "#a9bacb",
+        "progress_track": "#294558",
+    },
+    "light": {
+        "background": "#f4f7fb",
+        "surface": "#ffffff",
+        "foreground": "#17283a",
+        "muted": "#53677a",
+        "accent": "#087f73",
+        "border": "#9eafbb",
+        "selection": "#087f73",
+        "selection_text": "#ffffff",
+        "disabled_background": "#e2eaf0",
+        "disabled_foreground": "#53677a",
+        "progress_track": "#c5dbe3",
+    },
+}
+
 TEXT = {
     "it": {
         "title": "LocalAgent Benchmark · Percorso rapido",
@@ -223,6 +252,12 @@ def _size_text(value: Any) -> str:
     return "—"
 
 
+def _completed_task_progress(phase: int, current: int, total: int) -> float:
+    if phase < 1 or total < 1:
+        return 0.0
+    return min(3.0, phase - 1 + max(0, min(current - 1, total)) / total)
+
+
 def _sorted_model_indices(
     models: list[dict[str, Any]], column: str, descending: bool
 ) -> tuple[int, ...]:
@@ -346,6 +381,7 @@ class GuidedWindow:
         self.results_var = tk.StringVar()
         self.settings_var = tk.StringVar()
         self.progress_var = tk.DoubleVar(value=0)
+        self.active_phase = 0
         self._build()
         self._apply_preferences(save=False)
         self.root.protocol("WM_DELETE_WINDOW", self._close)
@@ -472,29 +508,115 @@ class GuidedWindow:
 
     def _apply_preferences(self, *, save: bool = True) -> None:
         ttk = self.ttk
-        dark = self.theme == "dark"
-        palette = {
-            "background": "#0b1623" if dark else "#f4f7fb",
-            "surface": "#122235" if dark else "#ffffff",
-            "foreground": "#edf4fb" if dark else "#17283a",
-            "muted": "#a9bacb" if dark else "#53677a",
-            "accent": "#5fd0c2" if dark else "#087f73",
-        }
+        palette = THEME_PALETTES[self.theme]
         style = ttk.Style(self.root)
         style.theme_use("clam")
         style.configure(".", background=palette["background"], foreground=palette["foreground"], fieldbackground=palette["surface"])
         style.configure("TFrame", background=palette["background"])
-        style.configure("TLabelframe", background=palette["background"], foreground=palette["foreground"])
+        style.configure("TLabelframe", background=palette["background"], foreground=palette["foreground"], bordercolor=palette["border"])
         style.configure("TLabelframe.Label", background=palette["background"], foreground=palette["accent"])
         style.configure("TLabel", background=palette["background"], foreground=palette["foreground"])
         style.configure("TCheckbutton", background=palette["background"], foreground=palette["foreground"])
         style.map("TCheckbutton", background=[("active", palette["background"])], foreground=[("disabled", palette["muted"])])
+        style.configure(
+            "TCombobox",
+            background=palette["surface"],
+            fieldbackground=palette["surface"],
+            foreground=palette["foreground"],
+            arrowcolor=palette["foreground"],
+            bordercolor=palette["border"],
+            lightcolor=palette["border"],
+            darkcolor=palette["border"],
+            troughcolor=palette["surface"],
+            selectbackground=palette["surface"],
+            selectforeground=palette["foreground"],
+        )
+        style.map(
+            "TCombobox",
+            background=[
+                ("disabled", palette["disabled_background"]),
+                ("readonly", palette["surface"]),
+            ],
+            fieldbackground=[
+                ("disabled", palette["disabled_background"]),
+                ("readonly", palette["surface"]),
+            ],
+            foreground=[
+                ("disabled", palette["disabled_foreground"]),
+                ("readonly", palette["foreground"]),
+            ],
+            arrowcolor=[
+                ("disabled", palette["disabled_foreground"]),
+                ("readonly", palette["foreground"]),
+            ],
+            selectbackground=[("readonly", palette["surface"])],
+            selectforeground=[("readonly", palette["foreground"])],
+        )
+        for option, color in {
+            "background": palette["surface"],
+            "foreground": palette["foreground"],
+            "selectBackground": palette["selection"],
+            "selectForeground": palette["selection_text"],
+        }.items():
+            self.root.option_add(f"*TCombobox*Listbox.{option}", color)
+        style.configure(
+            "TButton",
+            background=palette["surface"],
+            foreground=palette["foreground"],
+            bordercolor=palette["border"],
+            lightcolor=palette["border"],
+            darkcolor=palette["border"],
+        )
+        style.map(
+            "TButton",
+            background=[
+                ("disabled", palette["disabled_background"]),
+                ("pressed", palette["selection"]),
+                ("active", palette["progress_track"]),
+            ],
+            foreground=[
+                ("disabled", palette["disabled_foreground"]),
+                ("pressed", palette["selection_text"]),
+            ],
+        )
         style.configure("Title.TLabel", font=("TkDefaultFont", 20, "bold"), foreground=palette["accent"])
         style.configure("Subtitle.TLabel", font=("TkDefaultFont", 11), foreground=palette["muted"])
         style.configure("Note.TLabel", foreground=palette["muted"])
         style.configure("Treeview", background=palette["surface"], fieldbackground=palette["surface"], foreground=palette["foreground"], rowheight=26)
-        style.configure("Treeview.Heading", background=palette["background"], foreground=palette["foreground"])
-        style.map("Treeview", background=[("selected", palette["accent"])], foreground=[("selected", "#07120f")])
+        style.configure(
+            "Treeview.Heading",
+            background=palette["background"],
+            foreground=palette["foreground"],
+            bordercolor=palette["border"],
+        )
+        style.map(
+            "Treeview.Heading",
+            background=[("active", palette["progress_track"])],
+            foreground=[("active", palette["foreground"])],
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", palette["selection"])],
+            foreground=[("selected", palette["selection_text"])],
+        )
+        style.configure(
+            "Vertical.TScrollbar",
+            background=palette["surface"],
+            troughcolor=palette["background"],
+            arrowcolor=palette["foreground"],
+            bordercolor=palette["border"],
+            lightcolor=palette["border"],
+            darkcolor=palette["border"],
+        )
+        style.configure(
+            "Horizontal.TProgressbar",
+            background=palette["accent"],
+            troughcolor=palette["progress_track"],
+            bordercolor=palette["border"],
+            lightcolor=palette["accent"],
+            darkcolor=palette["accent"],
+            thickness=14,
+        )
         self.root.configure(background=palette["background"])
         self.root.title(self.text("title"))
         self.title_var.set(self.text("title"))
@@ -552,6 +674,8 @@ class GuidedWindow:
         self.detecting = True
         self.discovery = None
         self.models = []
+        self.active_phase = 0
+        self.progress_var.set(0)
         self.model_tree.delete(*self.model_tree.get_children())
         self.status_var.set(self.text("detecting"))
         self.detail_var.set("")
@@ -681,6 +805,7 @@ class GuidedWindow:
         ):
             return
         self._set_busy(True)
+        self.active_phase = 0
         self.progress_var.set(0)
         self.detail_var.set("")
         discovery = self.discovery
@@ -749,7 +874,8 @@ class GuidedWindow:
         if kind == "discovery":
             self._populate_models(event["payload"])
         elif kind == "phase":
-            self.progress_var.set(int(event["index"]) - 1)
+            self.active_phase = int(event["index"])
+            self.progress_var.set(self.active_phase - 1)
             self.status_var.set(
                 self.text(
                     "running",
@@ -760,6 +886,14 @@ class GuidedWindow:
             )
             self.results_var.set(self.text("results", path=event["run_directory"]))
         elif kind == "task":
+            self.progress_var.set(
+                max(
+                    self.progress_var.get(),
+                    _completed_task_progress(
+                        self.active_phase, int(event["current"]), int(event["total"])
+                    ),
+                )
+            )
             self.detail_var.set(
                 self.text(
                     "task",

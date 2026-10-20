@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.1 (patch in corso)**
+Versione corrente / Current version: **0.13.2 (patch in corso)**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -655,4 +655,15 @@ Versione corrente / Current version: **0.13.1 (patch in corso)**
 - Test: test Python e JavaScript della landing, verifica browser a 1440×900 e 390×844 in entrambe le lingue e nei temi automatico/chiaro/scuro, tastiera/focus, console e rete; compilazione Python e `git diff --check`.
 - Documentazione: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_Guided.md`, `MAP.md` e questo piano. `SECURITY_MODEL.md` resta invariato perché non cambiano CSP, rete, storage o superfici operative.
 - Release: tag sorgente `v0.13.1`; nessuna GitHub Release richiesta per questa patch ordinaria.
-- Stato: **layout e documentazione approvati dal progettista il 2026-10-20, con autorizzazione esplicita a commit, merge, tag, push e rimozione del branch. Sono riusciti 167 test Python (7 skip ambientali), inclusi i 9 test statici della landing e i test JavaScript, `compileall`, la validazione dei 6 casi e `git diff --check`; lo smoke HTTP degli asset principali ha restituito 200. La verifica visiva a 1440×900 e 390×844 nelle due lingue e nei tre temi non è stata possibile: il browser integrato non è disponibile. Chiusura remota in corso.**
+- Stato: **layout e documentazione approvati dal progettista il 2026-10-20, con autorizzazione esplicita a commit, merge, tag, push e rimozione del branch. Sono riusciti 167 test Python (7 skip ambientali), inclusi i 9 test statici della landing e i test JavaScript, `compileall`, la validazione dei 6 casi e `git diff --check`; lo smoke HTTP degli asset principali ha restituito 200. La verifica visiva a 1440×900 e 390×844 nelle due lingue e nei tre temi non è stata possibile: il browser integrato non era disponibile. PR #11 unita a `main` (`80a5b98`), CI multipiattaforma e Pages verdi, tag `v0.13.1` pubblicato, branch patch eliminato.**
+
+## Patch 0.13.2 – Contrasto del percorso rapido nei temi chiaro e scuro
+
+- Obiettivo: rendere leggibili i controlli Tkinter del percorso rapido su macOS e Windows, soprattutto il testo dei selettori nel tema scuro e la barra di avanzamento.
+- Branch: `patch/0.13.2-guided-dark-contrast`.
+- Incremento versione: `+0.0.1`, da `0.13.1` a `0.13.2`; tag `v0.13.2` soltanto dopo approvazione, merge e CI su `main`.
+- Attività: definire colori espliciti per stati readonly, selezionato e disabilitato; distinguere traccia e riempimento della barra; mostrare l'avanzamento delle task completate entro ciascuna fase; mantenere temi e documentazione bilingui.
+- Criteri di accettazione: testo e fondo dei selettori, selezione modelli e pulsanti disabilitati hanno contrasto leggibile nei due temi; la barra è visibile anche quando è vuota e avanza dopo task completate; nessun cambio al runner o agli artefatti.
+- Test: contrasto cromatico e calcolo avanzamento, test Python, `compileall`, prova Tkinter nei temi chiaro/scuro su Windows, verifica manuale macOS prima del merge se disponibile.
+- Documentazione: README, manuali, guida percorso rapido, MAP e questo piano. `SECURITY_MODEL.md` resta invariato perché non cambiano rete, segreti, file, permessi o confini operativi.
+- Stato: **implementazione e documentazione completate sul branch dedicato. Le schermate macOS e Windows del progettista hanno evidenziato testo chiaro su selettori chiari e una barra poco leggibile. Sono riusciti 169 test Python (7 skip ambientali), `compileall` e `git diff --check`; su Windows la risoluzione degli stili Tk conferma colori coerenti nei due temi per selettori readonly, righe selezionate, pulsanti disabilitati e barra. La cattura della finestra nel desktop di questa sessione non è disponibile; resta una verifica visiva su macOS prima del merge.**
