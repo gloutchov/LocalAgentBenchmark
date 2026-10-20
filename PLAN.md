@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.2 (patch in corso)**
+Versione corrente / Current version: **0.13.2**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -667,4 +667,4 @@ Versione corrente / Current version: **0.13.2 (patch in corso)**
 - Test: contrasto cromatico e calcolo avanzamento, test Python, `compileall`, prova Tkinter nei temi chiaro/scuro su Windows, verifica manuale macOS prima del merge se disponibile.
 - Documentazione: README, manuali, guida percorso rapido, MAP e questo piano. `SECURITY_MODEL.md` resta invariato perché non cambiano rete, segreti, file, permessi o confini operativi.
 - Release: GitHub Release sorgente `v0.13.2` autorizzata esplicitamente dal progettista; nessun artifact binario di progetto o relativo checksum.
-- Stato: **implementazione e documentazione completate sul branch dedicato. Le schermate macOS e Windows del progettista avevano evidenziato testo chiaro su selettori chiari e una barra poco leggibile. Sono riusciti 169 test Python (7 skip ambientali), `compileall` e `git diff --check`; su Windows la risoluzione degli stili Tk conferma colori coerenti nei due temi per selettori readonly, righe selezionate, pulsanti disabilitati e barra. Il 2026-10-20 il progettista ha confermato la prova rapida e autorizzato commit, merge, tag, push, release e rimozione del branch. La cattura della finestra in questa sessione e una verifica visiva macOS dopo la correzione non sono documentate. PR #12 e CI della PR verdi su macOS, Windows e Ubuntu; resta la verifica della CI su `main` dopo il merge.**
+- Stato: **patch integrata in `main` tramite PR #12 con merge commit `4b419be`. Sono riusciti 169 test Python (7 skip ambientali), `compileall` e `git diff --check`; su Windows la risoluzione degli stili Tk conferma colori coerenti nei due temi per selettori readonly, righe selezionate, pulsanti disabilitati e barra. Il 2026-10-20 il progettista ha confermato la prova rapida e autorizzato commit, merge, tag, push, release e rimozione del branch. La cattura della finestra in questa sessione e una verifica visiva macOS dopo la correzione non sono documentate. La CI della testa finale della PR (`39441642366`) e quella post-merge su `main` (`39442193087`) sono verdi su macOS, Windows e Ubuntu.**
