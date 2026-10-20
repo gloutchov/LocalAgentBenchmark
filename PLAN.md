@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.0**
+Versione corrente / Current version: **0.13.1 (patch in corso)**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -644,3 +644,15 @@ Versione corrente / Current version: **0.13.0**
 - [x] CI su `main` e deploy Pages verificati
 - [ ] Revisione e avallo esplicito del commit finale del verbale C13 prima di pubblicarlo
 - [ ] Tag `milestone/C13` e `v0.13.0`, release sorgente e branch cleanup verificati
+
+## Patch 0.13.1 – Gerarchia della landing per i provider locali
+
+- Obiettivo: riportare l'introduzione del benchmark e i tre accessi principali in apertura, spostando la novità di Ollama, LM Studio e llama.cpp in una sezione autonoma prima del punto 01.
+- Branch: `patch/0.13.1-landing-provider-news`.
+- Incremento versione: `+0.0.1`, da `0.13.0` a `0.13.1`; tag previsto `v0.13.1` dopo merge e CI su `main`.
+- Attività: rimuovere richiamo e riquadro provider dall'hero, aggiungere voce di navigazione e sezione «Novità», mantenere i dizionari italiano/inglese sincronizzati, aggiornare documentazione e test statici.
+- Criteri di accettazione: titolo, descrizione e pulsanti repository/release/percorso rapido precedono la sezione «Novità»; i tre provider e la guida sono leggibili nella nuova sezione; il punto 01 segue la novità; desktop e mobile restano accessibili, senza overflow o richieste runtime remote.
+- Test: test Python e JavaScript della landing, verifica browser a 1440×900 e 390×844 in entrambe le lingue e nei temi automatico/chiaro/scuro, tastiera/focus, console e rete; compilazione Python e `git diff --check`.
+- Documentazione: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_Guided.md`, `MAP.md` e questo piano. `SECURITY_MODEL.md` resta invariato perché non cambiano CSP, rete, storage o superfici operative.
+- Release: tag sorgente `v0.13.1`; nessuna GitHub Release richiesta per questa patch ordinaria.
+- Stato: **layout e documentazione approvati dal progettista il 2026-10-20, con autorizzazione esplicita a commit, merge, tag, push e rimozione del branch. Sono riusciti 167 test Python (7 skip ambientali), inclusi i 9 test statici della landing e i test JavaScript, `compileall`, la validazione dei 6 casi e `git diff --check`; lo smoke HTTP degli asset principali ha restituito 200. La verifica visiva a 1440×900 e 390×844 nelle due lingue e nei tre temi non è stata possibile: il browser integrato non è disponibile. Chiusura remota in corso.**
