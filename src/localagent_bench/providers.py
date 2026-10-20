@@ -1,4 +1,4 @@
-"""Local OpenAI-compatible model servers used alongside the Ollama adapter."""
+"""Shared HTTP and thinking behavior for local provider adapters."""
 
 from __future__ import annotations
 
@@ -64,6 +64,24 @@ def _reasoning_length(value: Any) -> int:
 
 
 class LocalProvider:
+    explicit_load = True
+    infer_capability_from_preflight = True
+    version_source = "configuration"
+
+    def __new__(cls, kind: str, *args: object, **kwargs: object) -> LocalProvider:
+        if cls is LocalProvider:
+            if kind == "lmstudio":
+                from .lmstudio import LMStudioProvider
+
+                cls = LMStudioProvider
+            elif kind == "llama_cpp":
+                from .llama_cpp import LlamaCppProvider
+
+                cls = LlamaCppProvider
+            else:
+                raise ProviderError(f"Provider non supportato: {kind}")
+        return super().__new__(cls)
+
     def __init__(self, kind: str, url: str, model_files: dict[str, Path] | None = None,
                  runtime_version: str | None = None, context_window: int = 32768):
         if kind not in {"lmstudio", "llama_cpp"}:
@@ -75,44 +93,27 @@ class LocalProvider:
         self.context_window = context_window
 
     def list_models(self, *, with_digest: bool = False) -> list[OllamaModel]:
-        path = "/api/v1/models" if self.kind == "lmstudio" else "/models"
-        raw = _request(self.url, path)
-        items = raw.get("models" if self.kind == "lmstudio" else "data")
-        if not isinstance(items, list):
-            raise ProviderError(f"Elenco modelli non valido da {path}")
-        models: list[OllamaModel] = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            name = item.get("key" if self.kind == "lmstudio" else "id")
-            if not isinstance(name, str) or not name or len(name) > 256:
-                continue
-            if self.kind == "lmstudio" and item.get("type") != "llm":
-                continue
-            size = item.get("size_bytes" if self.kind == "lmstudio" else "size")
-            size = size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else None
-            capabilities = item.get("capabilities")
-            reasoning = capabilities.get("reasoning") if isinstance(capabilities, dict) else None
-            options = reasoning.get("allowed_options") if isinstance(reasoning, dict) else None
-            thinking = (
-                any(option in {"on", "low", "medium", "high"} for option in options)
-                if isinstance(options, list) else None
-            )
-            details: dict[str, Any] = {}
-            if self.kind == "lmstudio":
-                for source, dest in (("format", "format"), ("architecture", "family")):
-                    value = item.get(source)
-                    if isinstance(value, str) and len(value) <= 128:
-                        details[dest] = value
-                quant = item.get("quantization")
-                if isinstance(quant, dict) and isinstance(quant.get("name"), str):
-                    details["quantization_level"] = quant["name"][:128]
-            if with_digest and name in self.model_files:
-                details["digest_source"] = "configured_gguf_file"
-            models.append(OllamaModel(name, size, self._digest(name) if with_digest else None, None, details,
-                                      ("completion", "thinking") if thinking else ("completion",),
-                                      thinking is not None, thinking))
-        return sorted(models, key=lambda model: model.name.casefold())
+        raise NotImplementedError
+
+    def _model_from_item(
+        self, item: dict[str, Any], name: str, size: Any,
+        details: dict[str, Any], *, with_digest: bool,
+    ) -> OllamaModel:
+        safe_size = size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else None
+        capabilities = item.get("capabilities")
+        reasoning = capabilities.get("reasoning") if isinstance(capabilities, dict) else None
+        options = reasoning.get("allowed_options") if isinstance(reasoning, dict) else None
+        thinking = (
+            any(option in {"on", "low", "medium", "high"} for option in options)
+            if isinstance(options, list) else None
+        )
+        if with_digest and name in self.model_files:
+            details["digest_source"] = "configured_gguf_file"
+        return OllamaModel(
+            name, safe_size, self._digest(name) if with_digest else None, None, details,
+            ("completion", "thinking") if thinking else ("completion",),
+            thinking is not None, thinking,
+        )
 
     def _digest(self, model: str) -> str | None:
         path = self.model_files.get(model)
@@ -133,7 +134,7 @@ class LocalProvider:
             details["digest_source"] = "configured_gguf_file"
         return replace(model, digest=digest, details=details)
 
-    def inspect_model(self, model: OllamaModel) -> OllamaModel:
+    def inspect_model(self, model: OllamaModel, *, timeout: int = 30) -> OllamaModel:
         return model
 
     def version(self) -> str | None:
@@ -189,60 +190,7 @@ class LocalProvider:
         }, timeout=timeout)
 
     def load(self, model: str, *, timeout: float) -> None:
-        if self.kind == "lmstudio":
-            result = _request(self.url, "/api/v1/models/load", {"model": model, "context_length": self.context_window}, timeout=timeout)
-            if result.get("status") != "loaded":
-                raise ProviderError("LM Studio non ha confermato il caricamento del modello")
-        else:
-            deadline = time.monotonic() + timeout
-            result = _request(self.url, "/models/load", {"model": model}, timeout=timeout)
-            if result.get("success") is not True:
-                raise ProviderError("llama-server non ha confermato il caricamento del modello")
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise ProviderError("llama-server: caricamento del modello scaduto")
-                models = _request(self.url, "/models", timeout=min(5.0, remaining)).get("data")
-                if not isinstance(models, list):
-                    raise ProviderError("llama-server: stato dei modelli non valido")
-                entry = next((item for item in models if isinstance(item, dict) and item.get("id") == model), None)
-                status = entry.get("status") if entry is not None else None
-                value = status.get("value") if isinstance(status, dict) else None
-                if isinstance(status, dict) and status.get("failed") is True:
-                    raise ProviderError("llama-server: il processo del modello è terminato durante il caricamento")
-                if value == "loaded":
-                    return
-                if value not in {"loading", "unloaded"}:
-                    raise ProviderError("llama-server: caricamento del modello non riuscito")
-                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+        raise NotImplementedError
 
     def unload(self, model: str, *, timeout: float = 30) -> None:
-        if self.kind == "lmstudio":
-            models = _request(self.url, "/api/v1/models").get("models", [])
-            for item in models if isinstance(models, list) else []:
-                if isinstance(item, dict) and item.get("key") == model:
-                    for instance in item.get("loaded_instances", []):
-                        if isinstance(instance, dict) and isinstance(instance.get("id"), str):
-                            _request(self.url, "/api/v1/models/unload", {"instance_id": instance["id"]})
-        else:
-            deadline = time.monotonic() + timeout
-            result = _request(self.url, "/models/unload", {"model": model}, timeout=timeout)
-            if result.get("success") is not True:
-                raise ProviderError("llama-server non ha confermato lo scaricamento del modello")
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise ProviderError("llama-server: scaricamento del modello scaduto")
-                models = _request(self.url, "/models", timeout=min(5.0, remaining)).get("data")
-                if not isinstance(models, list):
-                    raise ProviderError("llama-server: stato dei modelli non valido")
-                entry = next((item for item in models if isinstance(item, dict) and item.get("id") == model), None)
-                status = entry.get("status") if entry is not None else None
-                value = status.get("value") if isinstance(status, dict) else None
-                if value == "unloaded":
-                    return
-                if isinstance(status, dict) and status.get("failed") is True:
-                    raise ProviderError("llama-server: il processo del modello è terminato durante lo scaricamento")
-                if value not in {"loading", "loaded", "sleeping", "unloading"}:
-                    raise ProviderError("llama-server: scaricamento del modello non riuscito")
-                time.sleep(min(0.25, max(0, deadline - time.monotonic())))
+        raise NotImplementedError

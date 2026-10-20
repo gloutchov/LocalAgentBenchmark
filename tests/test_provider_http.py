@@ -4,6 +4,7 @@ import json
 import sys
 import threading
 import unittest
+from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -11,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.providers import LocalProvider, ProviderError
+from localagent_bench.config import load_config
+from localagent_bench.provider_adapter import create_provider
 from localagent_bench.thinking import resolve_thinking_policy
 
 
@@ -109,7 +112,13 @@ class ProviderHttpTests(unittest.TestCase):
         self.server.server_close()
 
     def test_lmstudio_http_roundtrip(self):
-        provider = LocalProvider("lmstudio", self.url, context_window=8192)
+        base = load_config(ROOT / "benchmark.json")
+        config = replace(
+            base,
+            provider_kind="lmstudio", ollama_url=self.url,
+            defaults=replace(base.defaults, context_window=8192),
+        )
+        provider = create_provider(config)
         model = provider.list_models()[0]
         self.assertTrue(model.thinking_capable)
         self.assertTrue(provider.preflight_thinking(model, resolve_thinking_policy("off"), timeout=5).passed)
@@ -125,7 +134,11 @@ class ProviderHttpTests(unittest.TestCase):
                           if method == "POST" and path == "/v1/chat/completions"])
 
     def test_llama_router_http_roundtrip(self):
-        provider = LocalProvider("llama_cpp", self.url)
+        config = replace(
+            load_config(ROOT / "benchmark.json"),
+            provider_kind="llama_cpp", ollama_url=self.url,
+        )
+        provider = create_provider(config)
         model = provider.list_models()[0]
         self.assertIsNone(model.thinking_capable)
         self.assertTrue(provider.preflight_thinking(model, resolve_thinking_policy("off"), timeout=5).passed)

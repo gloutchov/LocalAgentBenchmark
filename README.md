@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, and the llama.cpp `llama-server` router. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.13.2 – provider locali Ollama, LM Studio e llama.cpp; contrasto migliorato nel percorso rapido / local providers with improved guided UI contrast**
+Stato / Status: **0.13.3 – adattatori separati per Ollama, LM Studio e llama.cpp / separate adapters for Ollama, LM Studio, and llama.cpp**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **Pi/Ollama è stato verificato su macOS e Windows; LM Studio ha completato lo smoke con due modelli classificabili su macOS. Dopo la correzione del router, un percorso guidato llama.cpp ha completato smoke, standard e full su macOS, con integrità e controllo thinking regolari. Mistral 7B è arrivato fino a full, ma nessuna sua task ha raggiunto la soglia di 60/100; Gemma 4 è andato in timeout nello smoke. / Pi/Ollama has been verified on macOS and Windows; LM Studio completed a smoke run with two rankable models on macOS. After the router fix, a llama.cpp guided run completed smoke, standard, and full on macOS with integrity and thinking control passed. Mistral 7B reached full, but none of its tasks met the 60/100 completion threshold; Gemma 4 timed out during smoke.**
 Licenza / License: Apache-2.0
@@ -41,7 +41,11 @@ Windows installation and verification for Pi, Ollama, LM Studio, and `llama-serv
 
 Per LM Studio e `llama-server`, modificare `provider.kind` e `provider.url` in `benchmark.json`, poi eseguire `python3 benchmark.py doctor`. I GGUF esterni possono essere importati in LM Studio o messi nella directory modelli del router llama.cpp. Per aggregare statisticamente più run dei nuovi provider, configurare anche `provider.runtime_version` e `provider.model_files` con i path locali dei GGUF: il benchmark ne calcola SHA-256 senza copiare i file. Senza versione o hash il singolo run resta disponibile, mentre `compare` rifiuta l'aggregazione. Vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
 
+I tre provider hanno adattatori Python dedicati dietro lo stesso contratto del runner; la scelta dell'utente e il formato dei risultati restano quelli di `benchmark.json`. Non vengono caricate ricette o estensioni eseguibili dell'utente.
+
 For LM Studio or `llama-server`, set `provider.kind` and `provider.url` in `benchmark.json`, then run `python3 benchmark.py doctor`. LM Studio can import external GGUF files; the llama.cpp router discovers GGUF files in its model directory. Statistical aggregation of these runs also requires `provider.runtime_version` and `provider.model_files` pointing to local GGUF files; the benchmark hashes them without copying them. A single run works without that provenance, while `compare` rejects aggregation. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
+
+Each provider has a dedicated Python adapter behind the runner's common contract; users still select it through `benchmark.json`, and result formats stay the same. User-defined executable recipes or extensions are not loaded.
 
 La sandbox OS è opzionale: macOS usa `sandbox-exec`; Linux richiede `bwrap`, `unshare` e user/network namespace utilizzabili; Windows 10/11 usa AppContainer. Ogni backend viene applicato solo dopo un probe reale. `doctor` mostra sempre il backend e le capacità effettivamente disponibili.
 

@@ -258,3 +258,45 @@ def unload(url: str, model: str) -> None:
         {"model": model, "keep_alive": 0},
         timeout=30,
     )
+
+
+class OllamaProvider:
+    """Adapt the existing Ollama functions without changing their request flow."""
+
+    kind = "ollama"
+    explicit_load = False
+    infer_capability_from_preflight = False
+    version_source = "api"
+
+    def __init__(self, url: str, keep_alive: str):
+        self.url = url
+        self.keep_alive = keep_alive
+
+    def list_models(self) -> list[OllamaModel]:
+        return list_models(self.url)
+
+    def fingerprint_model(self, model: OllamaModel) -> OllamaModel:
+        return model
+
+    def inspect_model(self, model: OllamaModel, *, timeout: int = 30) -> OllamaModel:
+        return inspect_model(self.url, model, timeout=timeout)
+
+    def version(self) -> str | None:
+        return version(self.url)
+
+    def load(self, model: str, *, timeout: float) -> None:
+        # Native Ollama loading remains part of warmup.
+        return None
+
+    def unload(self, model: str, *, timeout: float = 30) -> None:
+        unload(self.url, model)
+
+    def preflight_thinking(
+        self, model: OllamaModel, policy: ThinkingPolicy, *, timeout: int
+    ) -> ThinkingPreflight:
+        return preflight_thinking(self.url, model, policy, timeout=timeout)
+
+    def warmup(
+        self, model: str, policy: ThinkingPolicy, *, timeout: int, context_window: int
+    ) -> dict[str, Any]:
+        return warmup(self.url, model, self.keep_alive, timeout, policy)

@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.2**
+Versione corrente / Current version: **0.13.3**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -668,3 +668,32 @@ Versione corrente / Current version: **0.13.2**
 - Documentazione: README, manuali, guida percorso rapido, MAP e questo piano. `SECURITY_MODEL.md` resta invariato perché non cambiano rete, segreti, file, permessi o confini operativi.
 - Release: GitHub Release sorgente `v0.13.2` autorizzata esplicitamente dal progettista; nessun artifact binario di progetto o relativo checksum.
 - Stato: **patch integrata in `main` tramite PR #12 con merge commit `4b419be`. Sono riusciti 169 test Python (7 skip ambientali), `compileall` e `git diff --check`; su Windows la risoluzione degli stili Tk conferma colori coerenti nei due temi per selettori readonly, righe selezionate, pulsanti disabilitati e barra. Il 2026-10-20 il progettista ha confermato la prova rapida e autorizzato commit, merge, tag, push, release e rimozione del branch. La cattura della finestra in questa sessione e una verifica visiva macOS dopo la correzione non sono documentate. La CI della testa finale della PR (`39441642366`) e quella post-merge su `main` (`39442193087`) sono verdi su macOS, Windows e Ubuntu.**
+
+## M14 – Provider locali in moduli dedicati
+
+- Obiettivo: dare a Ollama, LM Studio e al router llama.cpp adattatori separati dietro un contratto interno comune, mantenendo invariati configurazione, comportamento e artefatti del benchmark. Il confine tra provider prepara una base verificabile per eventuali ricette di provider future.
+- Dipendenza: partire da `main` dopo aver verificato il checkpoint remoto di C13 e le patch `0.13.1` e `0.13.2`; non avviare l'implementazione finché il branch dedicato non è stato creato.
+- Branch: `milestone/14-provider-adapters`, creato da `origin/main` dopo la verifica del checkpoint precedente.
+- Tag di checkpoint previsto: `milestone/C14`, sul commit finale di `main` dopo approvazione e merge.
+- Incremento versione: `+0.0.1`, da `0.13.2` a `0.13.3`; tag versione previsto `v0.13.3` dopo la chiusura approvata.
+- Attività principali:
+  - Definire il contratto interno delle operazioni già usate da `doctor`, `list`, `run` e percorso guidato: discovery e metadati dei modelli, versione, caricamento/scaricamento quando applicabile, preflight thinking e warmup. Lasciare esplicite le differenze reali del ciclo di vita dei tre provider.
+  - Mantenere `ollama.py` dedicato e separare LM Studio e router llama.cpp dall'attuale `providers.py` in moduli propri; condividere soltanto trasporto HTTP e tipi che hanno davvero lo stesso comportamento.
+  - Centralizzare la scelta dell'adattatore ed eliminare dal runner le diramazioni per provider che duplicano il protocollo, senza cambiare ordine delle operazioni, timeout, esiti, fallback o dati registrati.
+  - Conservare `benchmark.json` versione 1, il provider Ollama legacy, gli ID `ollama`/`lmstudio`/`llama_cpp`, la configurazione Pi per task, il gate contrattuale Pi, sandbox, audit, snapshot, provenance GGUF e regole di `compare`. Non introdurre ricette eseguibili dall'utente, nuovi provider o runner per agenti alternativi in questa milestone.
+  - Sincronizzare versione, mappa e documentazione; mantenere il runtime Python senza nuove dipendenze.
+- Criteri di accettazione: per ciascuno dei tre provider, `doctor`, `list`, `run` e percorso guidato mantengono selezione modelli, controlli thinking, load/unload, warmup, errori e artefatti osservabili; il router continua ad attendere `loaded`/`unloaded` entro i timeout; configurazioni e run precedenti restano leggibili; schema e campi di `run.json`, `report.json` e `dashboard-data` non cambiano; le coorti incompatibili continuano a essere rifiutate da `compare`; nessun nuovo accesso di rete, permesso o fallback viene introdotto.
+- Test richiesti: regressioni con server HTTP sintetici per i tre adattatori, incluse risposte malformate, timeout, transizioni asincrone llama.cpp e controllo thinking; test di configurazione, `doctor`/`list`/`run`, percorso guidato, provenienza e `compare`; suite `python3 -m unittest discover -s tests -v`, `python3 -m compileall -q benchmark.py dashboard.py guided_benchmark.py src cases tests`, validazione dei sei casi e `git diff --check`; smoke reale minimo dei provider disponibili, registrando quelli non verificabili sull'host. Usare CI multipiattaforma soltanto per verifiche necessarie non sostituibili localmente, dopo l'approvazione richiesta prima del push.
+- Documentazione da aggiornare nella milestone: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_LocalProviders.md`, `MAP.md` e `PLAN.md`; rivedere `SECURITY_MODEL.md` e aggiornarlo se cambiano confini HTTP, rete, permessi, logging o dati registrati; aggiornare `AGENTS.md` solo se cambiano regole operative.
+- Release: patch ordinaria; chiedere al progettista alla chiusura se pubblicare una GitHub Release. Tag `v0.13.3` e checkpoint `milestone/C14` soltanto dopo la revisione del commit esatto e l'approvazione esplicita; nessun artifact binario previsto.
+- Stato: **implementazione locale completata sul branch dedicato, in attesa del controllo personale del commit finale.** Ollama, LM Studio e llama.cpp hanno adattatori dedicati; il runner usa il contratto comune senza cambiare la configurazione o gli schemi dei risultati. La suite locale ha superato 170 test (8 skip ambientali), `compileall`, la validazione dei sei casi e `git diff --check`; `doctor` e `list` sono passati con Pi 1.0.4 e Ollama 0.40.6. Lo smoke reale Ollama `results/m14-provider-smoke` ha superato preflight, warmup e controllo d'integrità con Seatbelt applicato; la task `targeted_patch` ha raggiunto il timeout di 180 s dopo una valutazione tecnica di 93/100. LM Studio e llama.cpp sono coperti dai server HTTP sintetici, ma i relativi server non erano disponibili per uno smoke reale su questo host. Restano la revisione del commit esatto, la decisione sulla GitHub Release e le operazioni di chiusura approvate; nessun push, tag o merge è stato eseguito.
+
+### Checklist chiusura M14
+
+- [x] Checkpoint remoto precedente verificato e branch `milestone/14-provider-adapters` creato da `main`.
+- [x] Adattatori separati, regressioni, smoke applicabili, versione e documentazione completati sul branch.
+- [x] Commit locali creati soltanto sul branch dedicato, senza pubblicazione anticipata.
+- [ ] Branch congelato; hash del commit finale, diff rispetto a `main`, test, esiti e limiti residui presentati al progettista.
+- [ ] Controllo personale del commit indicato e approvazione esplicita ottenuti; qualsiasi commit successivo richiede nuova revisione e approvazione.
+- [ ] PR/merge, CI necessaria, tag `milestone/C14` e `v0.13.3`, push e verifica remota completati nell'ordine approvato; GitHub Release solo se richiesta.
+- [ ] Voce rinominata `C14` con riepilogo, verifiche, limiti residui, versione e tag; branch obsoleto eliminato solo dopo tutte le verifiche.

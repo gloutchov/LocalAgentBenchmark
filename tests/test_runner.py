@@ -44,6 +44,21 @@ def _ollama_test_config():
     )
 
 
+def _mock_provider(factory, model, preflight, *, kind="ollama", runtime_version="test"):
+    provider = factory.return_value
+    provider.kind = kind
+    provider.explicit_load = kind != "ollama"
+    provider.infer_capability_from_preflight = kind != "ollama"
+    provider.version_source = "api" if kind == "ollama" else "configuration"
+    provider.list_models.return_value = [model]
+    provider.fingerprint_model.side_effect = lambda item: item
+    provider.inspect_model.return_value = model
+    provider.preflight_thinking.return_value = preflight
+    provider.version.return_value = runtime_version
+    provider.warmup.return_value = {}
+    return provider
+
+
 class RunnerGitTests(unittest.TestCase):
     def setUp(self):
         patcher = patch(
@@ -136,7 +151,7 @@ class RunnerGitTests(unittest.TestCase):
             patch("localagent_bench.runner.require_clean_inputs"),
             patch("localagent_bench.runner._command_version", return_value="0.99.0"),
             patch("localagent_bench.runner.check_pi_compatibility", return_value=PiCompatibility("failed", CONTRACT_VERSION, (), "off_200_reasoning_effort")),
-            patch("localagent_bench.runner.list_models") as list_models_mock,
+            patch("localagent_bench.runner.create_provider") as provider_factory,
         ):
             with self.assertRaisesRegex(BenchmarkError, "off_200_reasoning_effort"):
                 run_benchmark(
@@ -150,7 +165,7 @@ class RunnerGitTests(unittest.TestCase):
                     use_warmup=False,
                     output_dir=None,
                 )
-        list_models_mock.assert_not_called()
+        provider_factory.assert_not_called()
 
     def test_local_provider_loads_model_even_without_warmup(self):
         model = OllamaModel("local/coder", 1, "gguf-digest", None, {})
@@ -161,15 +176,13 @@ class RunnerGitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with (patch("localagent_bench.runner.require_clean_inputs"),
                   patch("localagent_bench.runner._command_version", return_value="0.84.3"),
-                  patch("localagent_bench.runner.LocalProvider") as provider_class,
+                  patch("localagent_bench.runner.create_provider") as provider_factory,
                   patch("localagent_bench.runner.run_pi", return_value=pi_result) as pi_mock):
-                provider = provider_class.return_value
-                provider.list_models.return_value = [model]
-                provider.fingerprint_model.return_value = model
-                provider.inspect_model.return_value = model
-                provider.version.return_value = "0.4.0"
-                provider.preflight_thinking.return_value = ThinkingPreflight(
-                    "passed", "off", "none", None, False, 0, None, 1)
+                provider = _mock_provider(
+                    provider_factory, model,
+                    ThinkingPreflight("passed", "off", "none", None, False, 0, None, 1),
+                    kind="lmstudio", runtime_version="0.4.0",
+                )
                 run_dir = run_benchmark(
                     config, profile="smoke", requested_models=[model.name],
                     requested_cases=["milestone_closure"], repetitions=1,
@@ -185,21 +198,16 @@ class RunnerGitTests(unittest.TestCase):
 
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")
-    @patch("localagent_bench.runner.unload")
-    @patch("localagent_bench.runner.version", return_value="test")
     @patch("localagent_bench.runner.run_pi")
-    @patch("localagent_bench.runner.list_models")
+    @patch("localagent_bench.runner.create_provider")
     def test_run_uses_frozen_inputs_and_records_integrity(
         self,
-        list_models_mock,
+        provider_factory,
         run_pi_mock,
-        _version_mock,
-        _unload_mock,
         _require_clean_inputs_mock,
         _command_version_mock,
     ):
         model = OllamaModel("model:a", 1, "digest", "now", {})
-        list_models_mock.return_value = [model]
         run_pi_mock.return_value = PiRun(
             status="ok",
             exit_code=0,
@@ -218,22 +226,19 @@ class RunnerGitTests(unittest.TestCase):
         config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
-            with (
-                patch("localagent_bench.runner.inspect_model", return_value=model),
-                patch("localagent_bench.runner.preflight_thinking", return_value=preflight),
-            ):
-                run_dir = run_benchmark(
-                    config,
-                    profile="smoke",
-                    requested_models=["model:a"],
-                    requested_cases=["milestone_closure"],
-                    repetitions=1,
-                    timeout_seconds=30,
-                    thinking_level=None,
-                    use_warmup=False,
-                    output_dir=Path(directory) / "run",
-                    order_seed=7,
-                )
+            _mock_provider(provider_factory, model, preflight)
+            run_dir = run_benchmark(
+                config,
+                profile="smoke",
+                requested_models=["model:a"],
+                requested_cases=["milestone_closure"],
+                repetitions=1,
+                timeout_seconds=30,
+                thinking_level=None,
+                use_warmup=False,
+                output_dir=Path(directory) / "run",
+                order_seed=7,
+            )
             result_path = next(run_dir.glob("models/*/cases/*/result.json"))
             result = json.loads(result_path.read_text(encoding="utf-8"))
             report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
@@ -243,7 +248,7 @@ class RunnerGitTests(unittest.TestCase):
             self.assertEqual("passed", report["integrity"]["status"])
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(7, manifest["order_seed"])
-            self.assertEqual("0.13.2", manifest["benchmark_version"])
+            self.assertEqual("0.13.3", manifest["benchmark_version"])
             self.assertEqual("passed", manifest["pi_compatibility"]["status"])
             self.assertEqual(32768, manifest["configuration"]["context_window"])
             self.assertEqual(30, manifest["configuration"]["timeout_seconds"])
@@ -303,21 +308,16 @@ class RunnerGitTests(unittest.TestCase):
 
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")
-    @patch("localagent_bench.runner.unload")
-    @patch("localagent_bench.runner.version", return_value="test")
     @patch("localagent_bench.runner.run_pi")
-    @patch("localagent_bench.runner.list_models")
+    @patch("localagent_bench.runner.create_provider")
     def test_showcase_profile_runs_from_the_frozen_synthetic_dataset(
         self,
-        list_models_mock,
+        provider_factory,
         run_pi_mock,
-        _version_mock,
-        _unload_mock,
         _require_clean_inputs_mock,
         _command_version_mock,
     ):
         model = OllamaModel("showcase:test", 1, "digest", "now", {})
-        list_models_mock.return_value = [model]
         run_pi_mock.return_value = PiRun(
             status="ok",
             exit_code=0,
@@ -333,22 +333,19 @@ class RunnerGitTests(unittest.TestCase):
         config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
             preflight = ThinkingPreflight("passed", "off", "none", None, False, 0, 0, 1)
-            with (
-                patch("localagent_bench.runner.inspect_model", return_value=model),
-                patch("localagent_bench.runner.preflight_thinking", return_value=preflight),
-            ):
-                run_dir = run_benchmark(
-                    config,
-                    profile="showcase",
-                    requested_models=[model.name],
-                    requested_cases=None,
-                    repetitions=1,
-                    timeout_seconds=30,
-                    thinking_level=None,
-                    use_warmup=False,
-                    output_dir=Path(directory) / "showcase-run",
-                    order_seed=20260903,
-                )
+            _mock_provider(provider_factory, model, preflight)
+            run_dir = run_benchmark(
+                config,
+                profile="showcase",
+                requested_models=[model.name],
+                requested_cases=None,
+                repetitions=1,
+                timeout_seconds=30,
+                thinking_level=None,
+                use_warmup=False,
+                output_dir=Path(directory) / "showcase-run",
+                order_seed=20260903,
+            )
             result_path = next(run_dir.glob("models/*/cases/*/result.json"))
             result = json.loads(result_path.read_text(encoding="utf-8"))
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
@@ -362,44 +359,36 @@ class RunnerGitTests(unittest.TestCase):
 
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")
-    @patch("localagent_bench.runner.unload")
-    @patch("localagent_bench.runner.version", return_value="test")
     @patch("localagent_bench.runner.run_pi")
-    @patch("localagent_bench.runner.list_models")
+    @patch("localagent_bench.runner.create_provider")
     def test_failed_thinking_preflight_excludes_model_before_showcase_task(
         self,
-        list_models_mock,
+        provider_factory,
         run_pi_mock,
-        _version_mock,
-        _unload_mock,
         _require_clean_inputs_mock,
         _command_version_mock,
     ):
         model = OllamaModel(
             "showcase:test", 1, "digest", "now", {}, ("thinking",), True, True
         )
-        list_models_mock.return_value = [model]
         failed = ThinkingPreflight(
             "unexpected_thinking", "off", "none", True, True, 12, 4, 2
         )
         config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
-            with (
-                patch("localagent_bench.runner.inspect_model", return_value=model),
-                patch("localagent_bench.runner.preflight_thinking", return_value=failed),
-            ):
-                run_dir = run_benchmark(
-                    config,
-                    profile="showcase",
-                    requested_models=[model.name],
-                    requested_cases=None,
-                    repetitions=1,
-                    timeout_seconds=30,
-                    thinking_level="off",
-                    use_warmup=False,
-                    output_dir=Path(directory) / "showcase-run",
-                    order_seed=7,
-                )
+            _mock_provider(provider_factory, model, failed)
+            run_dir = run_benchmark(
+                config,
+                profile="showcase",
+                requested_models=[model.name],
+                requested_cases=None,
+                repetitions=1,
+                timeout_seconds=30,
+                thinking_level="off",
+                use_warmup=False,
+                output_dir=Path(directory) / "showcase-run",
+                order_seed=7,
+            )
             run_pi_mock.assert_not_called()
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
@@ -410,23 +399,18 @@ class RunnerGitTests(unittest.TestCase):
 
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")
-    @patch("localagent_bench.runner.unload")
-    @patch("localagent_bench.runner.version", return_value="test")
     @patch("localagent_bench.runner.run_pi")
-    @patch("localagent_bench.runner.list_models")
+    @patch("localagent_bench.runner.create_provider")
     def test_off_task_with_thinking_or_retry_disqualifies_entire_model(
         self,
-        list_models_mock,
+        provider_factory,
         run_pi_mock,
-        _version_mock,
-        _unload_mock,
         _require_clean_inputs_mock,
         _command_version_mock,
     ):
         model = OllamaModel(
             "model:a", 1, "digest", "now", {}, ("thinking",), True, True
         )
-        list_models_mock.return_value = [model]
         run_pi_mock.return_value = PiRun(
             status="ok",
             exit_code=0,
@@ -448,23 +432,19 @@ class RunnerGitTests(unittest.TestCase):
         passed = ThinkingPreflight("passed", "off", "none", True, False, 0, 0, 1)
         config = _ollama_test_config()
         with tempfile.TemporaryDirectory() as directory:
-            with (
-                patch("localagent_bench.runner.inspect_model", return_value=model),
-                patch("localagent_bench.runner.preflight_thinking", return_value=passed),
-                patch("localagent_bench.runner.warmup", return_value={}) as warmup_mock,
-            ):
-                run_dir = run_benchmark(
-                    config,
-                    profile="smoke",
-                    requested_models=[model.name],
-                    requested_cases=None,
-                    repetitions=1,
-                    timeout_seconds=30,
-                    thinking_level="off",
-                    use_warmup=True,
-                    output_dir=Path(directory) / "run",
-                    order_seed=7,
-                )
+            provider = _mock_provider(provider_factory, model, passed)
+            run_dir = run_benchmark(
+                config,
+                profile="smoke",
+                requested_models=[model.name],
+                requested_cases=None,
+                repetitions=1,
+                timeout_seconds=30,
+                thinking_level="off",
+                use_warmup=True,
+                output_dir=Path(directory) / "run",
+                order_seed=7,
+            )
             result_path = next(run_dir.glob("models/*/cases/*/result.json"))
             result = json.loads(result_path.read_text(encoding="utf-8"))
             report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
@@ -475,7 +455,7 @@ class RunnerGitTests(unittest.TestCase):
             self.assertFalse(result["integrity"]["valid_for_ranking"])
             self.assertEqual([model.name], report["integrity"]["disqualified_models"])
             self.assertEqual([], report["leaderboard"])
-            policy = warmup_mock.call_args.args[4]
+            policy = provider.warmup.call_args.args[1]
             self.assertEqual("off", policy.requested)
             self.assertEqual("none", policy.reasoning_effort)
 

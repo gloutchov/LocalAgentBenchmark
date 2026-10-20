@@ -4,6 +4,8 @@
 
 LocalAgent Benchmark compares local Ollama, LM Studio, or llama.cpp models acting as coding agents through Pi. Every model receives inputs copied from the same frozen snapshot of `AGENTS.md`, the case manifest, prompt, and Git fixture. Independent checks score the resulting workspace, while raw artifacts remain available for human review. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md) to configure the alternative providers.
 
+Each provider uses a dedicated internal adapter selected by `provider.kind` in `benchmark.json`. Commands, configuration, and result formats stay the same; Pi remains the task agent.
+
 ## 2. Requirements
 
 - Python 3.10+ and Git on `PATH`;

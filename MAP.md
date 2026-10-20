@@ -33,8 +33,11 @@
 │   ├── case_sdk.py                 # discovery, manifesti, validatore e template atomico dei casi
 │   ├── integrity.py                # preflight Git, snapshot, SHA-256 e drift repository
 │   ├── thinking.py                 # mapping puro e policy thinking Pi/provider
-│   ├── ollama.py                   # tags/version, capability, preflight, warmup e unload
-│   ├── providers.py                # adapter LM Studio e router llama.cpp, hash GGUF e preflight
+│   ├── provider_adapter.py         # contratto interno e selezione dei tre adattatori
+│   ├── ollama.py                   # adapter Ollama: tags/version, capability, preflight, warmup e unload
+│   ├── providers.py                # HTTP locale condiviso, SHA-256 GGUF e preflight OpenAI-compatible
+│   ├── lmstudio.py                 # discovery, load e unload LM Studio
+│   ├── llama_cpp.py                # discovery e transizioni load/unload del router llama.cpp
 │   ├── pi_adapter.py               # config/payload Pi, JSONL, timeout/cleanup processi, scratch e audit path/rete
 │   ├── pi_compatibility.py         # server sintetico loopback e gate contrattuale Pi
 │   ├── runner.py                   # ordine seeded, preflight, workspace, controlli e artefatti
@@ -82,6 +85,7 @@
 │   ├── test_site_javascript.py     # esecuzione della suite Node della landing page
 │   ├── test_ollama.py              # capability, mapping, preflight e warmup thinking
 │   ├── test_providers.py           # discovery, hash GGUF, preflight e gestione modelli alternativi
+│   ├── test_provider_http.py       # roundtrip HTTP, timeout e transizioni dei provider locali
 │   ├── test_pi_thinking_contract.py # Pi reale contro server OpenAI-compatible fittizio
 │   ├── test_pi_compatibility.py    # regressioni del gate Pi con payload/errori simulati
 │   ├── test_pi_adapter.py          # eventi Pi, audit e timeout con processi figli

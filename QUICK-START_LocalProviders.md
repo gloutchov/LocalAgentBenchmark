@@ -4,6 +4,8 @@
 
 Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo** oppure al **router `llama-server` di llama.cpp**. Configurare un solo provider alla volta in `benchmark.json`; lo stesso provider viene usato da CLI, percorso guidato, preflight, warmup e task. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi, token o download automatici.
 
+I tre provider sono gestiti da adattatori interni separati. La selezione resta `provider.kind` in `benchmark.json`: non servono file ricetta aggiuntivi e il formato dei run non cambia.
+
 ### Installazione e verifica su Windows
 
 1. Installare Python 3.10+ e [Git for Windows](https://git-scm.com/download/win). Pi nativo usa Git Bash per i comandi shell; verificare `py -3 --version` e `git --version` in PowerShell.
@@ -65,6 +67,8 @@ Il preflight usa `reasoning_effort: "none"` per `off` e verifica che non emerga 
 ## English
 
 Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, or the **llama.cpp `llama-server` router**. Select one provider at a time in `benchmark.json`; CLI, guided mode, preflight, warmup, and tasks share it. The server must use HTTP loopback. No extra Python packages, tokens, or automatic model downloads are needed.
+
+The three providers use separate built-in adapters. Select one with `provider.kind` in `benchmark.json`; no extra recipe files are required, and run formats do not change.
 
 ### Install and verify on Windows
 

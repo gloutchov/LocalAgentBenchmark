@@ -5,19 +5,37 @@ import json
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from localagent_bench.ollama import OllamaModel
+from localagent_bench.llama_cpp import LlamaCppProvider
+from localagent_bench.lmstudio import LMStudioProvider
+from localagent_bench.ollama import OllamaModel, OllamaProvider
 from localagent_bench.config import ConfigError, load_config
+from localagent_bench.provider_adapter import create_provider
 from localagent_bench.providers import LocalProvider, ProviderError
 from localagent_bench.thinking import resolve_thinking_policy
 
 
 class LocalProviderTests(unittest.TestCase):
+    def test_factory_selects_dedicated_adapters_without_changing_config(self):
+        config = load_config(ROOT / "benchmark.json")
+        ollama = create_provider(replace(config, provider_kind="ollama"))
+        lmstudio = create_provider(replace(config, provider_kind="lmstudio"))
+        llama_cpp = create_provider(replace(config, provider_kind="llama_cpp"))
+        self.assertIsInstance(ollama, OllamaProvider)
+        self.assertIsInstance(lmstudio, LMStudioProvider)
+        self.assertIsInstance(llama_cpp, LlamaCppProvider)
+        self.assertFalse(ollama.explicit_load)
+        self.assertTrue(lmstudio.explicit_load)
+        self.assertTrue(llama_cpp.explicit_load)
+        self.assertEqual(("api", "configuration", "configuration"),
+                         (ollama.version_source, lmstudio.version_source, llama_cpp.version_source))
+
     def test_provider_url_rejects_malformed_port(self):
         raw = json.loads((ROOT / "benchmark.json").read_text(encoding="utf-8"))
         raw["provider"]["url"] = "http://127.0.0.1:invalid"
