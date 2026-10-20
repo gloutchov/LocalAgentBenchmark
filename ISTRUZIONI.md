@@ -199,7 +199,7 @@ La landing page pubblica è mantenuta sotto `site/` ed è pubblicata all'indiriz
 python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 ```
 
-Aprire `http://127.0.0.1:8000/` e terminare il server con `Ctrl+C`. La pagina presenta scopo, criteri, profili, metodo, controlli, dashboard e avvio rapido; i pulsanti portano esplicitamente al repository, all'ultima release, alla documentazione e al sito personale del progettista. Non è la dashboard dei risultati e non legge le directory `results/`.
+Aprire `http://127.0.0.1:8000/` e terminare il server con `Ctrl+C`. L'introduzione mostra subito i pulsanti per repository, ultima release e percorso rapido. La voce «Novità» apre la sezione dedicata a Ollama, LM Studio e llama.cpp, prima del punto 01; lì si trova anche la guida ai provider. Il resto della pagina presenta criteri, profili, metodo, controlli, dashboard e documentazione. Non è la dashboard dei risultati e non legge le directory `results/`.
 
 La lingua iniziale segue il browser: italiano per locale italiani, inglese in ogni altro caso. Il selettore consente l'override manuale. Il tema può essere automatico, chiaro o scuro. Soltanto queste due preferenze vengono salvate in `localStorage`; la pagina non usa cookie, form, analytics o telemetria. Tutti gli asset runtime sono locali. I link esterni effettuano una normale navigazione solo quando vengono attivati.
 

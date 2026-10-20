@@ -75,11 +75,11 @@ class LandingPageTests(unittest.TestCase):
         index, parser = self.parse("index.html")
         anchors = {link["href"][1:] for link in parser.links if link.get("href", "").startswith("#")}
         self.assertTrue(anchors.issubset(parser.ids), anchors - parser.ids)
-        section_ids = ("why", "method", "quick", "dashboard", "interpretation", "immersion", "start", "docs")
+        section_ids = ("news", "why", "method", "quick", "dashboard", "interpretation", "immersion", "start", "docs")
         self.assertTrue({"top", *section_ids}.issubset(parser.ids))
         for section_id, key in zip(
             section_ids,
-            ("why_index", "method_index", "quick_index", "dashboard_index", "limits_index", "immersion_index", "start_index", "docs_index"),
+            ("news_index", "why_index", "method_index", "quick_index", "dashboard_index", "limits_index", "immersion_index", "start_index", "docs_index"),
             strict=True,
         ):
             self.assertIn(f'href="#{section_id}" data-i18n="{key}"', index)
@@ -100,13 +100,20 @@ class LandingPageTests(unittest.TestCase):
             links,
         )
 
-    def test_local_provider_extension_is_visible_and_links_its_guide(self) -> None:
+    def test_provider_news_follows_hero_actions_and_precedes_first_section(self) -> None:
         index, parser = self.parse("index.html")
         hero = index.split('<section class="hero"', 1)[1].split('</section>', 1)[0]
+        news = index.split('<section class="section section-news"', 1)[1].split('</section>', 1)[0]
+        self.assertNotIn('data-i18n="provider_update_title"', hero)
+        self.assertLess(hero.index('data-i18n="hero_lede"'), hero.index('data-i18n="cta_repository"'))
+        self.assertLess(hero.index('data-i18n="cta_repository"'), hero.index('data-i18n="cta_release"'))
+        self.assertLess(hero.index('data-i18n="cta_release"'), hero.index('data-i18n="cta_quick"'))
+        self.assertLess(index.index('id="news"'), index.index('id="why"'))
         for provider in ("Ollama", "LM Studio", "llama.cpp"):
-            self.assertIn(f"<li>{provider}</li>", hero)
-        self.assertIn('data-i18n="provider_update_title"', hero)
-        self.assertIn('data-i18n="provider_update_text"', hero)
+            self.assertIn(f"<h3>{provider}</h3>", news)
+        self.assertEqual(2, news.count('data-i18n="provider_new"'))
+        self.assertIn('data-i18n="provider_update_title"', news)
+        self.assertIn('data-i18n="provider_update_text"', news)
         guide = "https://github.com/gloutchov/LocalAgentBenchmark/blob/main/QUICK-START_LocalProviders.md"
         self.assertIn(guide, {link.get("href", "") for link in parser.links})
         self.assertEqual(2, index.count(f'href="{guide}"'))
