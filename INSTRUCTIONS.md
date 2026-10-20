@@ -52,6 +52,8 @@ python3 benchmark.py run --profile standard
 
 Double-click `launchers/LocalAgent-Benchmark.command` on macOS, `launchers\LocalAgent-Benchmark.cmd` on Windows, or `launchers/LocalAgent-Benchmark.sh` on Linux. The window performs the equivalent of `doctor`, detects models from the configured local provider, lets you select participants and sort them by name, size, or thinking from the column headings, and shows effective settings before asking for confirmation.
 
+The theme follows the system, with a light/dark override in the selector. In dark mode, selectors and selected models retain readable contrast; the bar shows completed tasks within each stage of the quick path.
+
 Use the **Thinking** toggle to select `off` (off) or `medium` (on), and the **Sandbox** toggle to select `audit` without OS isolation (off) or `required` (on). `required` stops before a run when no applicable OS backend is available. The choices apply to every stage and are recorded in `guided-run.json`; they are not saved as permanent preferences. The dashboard's **Task details** lists models excluded at preflight for thinking observed with `off` or after workspace/network boundary violations separately from executed tasks. It shows the effective sandbox backend; exclusion alone does not prove an OS-level block.
 
 The funnel runs `smoke` on every selected model, consumes the official leaderboard order to promote up to four rankable models to `standard`, then up to two to `full`. A model with a failed task is excluded without stopping the others when the stage is complete and verifiable; a partial or incompatible stage still stops the funnel. The official dashboard then opens on the three distinct runs. The path never runs `showcase` or `results_dashboard`.

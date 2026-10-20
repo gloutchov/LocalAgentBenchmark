@@ -46,7 +46,7 @@
 │   ├── comparison.py               # compatibilità e statistiche tra più run
 │   ├── guided.py                   # stato funnel, validazione, manifesto e promozioni
 │   ├── guided_process.py           # processi senza shell, cancellazione e dashboard child
-│   ├── guided_ui.py                # GUI bilingue, toggle thinking/sandbox e riapertura dashboard
+│   ├── guided_ui.py                # GUI bilingue, temi accessibili, avanzamento task e riapertura dashboard
 │   ├── dashboard_data.py           # whitelist, esclusioni sintetiche, coorti e funnel smoke/standard/full
 │   ├── dashboard_app.py            # discovery run, snapshot e server statico loopback in memoria
 │   └── report.py                   # aggregazione, metriche, disqualifiche e Markdown
@@ -77,7 +77,7 @@
 │   ├── test_dashboard_app.py       # discovery, snapshot, confinement, server e header sicurezza
 │   ├── test_dashboard_javascript.py # esecuzione della suite Node dalla suite unittest
 │   ├── test_guided.py              # selezione, errori, cancellazione e integrazione funnel
-│   ├── test_guided_ui.py           # i18n/preferenze GUI e launcher multipiattaforma
+│   ├── test_guided_ui.py           # i18n/preferenze, contrasto, avanzamento e launcher multipiattaforma
 │   ├── test_site.py                # asset, link, anchor, metadata, CSP e prefisso Pages
 │   ├── test_site_javascript.py     # esecuzione della suite Node della landing page
 │   ├── test_ollama.py              # capability, mapping, preflight e warmup thinking

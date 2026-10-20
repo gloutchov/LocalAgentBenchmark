@@ -10,6 +10,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.guided_ui import (
     TEXT,
+    THEME_PALETTES,
+    _completed_task_progress,
     _sorted_model_indices,
     _summary,
     load_preferences,
@@ -18,6 +20,35 @@ from localagent_bench.guided_ui import (
 
 
 class GuidedUiTests(unittest.TestCase):
+    def test_progress_counts_completed_tasks_within_each_stage(self):
+        self.assertEqual(0.0, _completed_task_progress(1, 1, 4))
+        self.assertEqual(0.5, _completed_task_progress(1, 3, 4))
+        self.assertEqual(1.0, _completed_task_progress(2, 1, 4))
+        self.assertEqual(1.5, _completed_task_progress(2, 3, 4))
+        self.assertEqual(2.5, _completed_task_progress(3, 2, 2))
+        self.assertEqual(0.0, _completed_task_progress(0, 1, 2))
+        self.assertEqual(0.0, _completed_task_progress(1, 1, 0))
+
+    def test_theme_palette_keeps_controls_and_progress_legible(self):
+        def luminance(color: str) -> float:
+            channels = [int(color[index:index + 2], 16) / 255 for index in (1, 3, 5)]
+            linear = [
+                channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
+                for channel in channels
+            ]
+            return sum(channel * weight for channel, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+        def contrast(first: str, second: str) -> float:
+            values = sorted((luminance(first), luminance(second)))
+            return (values[1] + 0.05) / (values[0] + 0.05)
+
+        for theme, palette in THEME_PALETTES.items():
+            with self.subTest(theme=theme):
+                self.assertGreaterEqual(contrast(palette["foreground"], palette["surface"]), 4.5)
+                self.assertGreaterEqual(contrast(palette["selection_text"], palette["selection"]), 4.5)
+                self.assertGreaterEqual(contrast(palette["disabled_foreground"], palette["disabled_background"]), 4.5)
+                self.assertGreaterEqual(contrast(palette["accent"], palette["progress_track"]), 3)
+
     def test_translations_remain_synchronized(self):
         self.assertEqual(set(TEXT["it"]), set(TEXT["en"]))
 

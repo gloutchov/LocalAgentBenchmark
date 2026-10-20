@@ -6,7 +6,7 @@ This workflow compares models from the local provider configured in `benchmark.j
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.13.1;
+- checkout sorgente completo di LocalAgent Benchmark 0.13.2;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - provider locale configurato su loopback con almeno un modello tool-capable;
@@ -52,6 +52,10 @@ The **Thinking** toggle selects `off` or `medium` without automatic fallback. Th
 Lingua e tema seguono il sistema per default. Gli override vengono salvati soltanto in `.localagent-benchmark/guided-preferences.json`, dentro la root e ignorato da Git.
 
 Language and theme follow the operating system by default. Overrides are stored only in `.localagent-benchmark/guided-preferences.json` inside the project root and ignored by Git.
+
+Nel tema scuro, i selettori di lingua e tema, i modelli selezionati, i pulsanti disabilitati e la barra di avanzamento usano colori coordinati con contrasto leggibile. La barra avanza per le task completate all'interno di ogni fase e arriva al termine della fase dopo la verifica degli artefatti.
+
+In dark mode, the language and theme selectors, selected models, disabled buttons, and progress bar use readable contrasting colors. The bar advances for completed tasks within each stage and reaches the stage boundary after its artifacts are validated.
 
 ## Selezione e risultati / Selection and results
 

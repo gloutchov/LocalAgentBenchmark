@@ -243,7 +243,7 @@ class RunnerGitTests(unittest.TestCase):
             self.assertEqual("passed", report["integrity"]["status"])
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual(7, manifest["order_seed"])
-            self.assertEqual("0.13.1", manifest["benchmark_version"])
+            self.assertEqual("0.13.2", manifest["benchmark_version"])
             self.assertEqual("passed", manifest["pi_compatibility"]["status"])
             self.assertEqual(32768, manifest["configuration"]["context_window"])
             self.assertEqual(30, manifest["configuration"]["timeout_seconds"])
