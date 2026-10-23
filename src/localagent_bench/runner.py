@@ -31,16 +31,7 @@ from .integrity import (
     snapshot_cases,
     verify_snapshot,
 )
-from .ollama import (
-    OllamaModel,
-    ThinkingPreflight,
-    inspect_model,
-    list_models,
-    preflight_thinking,
-    unload,
-    version,
-    warmup,
-)
+from .ollama import OllamaModel, ThinkingPreflight
 from .pi_adapter import (
     AUDIT_VERSION,
     SCRATCH_DIRECTORY,
@@ -49,7 +40,7 @@ from .pi_adapter import (
     write_models_config,
 )
 from .pi_compatibility import PiCompatibility, REFERENCE_PI_VERSION, check_pi_compatibility
-from .providers import LocalProvider
+from .provider_adapter import create_provider
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
 from .system_metrics import hardware_snapshot
@@ -247,21 +238,21 @@ def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None)
     git_path = shutil.which("git")
     checks.append({"name": "git", "ok": git_path is not None, "detail": git_path or "comando non trovato"})
     try:
-        local_provider = LocalProvider(config.provider_kind, config.ollama_url, config.model_files, config.provider_version, config.defaults.context_window) if config.provider_kind != "ollama" else None
-        models = local_provider.list_models() if local_provider else list_models(config.ollama_url)
+        provider = create_provider(config)
+        models = provider.list_models()
         inspected: list[OllamaModel] = []
         for model in models:
             try:
-                inspected.append(local_provider.inspect_model(model) if local_provider else inspect_model(config.ollama_url, model))
+                inspected.append(provider.inspect_model(model))
             except Exception:
                 inspected.append(model)
         models = inspected
-        ollama_version = local_provider.version() if local_provider else version(config.ollama_url)
+        provider_version = provider.version()
         checks.append(
             {
                 "name": config.provider_kind,
                 "ok": True,
-                "detail": f"{ollama_version or 'versione non dichiarata'}; {len(models)} modelli",
+                "detail": f"{provider_version or 'versione non dichiarata'}; {len(models)} modelli",
             }
         )
     except Exception as exc:  # a doctor must report all checks
@@ -343,11 +334,10 @@ def run_benchmark(
             f"Pi {REFERENCE_PI_VERSION} è la versione di riferimento verificata / "
             f"Pi {REFERENCE_PI_VERSION} is the verified reference version"
         )
-    local_provider = LocalProvider(config.provider_kind, config.ollama_url, config.model_files, config.provider_version, config.defaults.context_window) if config.provider_kind != "ollama" else None
-    installed = local_provider.list_models() if local_provider else list_models(config.ollama_url)
+    provider = create_provider(config)
+    installed = provider.list_models()
     models = _resolve_models(config, requested_models, installed)
-    if local_provider:
-        installed = [local_provider.fingerprint_model(item) if item.name in models else item for item in installed]
+    installed = [provider.fingerprint_model(item) if item.name in models else item for item in installed]
     repeat_count = repetitions or config.defaults.repetitions
     timeout = timeout_seconds or config.defaults.timeout_seconds
     thinking_policy = resolve_thinking_policy(thinking_level or config.defaults.thinking)
@@ -376,10 +366,10 @@ def run_benchmark(
     for name in models:
         base_model = next(item for item in installed if item.name == name)
         try:
-            installed_by_name[name] = (local_provider.inspect_model(base_model) if local_provider else inspect_model(
-                config.ollama_url, base_model,
+            installed_by_name[name] = provider.inspect_model(
+                base_model,
                 timeout=min(config.defaults.thinking_preflight_timeout_seconds, timeout),
-            ))
+            )
         except Exception:
             installed_by_name[name] = base_model
     seed = order_seed if order_seed is not None else secrets.randbits(64)
@@ -446,10 +436,10 @@ def run_benchmark(
             "platform": platform.platform(),
             "python": sys.version.split()[0],
             "pi": pi_version,
-            "ollama": version(config.ollama_url) if not local_provider else None,
+            "ollama": provider.version() if provider.kind == "ollama" else None,
             "provider_kind": config.provider_kind,
-            "provider_version": local_provider.version() if local_provider else version(config.ollama_url),
-            "provider_version_source": "configuration" if local_provider else "api",
+            "provider_version": provider.version(),
+            "provider_version_source": provider.version_source,
             "hardware": hardware_snapshot(),
         },
         "model_metadata": {name: asdict(installed_by_name[name]) for name in models},
@@ -460,7 +450,7 @@ def run_benchmark(
     disqualified_thinking: set[str] = set()
     for model in models:
         try:
-            local_provider.unload(model) if local_provider else unload(config.ollama_url, model)
+            provider.unload(model)
         except Exception:
             pass
         print(
@@ -468,16 +458,13 @@ def run_benchmark(
             f"/{thinking_policy.reasoning_effort}",
             flush=True,
         )
-        preflight = (local_provider.preflight_thinking(
+        preflight = provider.preflight_thinking(
             installed_by_name[model], thinking_policy,
             timeout=min(config.defaults.thinking_preflight_timeout_seconds, timeout),
-        ) if local_provider else preflight_thinking(
-            config.ollama_url, installed_by_name[model], thinking_policy,
-            timeout=min(config.defaults.thinking_preflight_timeout_seconds, timeout),
-        ))
+        )
         preflight_by_model[model] = preflight
         manifest["thinking_control"]["preflights"][model] = asdict(preflight)
-        if local_provider and preflight.passed and thinking_policy.active and installed_by_name[model].thinking_capable is None:
+        if provider.infer_capability_from_preflight and preflight.passed and thinking_policy.active and installed_by_name[model].thinking_capable is None:
             installed_by_name[model] = replace(
                 installed_by_name[model], thinking_capable=True,
                 capabilities=("completion", "thinking"), capabilities_known=True,
@@ -496,7 +483,7 @@ def run_benchmark(
                 }
             )
         try:
-            local_provider.unload(model) if local_provider else unload(config.ollama_url, model)
+            provider.unload(model)
         except Exception:
             pass
     manifest["thinking_control"]["disqualified_models"] = sorted(disqualified_thinking)
@@ -528,13 +515,13 @@ def run_benchmark(
         if active_model != model:
             if active_model is not None:
                 try:
-                    local_provider.unload(active_model) if local_provider else unload(config.ollama_url, active_model)
+                    provider.unload(active_model)
                 except Exception as exc:
                     print(f"[avviso] unload fallito per {active_model}: {exc}", file=sys.stderr, flush=True)
-            if local_provider:
+            if provider.explicit_load:
                 load_started = time.monotonic()
                 try:
-                    local_provider.load(model, timeout=min(timeout, 300))
+                    provider.load(model, timeout=min(timeout, 300))
                 except Exception as exc:
                     manifest["load_events"].append({
                         "sequence": current, "model": model, "status": "failed",
@@ -559,13 +546,10 @@ def run_benchmark(
                 print(f"[warmup] {model}", flush=True)
                 event: dict[str, Any] = {"sequence": current, "model": model}
                 try:
-                    warmup_result = (local_provider.warmup(
+                    warmup_result = provider.warmup(
                         model, thinking_policy, timeout=min(timeout, 300),
                         context_window=config.defaults.context_window,
-                    ) if local_provider else warmup(
-                        config.ollama_url, model, config.defaults.keep_alive,
-                        min(timeout, 300), thinking_policy,
-                    ))
+                    )
                     event["metrics"] = {
                         key: warmup_result.get(key)
                         for key in ("total_duration", "load_duration", "prompt_eval_count", "eval_count", "eval_duration")
@@ -768,7 +752,7 @@ def run_benchmark(
 
     if active_model is not None:
         try:
-            local_provider.unload(active_model) if local_provider else unload(config.ollama_url, active_model)
+            provider.unload(active_model)
         except Exception as exc:
             print(f"[avviso] unload fallito per {active_model}: {exc}", file=sys.stderr, flush=True)
 
