@@ -1,5 +1,7 @@
 # Manuale utente – LocalAgent Benchmark
 
+Versione corrente: **0.13.4**. Questa patch aggiorna l'azione GitHub che prepara Python nei workflow CI e Pages; installazione, comandi e configurazione del benchmark restano invariati.
+
 ## 1. Scopo
 
 LocalAgent Benchmark confronta modelli locali Ollama, LM Studio o llama.cpp quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).

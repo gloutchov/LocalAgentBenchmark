@@ -6,7 +6,7 @@ This workflow compares models from the local provider configured in `benchmark.j
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.13.2;
+- checkout sorgente completo di LocalAgent Benchmark 0.13.4;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - provider locale configurato su loopback con almeno un modello tool-capable;
