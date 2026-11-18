@@ -1,6 +1,6 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.3**
+Versione corrente / Current version: **0.13.4**
 
 ## Milestone 1 – Benchmark locale funzionale
 
@@ -704,3 +704,17 @@ Versione corrente / Current version: **0.13.3**
 - [ ] Tag `milestone/C14` e `v0.13.3` creati sul commit finale di `main`, pubblicati e verificati sul remoto.
 - [ ] GitHub Release sorgente `v0.13.3` pubblicata; archivi ZIP/TAR scaricati e verificati.
 - [ ] Branch obsoleto eliminato dal remoto e in locale soltanto dopo tag, release e verifiche; impostazione GitHub di cancellazione automatica ripristinata.
+
+## Patch 0.13.4 – Aggiornamento dell'azione setup-python
+
+- Obiettivo: aggiornare l'azione che prepara Python nei workflow CI e Pages, mantenendo il pin al commit ufficiale e i requisiti runtime esistenti.
+- Branch di release: `patch/0.13.4-setup-python`, creato da `main` dopo il merge della PR Dependabot #14.
+- Incremento versione: `+0.0.1`, da `0.13.3` a `0.13.4`; tag `v0.13.4`.
+- Attività: integrare `actions/setup-python` 7.0.0 → 7.1.0; sincronizzare `VERSION`, metadati Python, test della versione, README, manuali e quick start; pubblicare una release sorgente bilingue e rimuovere i branch di questa patch dopo le verifiche.
+- Criteri di accettazione: entrambi i workflow usano lo SHA ufficiale `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`; CI macOS/Windows/Ubuntu e Pages verdi; tag e archivi sorgente coerenti con la versione. Nessun cambiamento alla logica del benchmark, ai provider o ai requisiti Python.
+- Test: suite Python, `compileall`, test JavaScript e validazione dei sei casi; CI della PR di release e di `main`; verifica tag, release e archivi ZIP/TAR.
+- Documentazione: README, manuali italiano/inglese, `QUICK-START_Guided.md` e questo piano. Sicurezza, struttura e regole operative non cambiano; `SECURITY_MODEL.md`, `MAP.md` e `AGENTS.md` non richiedono modifiche.
+- Release: GitHub Release sorgente `v0.13.4`, autorizzata esplicitamente dal progettista il 2026-11-18 insieme a commit, merge, tag, push e rimozione dei branch di lavoro. Nessun installer o artifact binario di progetto; checksum SHA-256 degli archivi sorgente forniti nella release.
+- Verifiche dell'aggiornamento: tag upstream 7.1.0 controllato; PR #14 integrata nel commit `7b5a6a7`; CI `44265662289` verde su macOS, Windows e Ubuntu; validazione e deploy Pages `44265662433` riusciti.
+- Verifiche locali 2026-11-18: 170 test Python verificati con 7 skip ambientali; il singolo errore Git dovuto al percorso temporaneo lungo è stato risolto rieseguendo quel test con `core.longpaths=true` soltanto nel processo. I tre test contrattuali Pi sono verdi con Pi 0.85.1 installato in una directory temporanea, senza cambiare il Pi di sistema; le directory temporanee dei test Pi restano separate dal repository per non ereditare il suo `AGENTS.md`. Sono riusciti anche i 17 test JavaScript, `compileall`, la validazione dei sei casi e `git diff --check`. Nessun benchmark con modelli reali ripetuto per questa patch dei workflow.
+- Stato: **aggiornamento dei workflow integrato e chiusura della patch 0.13.4 autorizzata; metadati e documentazione sincronizzati sul branch di release.** La pubblicazione usa soltanto il commit finale verificato su `main`, senza spostare tag esistenti.
