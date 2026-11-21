@@ -77,7 +77,7 @@ class Handler(BaseHTTPRequestHandler):
             if mode == 'slow': time.sleep(.2)
             # Split protocol frames as well as content across network reads.
             for start in range(0,len(data),7): self.wfile.write(data[start:start+7])
-        except (BrokenPipeError,ConnectionResetError):
+        except ConnectionError:
             pass
 
 
@@ -142,6 +142,16 @@ class PreliminaryHTTPTests(unittest.TestCase):
     def test_missing_usage_is_not_zero_and_truncation_is_explicit(self):
         self.server.mode='no_usage';self.assertIsNone(self.probe()['output_tokens_per_second'])
         self.server.mode='length';self.assertTrue(self.probe()['truncated'])
+
+    def test_fast_stream_keeps_metrics_when_monotonic_ticks_do_not_advance(self):
+        # Reproduce a Windows 3.11 request shorter than a GetTickCount64 tick.
+        with patch('localagent_bench.preliminary_stream.time.monotonic', return_value=100):
+            result = self.probe()
+        self.assertGreater(result['duration_seconds'], 0)
+        self.assertGreater(result['first_answer_seconds'], 0)
+        self.assertGreater(result['output_tokens_per_second'], 0)
+        self.assertEqual(12, result['output_tokens'])
+        self.assertEqual('A synthetic response with two chunks.', result['answer'])
 
     def test_reasoning_is_detected_and_never_returned_as_answer(self):
         for mode in ('reasoning','reasoning_tokens','inline'):

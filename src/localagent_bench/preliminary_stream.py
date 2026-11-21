@@ -37,7 +37,9 @@ def measure(url: str, model: str, prompt: str, policy: ThinkingPolicy,
                'max_tokens': options.max_tokens, 'seed': seed}
     request = Request(url + '/v1/chat/completions', data=json.dumps(payload).encode(),
                       headers={'Content-Type': 'application/json'}, method='POST')
-    started = time.monotonic()
+    # Python 3.10/3.11 on Windows may give monotonic() coarse clock ticks.
+    # Keep elapsed measurements and deadlines on the high-resolution counter.
+    started = time.perf_counter()
     content, buffer = '', b''
     first = last = previous = None
     gaps: list[float] = []
@@ -56,12 +58,12 @@ def measure(url: str, model: str, prompt: str, policy: ThinkingPolicy,
                     sock.shutdown(socket.SHUT_RDWR)
                 except OSError:
                     pass
-        timer = threading.Timer(max(.001, options.timeout_seconds - (time.monotonic() - started)), expire)
+        timer = threading.Timer(max(.001, options.timeout_seconds - (time.perf_counter() - started)), expire)
         timer.daemon = True
         timer.start()
         try:
             while not done:
-                if time.monotonic() - started >= options.timeout_seconds:
+                if time.perf_counter() - started >= options.timeout_seconds:
                     raise TimeoutError('preliminary_timeout')
                 block = response.read1(min(4096, options.max_event_bytes))
                 if not block:
@@ -86,7 +88,7 @@ def measure(url: str, model: str, prompt: str, policy: ThinkingPolicy,
                     event = json.loads(raw)
                     if not isinstance(event, dict) or 'error' in event:
                         raise ProviderError('preliminary_stream_protocol')
-                    now = time.monotonic()
+                    now = time.perf_counter()
                     if isinstance(event.get('usage'), dict):
                         usage = event['usage']
                     timings = event.get('timings')
@@ -119,7 +121,7 @@ def measure(url: str, model: str, prompt: str, policy: ThinkingPolicy,
                     raise ProviderError('preliminary_event_limit')
         finally:
             timer.cancel()
-    duration = time.monotonic() - started
+    duration = time.perf_counter() - started
     if duration >= options.timeout_seconds:
         raise TimeoutError('preliminary_timeout')
     if not done or finish not in {'stop', 'length'}:

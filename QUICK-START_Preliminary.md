@@ -26,6 +26,8 @@ La suite versionata `preliminary/suite.json` comprende due contesti, breve e lun
 - **Decode token/s:** valore `timings.predicted_per_second` soltanto se fornito dal provider. Le altre API possono lasciarlo N/D; non si simula una misura equivalente.
 - **Pausa max (s):** massimo intervallo osservato fra eventi di testo visibile ricevuti dal client. Può risentire del buffering e non è latenza per singolo token.
 
+Tempi e timeout usano un contatore monotono ad alta risoluzione, anche su Windows, per misurare correttamente richieste più brevi di un tick dell'orologio di sistema.
+
 Report e dashboard mostrano mediane e, per primo testo e token/s E2E, intervallo minimo–massimo. I singoli campioni sono in `run.json`. Non si stimano percentili affidabili da tre ripetizioni. Le sonde di generazione possono raggiungere intenzionalmente il budget di token; questo non è un fallimento tecnico. Campioni falliti e risposte troncate sono contati esplicitamente; non sono sostituiti da zero. Le metriche disponibili derivano dai soli campioni completati che le espongono. Confrontare hardware, quantizzazione, versione provider, context window, temperature, lunghezza effettiva degli output e modalità thinking compatibili. Tokenizer differenti rendono il token/s una misura specifica del modello/runtime.
 
 La sequenza di modelli e sonde è registrata con `--seed`; ogni richiesta contiene un identificativo deterministico diverso e usa una conversazione nuova. Questo riduce il riuso dei prefissi fra ripetizioni, ma non svuota o certifica le cache interne del runtime. Le misure sono **successive al preflight**, con unload e warmup registrati; non sono presentate come avvii a freddo verificati. Un warmup viene eseguito per cambio modello quando abilitato. Ogni modello viene scaricato al termine, anche dopo errori, prima del passaggio allo smoke.
@@ -61,6 +63,8 @@ The versioned `preliminary/suite.json` contains short and long contexts and 16 i
 - **E2E tokens/s:** provider-reported output tokens divided by full request duration, including reasoning when included in provider counts. This is not pure decode throughput or tokens divided by agent-task duration.
 - **Decode tokens/s:** `timings.predicted_per_second` only when the provider supplies it. Unsupported telemetry remains N/A.
 - **Max gap (s):** longest observed gap between received visible-text events. Buffering affects this measure; it is not per-token latency.
+
+Timings and timeouts use a high-resolution monotonic counter, including on Windows, so requests shorter than a system-clock tick can still be measured.
 
 Reports and dashboard display medians, plus minimum–maximum ranges for first answer and E2E tokens/s. Raw samples remain in `run.json`. Three repetitions do not establish reliable tail percentiles. Generation probes may intentionally reach their token budget; this is not a technical failure. Failed samples and truncated answers are counted separately, never replaced by zero. Available metrics use completed samples that actually expose each metric. Compare compatible hardware, quantization, provider versions, context windows, temperature, actual output lengths and thinking modes. Different tokenizers make tokens/s specific to the model/runtime.
 
