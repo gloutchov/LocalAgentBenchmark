@@ -82,7 +82,8 @@ class LandingPageTests(unittest.TestCase):
             ("news_index", "why_index", "method_index", "quick_index", "dashboard_index", "limits_index", "immersion_index", "start_index", "docs_index"),
             strict=True,
         ):
-            self.assertIn(f'href="#{section_id}" data-i18n="{key}"', index)
+            if section_id != "docs":
+                self.assertIn(f'href="#{section_id}" data-i18n="{key}"', index)
 
         styles = (SITE / "css" / "styles.css").read_text(encoding="utf-8")
         self.assertIn(".start-copy > p:not(.section-index)", styles)
@@ -100,23 +101,30 @@ class LandingPageTests(unittest.TestCase):
             links,
         )
 
-    def test_provider_news_follows_hero_actions_and_precedes_first_section(self) -> None:
+    def test_preliminary_news_and_grouped_navigation_follow_requested_order(self) -> None:
         index, parser = self.parse("index.html")
-        hero = index.split('<section class="hero"', 1)[1].split('</section>', 1)[0]
-        news = index.split('<section class="section section-news"', 1)[1].split('</section>', 1)[0]
-        self.assertNotIn('data-i18n="provider_update_title"', hero)
-        self.assertLess(hero.index('data-i18n="hero_lede"'), hero.index('data-i18n="cta_repository"'))
-        self.assertLess(hero.index('data-i18n="cta_repository"'), hero.index('data-i18n="cta_release"'))
-        self.assertLess(hero.index('data-i18n="cta_release"'), hero.index('data-i18n="cta_quick"'))
-        self.assertLess(index.index('id="news"'), index.index('id="why"'))
-        for provider in ("Ollama", "LM Studio", "llama.cpp"):
-            self.assertIn(f"<h3>{provider}</h3>", news)
-        self.assertEqual(2, news.count('data-i18n="provider_new"'))
-        self.assertIn('data-i18n="provider_update_title"', news)
-        self.assertIn('data-i18n="provider_update_text"', news)
-        guide = "https://github.com/gloutchov/LocalAgentBenchmark/blob/main/QUICK-START_LocalProviders.md"
-        self.assertIn(guide, {link.get("href", "") for link in parser.links})
-        self.assertEqual(2, index.count(f'href="{guide}"'))
+        news = index.split('id="news"',1)[1].split('</section>',1)[0]
+        self.assertIn('data-i18n="preliminary_title"', news)
+        self.assertNotIn('provider_update_title', news)
+        self.assertLess(index.index('id="news"'),index.index('id="why"'))
+        self.assertLess(index.index('id="why"'),index.index('id="providers"'))
+        self.assertLess(index.index('id="providers"'),index.index('id="method"'))
+        self.assertLess(index.index('id="quick"'),index.index('id="immersion"'))
+        self.assertLess(index.index('id="immersion"'),index.index('id="dashboard"'))
+        nav = index.split('<nav class="primary-nav"',1)[1].split('</nav>',1)[0]
+        groups = re.findall(r'<details.*?</details>',nav,re.S)
+        self.assertEqual(2,len(groups))
+        self.assertIn('data-i18n="nav_measure"',groups[0])
+        self.assertEqual(['why','providers','method','quick','immersion'],re.findall(r'href="#([^"]+)"',groups[0]))
+        self.assertIn('data-i18n="nav_answers"',groups[1])
+        self.assertEqual(['dashboard','interpretation'],re.findall(r'href="#([^"]+)"',groups[1]))
+        self.assertNotIn('href="#docs"',nav)
+        self.assertNotIn('href="#preliminary"',nav)
+        providers = index.split('id="providers"',1)[1].split('</section>',1)[0]
+        for provider in ("Ollama","LM Studio","llama.cpp"):
+            self.assertIn(f'<h3>{provider}</h3>',providers)
+        self.assertNotIn('provider_new',providers)
+        self.assertIn('href="#docs"',index.split('id="start"',1)[1].split('</section>',1)[0])
 
     def test_full_immersion_start_and_language_scoped_documentation(self) -> None:
         index, parser = self.parse("index.html")

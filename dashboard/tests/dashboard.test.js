@@ -232,7 +232,7 @@ test("local snapshot output is loaded by the UI and ignored by Git", () => {
 });
 
 test("official assets are semantic and contain no remote runtime hooks", () => {
-  const files = ["dashboard/index.html", "dashboard/styles.css", "dashboard/js/app.js", "dashboard/js/ui.js"];
+  const files = ["dashboard/index.html", "dashboard/styles.css", "dashboard/js/app.js", "dashboard/js/ui.js", "dashboard/js/preliminary.js"];
   const source = files.map((file) => fs.readFileSync(path.join(ROOT, file), "utf8")).join("\n");
   const html = fs.readFileSync(path.join(ROOT, "dashboard/index.html"), "utf8").toLowerCase();
   for (const token of ["<main", "<section", "<h1", "<label", 'type="file"', "aria-live", "skip-link", "<dialog"]) {
@@ -276,4 +276,40 @@ test("preliminary schema 4 stays descriptive and rejects raw content", () => {
   const leaked = structuredClone(merged);
   leaked.runs.find((r) => r.profile === "preliminary").preliminary[0].answer = "private text";
   assert.throws(() => Core.validateDashboardData(leaked));
+});
+
+test("preliminary ranges preserve missing data and chart series preserve source order", () => {
+  const Preliminary = require(path.join(ROOT, "dashboard/js/preliminary.js"));
+  const format = (n) => String(n);
+  assert.equal(Preliminary.formatRange(null, null, null, format, "Non disponibile"), "Non disponibile");
+  assert.equal(Preliminary.formatRange(NaN, 1, 2, format, "N/A"), "N/A");
+  assert.equal(Preliminary.formatRange(2, null, null, format, "N/A"), "2");
+  assert.equal(Preliminary.formatRange(2, 1, 3, format, "N/A"), "2 [1–3]");
+  const rows = [
+    {model:"slow",context:"short",status:"measured",duration_seconds:20,known_correct:0,known_total:8},
+    {model:"missing",context:"long",status:"unavailable",duration_seconds:null,known_correct:0,known_total:0},
+    {model:"excluded",context:"short",status:"excluded",duration_seconds:3,known_correct:8,known_total:8},
+  ];
+  const original = JSON.stringify(rows);
+  const series = Preliminary.metricSeries(rows, "duration_seconds");
+  assert.deepEqual(series.map((r) => r.model), ["slow","missing","excluded"]);
+  assert.deepEqual(series.map((r) => r.value), [20,null,null]);
+  assert.deepEqual(Preliminary.groundingSeries(rows,"known").map((r) => r.value), [0,null,null]);
+  assert.equal(JSON.stringify(rows), original);
+  const source = fs.readFileSync(path.join(ROOT, "dashboard/js/preliminary.js"), "utf8");
+  assert.doesNotMatch(source, /innerHTML|\bfetch\s*\(|XMLHttpRequest|WebSocket/);
+});
+
+test("preliminary sample charts distinguish failures, zero success and missing evidence", () => {
+  const P = require(path.join(ROOT, "dashboard/js/preliminary.js"));
+  const rows = [
+    {model:"failed",context:"short",status:"unavailable",samples:3,completed:0,failed:3,truncated:0},
+    {model:"absent",context:"long",status:"unavailable",samples:0,completed:0,failed:0,truncated:0},
+    {model:"excluded",context:"long",status:"excluded",samples:3,completed:3,failed:0,truncated:2},
+  ];
+  const series = P.sampleSeries(rows);
+  assert.deepEqual(series.slice(0,3).map((r) => r.value), [0,100,0]);
+  assert.deepEqual(series.slice(3).map((r) => r.value), [null,null,null,null,null,null]);
+  assert.equal(series[1].count, 3);
+  assert.equal(series[1].total, 3);
 });

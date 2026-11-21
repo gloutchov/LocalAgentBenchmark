@@ -4,14 +4,14 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, and the llama.cpp `llama-server` router. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.14.0 – manutenzione dei workflow CI e Pages / CI and Pages workflow maintenance**
+Stato / Status: **0.14.0 – Preliminary: reattività e affidabilità / responsiveness and grounding**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
 
-La patch 0.14.0 aggiorna `actions/setup-python` da 7.0.0 a 7.1.0 nei workflow CI e Pages, mantenendo il pin al commit ufficiale. Il comportamento del benchmark e i requisiti Python restano invariati.
+La 0.14.0 aggiunge il profilo descrittivo Preliminary, con misure di reattività, quesiti su fonti sintetiche e grafici dedicati. Il percorso rapido può eseguirlo prima del funnel; score e promozioni restano separati.
 
-Patch 0.14.0 updates `actions/setup-python` from 7.0.0 to 7.1.0 in the CI and Pages workflows, retaining the official commit pin. Benchmark behavior and Python requirements are unchanged.
+Version 0.14.0 adds the descriptive Preliminary profile, measuring responsiveness and grounding against synthetic sources, with dedicated charts. Optionally run it before the quick-path funnel; scores and promotions remain separate.
 
 ## Cosa misura / What it measures
 
@@ -269,7 +269,7 @@ In **Choose files**, select only one or more `dashboard-data.json` exports creat
 
 ## Landing page / Project landing page
 
-La landing page pubblica vive sotto [`site/`](site/) ed è pronta per GitHub Pages all'indirizzo `https://gloutchov.github.io/LocalAgentBenchmark/`. L'introduzione offre subito i link al repository, all'ultima release e al percorso rapido; la sezione «Novità», prima del punto 01, presenta Ollama, LM Studio e llama.cpp e collega la [guida di configurazione](QUICK-START_LocalProviders.md), presente anche nella sezione documentazione. Per l'anteprima locale dalla root del repository:
+La landing page pubblica vive sotto [`site/`](site/) ed è pronta per GitHub Pages all'indirizzo `https://gloutchov.github.io/LocalAgentBenchmark/`. L'introduzione offre subito i link al repository, all'ultima release e al percorso rapido; la sezione «Novità» presenta Preliminary. Il menu «Misure Vere» raccoglie Cosa misura, Provider locali, Metodo, Percorso rapido e Full immersion; «Risposte immediate» raccoglie Dashboard ufficiale e Interpretazione. I provider hanno il segnalibro `#providers` dentro Cosa misura; Full immersion precede la dashboard. «Inizia» mantiene l’accesso alla documentazione e alla [guida ai provider](QUICK-START_LocalProviders.md). Per l'anteprima locale dalla root del repository:
 
 ```bash
 python3 -m http.server 8000 --bind 127.0.0.1 --directory site
@@ -277,7 +277,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory site
 
 Aprire `http://127.0.0.1:8000/` e terminare con `Ctrl+C`. La pagina rileva la lingua del browser, usa italiano soltanto per locale italiani e inglese negli altri casi; lingua e tema possono essere scelti manualmente e sono le sole preferenze salvate in `localStorage`. Tutto il sito è statico: HTML, CSS, JavaScript, font di sistema e immagini sono locali, senza CDN, analytics, telemetria, form o richieste runtime remote. I link a repository, release, documentazione e sito personale sono navigazioni esterne esplicite.
 
-The public landing page lives under [`site/`](site/) and is ready for GitHub Pages at `https://gloutchov.github.io/LocalAgentBenchmark/`. Its introduction immediately links to the repository, latest release, and quick path. A separate “What’s new” section before point 01 presents Ollama, LM Studio, and llama.cpp and links to the [setup guide](QUICK-START_LocalProviders.md), also listed in the documentation section. Preview it locally with the command above. The page detects browser language, defaults to Italian only for Italian locales and to English otherwise, and persists only explicit language and theme choices. All runtime assets are local and the site has no CDN, analytics, telemetry, forms, or remote runtime requests.
+The public landing page lives under [`site/`](site/) and is ready for GitHub Pages at `https://gloutchov.github.io/LocalAgentBenchmark/`. Its introduction immediately links to the repository, latest release, and quick path. “What’s new” presents Preliminary. “Real measurements” groups What it measures, Local providers, Method, Quick path and Full immersion; “Immediate answers” groups the official dashboard and Interpretation. Providers have the `#providers` bookmark inside What it measures; Full immersion precedes the dashboard. “Get started” retains access to documentation and the [provider guide](QUICK-START_LocalProviders.md). Preview it locally with the command above. The page detects browser language, defaults to Italian only for Italian locales and to English otherwise, and persists only explicit language and theme choices. All runtime assets are local and the site has no CDN, analytics, telemetry, forms, or remote runtime requests.
 
 I fotogrammi sotto `site/assets/` sono derivati ottimizzati dei video locali `assets/Dashboard.mov` e `assets/Guided.mov`: i sorgenti restano ignorati da Git, non vengono pubblicati e non vanno modificati. Quando cambiano testi o UI, mantenere sincronizzati i dizionari in `site/js/i18n.js`, aggiornare entrambe le immagini fallback/WebP quando necessario e verificare `site/index.html`, `site/404.html`, il prefisso Pages `/LocalAgentBenchmark/` e i test statici.
 

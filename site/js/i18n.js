@@ -8,6 +8,9 @@
 
   const STRINGS = {
     it: {
+      nav_measure: "Misure Vere",
+      nav_answers: "Risposte immediate",
+      nav_providers: "Provider locali",
       preliminary_title: "Prima di scegliere, misura l’attesa.",
       preliminary_text: "La fase preliminary descrive reattività e affidabilità dei modelli locali, prima delle task di coding. Puoi eseguirla da sola o all’inizio del percorso rapido.",
       preliminary_guide: "Apri la guida Preliminary",
@@ -160,6 +163,9 @@
       not_found_action: "Torna alla pagina iniziale"
     },
     en: {
+      nav_measure: "Real measurements",
+      nav_answers: "Immediate answers",
+      nav_providers: "Local providers",
       preliminary_title: "Before choosing, measure the wait.",
       preliminary_text: "The preliminary stage describes responsiveness and grounding of local models before coding tasks. Run it independently or at the start of the quick path.",
       preliminary_guide: "Open the Preliminary guide",

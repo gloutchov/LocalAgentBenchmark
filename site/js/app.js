@@ -96,8 +96,23 @@
     markSelected(themeOptions, theme, "themeOption");
   }
 
+  const navGroups = Array.from(document.querySelectorAll(".nav-group"));
+  function closeDropdowns(except) {
+    navGroups.forEach((group) => { if (group !== except) group.open = false; });
+  }
+  navGroups.forEach((group) => group.addEventListener("toggle", () => {
+    if (group.open) closeDropdowns(group);
+  }));
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".primary-nav")) closeDropdowns();
+  });
+  document.addEventListener("focusin", (event) => {
+    if (!event.target.closest(".primary-nav")) closeDropdowns();
+  });
+
   function setMenu(open) {
     if (!menuToggle || !headerPanel) return;
+    if (!open) closeDropdowns();
     menuToggle.setAttribute("aria-expanded", String(open));
     headerPanel.dataset.open = String(open);
     const strings = i18n.getStrings(language);
@@ -125,12 +140,18 @@
   });
   if (menuToggle) menuToggle.addEventListener("click", () => setMenu(menuToggle.getAttribute("aria-expanded") !== "true"));
   document.addEventListener("keydown", (event) => {
+    const openGroup = navGroups.find((group) => group.open);
+    if (event.key === "Escape" && openGroup) {
+      closeDropdowns();
+      openGroup.querySelector("summary").focus();
+      return;
+    }
     if (event.key === "Escape" && menuToggle && menuToggle.getAttribute("aria-expanded") === "true") {
       setMenu(false);
       menuToggle.focus();
     }
   });
-  document.querySelectorAll(".primary-nav a").forEach((link) => link.addEventListener("click", () => setMenu(false)));
+  document.querySelectorAll(".primary-nav a").forEach((link) => link.addEventListener("click", () => { closeDropdowns(); setMenu(false); }));
 
   if ("IntersectionObserver" in window) {
     const navLinks = Array.from(document.querySelectorAll(".primary-nav a[href^='#']"));
@@ -142,6 +163,7 @@
         if (link.getAttribute("href") === `#${visible.target.id}`) link.setAttribute("aria-current", "true");
         else link.removeAttribute("aria-current");
       });
+      navGroups.forEach((group) => { group.dataset.active = String(Boolean(group.querySelector("a[aria-current]"))); });
     }, { rootMargin: "-30% 0px -55%", threshold: [0, 0.25, 0.6] });
     sections.forEach((section) => observer.observe(section));
   }

@@ -1,9 +1,9 @@
 (function (root, factory) {
   "use strict";
-  const api = factory(root.LocalAgentDashboardI18n);
+  const api = factory(root.LocalAgentDashboardI18n, root.LocalAgentDashboardPreliminary);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LocalAgentDashboardUI = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n, Preliminary) {
   "use strict";
 
   const t = (key, values) => I18n.translate(key, values);
@@ -81,36 +81,7 @@
   }
 
   function renderPreliminary(view) {
-    const panel = document.getElementById("preliminary-panel");
-    const container = document.getElementById("preliminary-results");
-    const rows = view.preliminary || [];
-    panel.hidden = rows.length === 0;
-    container.replaceChildren();
-    for (const run of view.runs.filter((item) => item.profile === "preliminary")) {
-      const selected = rows.filter((row) => row.run_id === run.id);
-      if (!selected.length) continue;
-      container.append(element("h3", "", `${run.id} · ${t("thinking_control")}: ${run.thinking_control.requested}`));
-      const performanceKeys = ["model","preliminary_context","state","preliminary_samples","preliminary_first","duration","preliminary_tps","preliminary_decode","preliminary_gap","preliminary_truncated"];
-      const perf = tableShell(performanceKeys);
-      for (const r of selected.filter((item) => item.context !== "grounding")) {
-        const tr = document.createElement("tr");
-        [r.model,r.context,t(`preliminary_${r.status}`),`${r.completed}/${r.samples}`,
-          `${formatNumber(r.first_answer_seconds,3)} [${formatNumber(r.first_answer_min_seconds,3)}–${formatNumber(r.first_answer_max_seconds,3)}]`,formatNumber(r.duration_seconds,3),
-          `${formatNumber(r.output_tokens_per_second,2)} [${formatNumber(r.output_tokens_min_per_second,2)}–${formatNumber(r.output_tokens_max_per_second,2)}]`,formatNumber(r.decode_tokens_per_second,2),
-          formatNumber(r.max_chunk_gap_seconds,3),r.truncated].forEach((v) => tr.append(element("td","",v)));
-        perf.body.append(tr);
-      }
-      container.append(perf.wrapper);
-      const grounding = tableShell(["model","state","preliminary_known","preliminary_missing","preliminary_premise","preliminary_unsupported","preliminary_abstain","preliminary_invalid","preliminary_failed"]);
-      for (const r of selected.filter((item) => item.context === "grounding")) {
-        const tr = document.createElement("tr");
-        [r.model,t(`preliminary_${r.status}`),`${r.known_correct}/${r.known_total}`,`${r.missing_correct}/${r.missing_total}`,
-          `${r.premise_correct}/${r.premise_total}`,r.unsupported_answers,r.unnecessary_abstentions,r.invalid_answers,r.failed]
-          .forEach((v) => tr.append(element("td","",v)));
-        grounding.body.append(tr);
-      }
-      container.append(grounding.wrapper);
-    }
+    Preliminary.render(view);
   }
 
   function renderSource(meta, view) {

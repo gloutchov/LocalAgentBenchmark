@@ -16,9 +16,10 @@
 │   ├── favicon.svg                 # icona funzionale locale
 │   ├── data/snapshot.js            # output locale opzionale generato e ignorato da Git
 │   ├── js/                         # core dati, i18n, rendering e stato UI modulari
+│   │   └── preliminary.js         # tabelle titolate, valori mancanti e grafici descrittivi accessibili
 │   └── tests/dashboard.test.js     # trasformazioni, fixture, i18n e vincoli statici
 ├── site/                           # landing page pubblica statica per GitHub Pages
-│   ├── index.html                  # introduzione con CTA, sezione Novità sui provider, percorsi, documentazione, metadata e CSP
+│   ├── index.html                  # CTA, Novità Preliminary, provider in Cosa misura, menu raggruppati e documentazione
 │   ├── 404.html                    # fallback bilingue compatibile con /LocalAgentBenchmark/
 │   ├── css/styles.css              # griglia, temi, responsive, focus e reduced motion
 │   ├── js/                         # bootstrap tema, dizionari, preferenze e interazioni
