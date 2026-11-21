@@ -1,6 +1,28 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.13.4**
+Versione corrente / Current version: **0.14.0**
+
+## M15 – Preliminary: reattività e affidabilità rispetto alle fonti
+
+- Obiettivo: descrivere ogni modello con misure ripetute di reattività e una batteria sintetica di risposte verificabili, senza modificare score, promozioni o funnel smoke/standard/full.
+- Branch: `milestone/15-preliminary`, creato da `origin/main` verificato a `341ac32`; checkpoint precedente `milestone/C14` verificato sul remoto.
+- Tag di checkpoint previsto: `milestone/C15`, sul commit finale di `main` dopo controllo personale e approvazione esplicita.
+- Incremento versione: `+0.1.0`, da `0.13.4` a `0.14.0`; tag `v0.14.0` e release sorgente previsti soltanto dopo approvazione.
+- Attività: profilo autonomo `preliminary`; richieste streaming locali senza strumenti; contesti brevi/lunghi, ripetizioni e impostazioni configurabili; tempi del primo testo, completamento, token/sec con denominatore dichiarato, pause fra blocchi e disponibilità dei dati; domande rispondibili, mancanti e con premessa falsa; snapshot e policy hashati; integrazione opzionale iniziale nella GUI; report e dashboard offline separati dalla classifica; documentazione bilingue e landing aggiornata.
+- Criteri di accettazione: stessa suite congelata per tutti i modelli; gate Pi/thinking/sandbox e input puliti invariati; nessun accesso esterno o strumento nelle misure; errori descrittivi non modificano le promozioni; violazioni dei controlli obbligatori restano escludenti; reasoning non persistito dalle sonde; unload e warmup espliciti, nessuna dichiarazione di avvio a freddo non verificata; ogni domanda è indipendente; dati non disponibili distinti da zero; export solo di aggregati autorizzati senza prompt, risposte, path o errori liberi; vecchi run compatibili.
+- Test richiesti: unit e integrazione HTTP sintetica per Ollama/LM Studio/llama.cpp, streaming spezzato, timeout e cancellazione, payload corrotti/grandi, redazione, premesse false e astensioni, snapshot e input sporchi, esclusioni e indipendenza dello score, CLI e percorso guidato; suite Python completa, compileall, suite Node, validazione casi; browser landing 1440×900 e 390×844 IT/EN e tre temi, dashboard HTTP e file, tastiera/focus, nessuna richiesta remota. Smoke reali soltanto con dati sintetici e provider disponibili, riportando limiti di piattaforma.
+- Documentazione: README, ISTRUZIONI, INSTRUCTIONS, guide Preliminary/Guided/Dashboard/LocalProviders, SECURITY_MODEL, MAP, AGENTS, PLAN e landing.
+- Stato: **in sviluppo**. Nessun push, PR, merge, tag, release o deploy autorizzato da questa implementazione.
+
+### Checklist chiusura M15
+
+- [x] Branch dedicato e checkpoint remoto precedente verificati; modifica locale preesistente alla guida preservata nel checkout principale.
+- [ ] Implementazione modulare, configurazione, metriche e integrazioni completate.
+- [ ] Test automatici, verifiche browser e smoke applicabili eseguiti; limiti documentati.
+- [ ] Versione e documentazione bilingue sincronizzate.
+- [ ] Commit finale locale congelato sul branch dedicato; hash, diff rispetto a main, test ed esiti presentati al progettista.
+- [ ] Controllo personale e approvazione esplicita del commit preciso ottenuti prima di pubblicare, integrare o creare tag.
+- [ ] PR/merge, CI necessaria, checkpoint C15, versione, release e verifiche remote completati dopo approvazione; branch eliminato solo alla fine.
 
 ## Milestone 1 – Benchmark locale funzionale
 

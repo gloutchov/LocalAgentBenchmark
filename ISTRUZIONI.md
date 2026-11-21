@@ -1,6 +1,6 @@
 # Manuale utente – LocalAgent Benchmark
 
-Versione corrente: **0.13.4**. Questa patch aggiorna l'azione GitHub che prepara Python nei workflow CI e Pages; installazione, comandi e configurazione del benchmark restano invariati.
+Versione corrente: **0.14.0**. Questa patch aggiorna l'azione GitHub che prepara Python nei workflow CI e Pages; installazione, comandi e configurazione del benchmark restano invariati.
 
 ## 1. Scopo
 
@@ -326,3 +326,9 @@ Non inserire dati privati, repository reali o credenziali nelle fixture. Manifes
 - Il preflight prova il comportamento osservabile dell'endpoint, non può dimostrare processi interni che il provider o il modello non espongono. Un modello che non espone reasoning in modalità attiva viene escluso come non verificabile.
 - I launcher guidati sono script sorgente, non installer o applicazioni firmate; il doppio clic Linux dipende dal file manager e Tkinter deve essere incluso nella distribuzione Python.
 - Una sessione guidata annullata o fallita viene conservata ma non può essere ripresa dal punto interrotto; la dashboard può comunque riaprire da uno a tre run già disponibili senza un nuovo benchmark.
+
+## Preliminary: descrivere i modelli prima delle task
+
+Eseguire `python3 benchmark.py run --profile preliminary --models NOME_MODELLO --thinking off --sandbox required`. La fase misura primo testo, token/sec E2E, durata e pause, e verifica 16 domande su fonti sintetiche. Nel percorso rapido il toggle Preliminary è attivo nella nuova configurazione; si può disattivare prima dell'avvio. Non modifica score, promozioni o funnel smoke/standard/full. Dopo la fase il runner scarica il modello; lo smoke ripete i propri controlli e warmup.
+
+La dashboard mostra una sezione descrittiva separata, con mediane/intervalli e conteggi di risposte corrette, mancanti, premesse false, invenzioni e astensioni inutili. N/D, troncamenti e fallimenti tecnici restano espliciti. Non è un tasso generale di allucinazioni né una misura di avvio a freddo. Le sonde HTTP non usano strumenti; la sandbox registrata copre il gate contrattuale Pi. [Guida completa, configurazione, privacy e troubleshooting](QUICK-START_Preliminary.md).

@@ -19,6 +19,7 @@ from .case_sdk import (
 )
 from .sandbox import SANDBOX_MODES
 from .thinking import THINKING_LEVELS
+from .preliminary_suite import PreliminarySettings, settings as preliminary_settings, load_suite
 
 
 class ConfigError(ValueError):
@@ -58,6 +59,7 @@ class GuidedSettings:
     profiles: tuple[str, str, str]
     promotion_limits: tuple[int, int]
     preferences_file: Path
+    preliminary: bool = False
 
 
 @dataclass(frozen=True)
@@ -75,6 +77,7 @@ class BenchmarkConfig:
     provider_kind: str = "ollama"
     model_files: dict[str, Path] | None = None
     provider_version: str | None = None
+    preliminary: PreliminarySettings | None = None
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -240,8 +243,10 @@ def load_config(path: Path) -> BenchmarkConfig:
     profiles_raw = _require(raw, "profiles", dict)
     profiles: dict[str, tuple[str, ...]] = {}
     for name, ids in profiles_raw.items():
-        if not isinstance(ids, list) or not ids or not all(isinstance(i, str) for i in ids):
+        if not isinstance(ids, list) or (not ids and name != "preliminary") or not all(isinstance(i, str) for i in ids):
             raise ConfigError(f"Profilo non valido: {name}")
+        if name == "preliminary" and ids:
+            raise ConfigError("preliminary non deve contenere task / preliminary cannot contain tasks")
         unknown = set(ids) - set(cases)
         if unknown:
             raise ConfigError(f"Casi sconosciuti nel profilo {name}: {', '.join(sorted(unknown))}")
@@ -294,7 +299,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         if not isinstance(guided_raw, dict):
             raise ConfigError("'guided' deve essere di tipo dict")
         unknown_guided = sorted(
-            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file"}
+            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file", "preliminary"}
         )
         if unknown_guided:
             raise ConfigError(f"Campi sconosciuti in guided: {', '.join(unknown_guided)}")
@@ -335,9 +340,25 @@ def load_config(path: Path) -> BenchmarkConfig:
                 ),
                 key="guided.preferences_file",
             ),
+            preliminary=guided_raw.get("preliminary", False),
         )
+        if type(guided.preliminary) is not bool:
+            raise ConfigError("guided.preliminary deve essere booleano / must be boolean")
+
+    if guided and guided.preliminary and "preliminary" not in profiles:
+        raise ConfigError("Profilo preliminary mancante / Missing preliminary profile")
+    preliminary = None
+    if "preliminary" in raw:
+        try:
+            preliminary = preliminary_settings(root, raw["preliminary"])
+            load_suite(preliminary.suite)
+        except (ValueError, OSError) as exc:
+            raise ConfigError(str(exc)) from exc
+    if ("preliminary" in profiles or (guided and guided.preliminary)) and preliminary is None:
+        raise ConfigError("Configurazione preliminary richiesta / Preliminary configuration required")
 
     return BenchmarkConfig(
+        preliminary=preliminary,
         root=root,
         ollama_url=ollama_url,
         pi_command=tuple(pi_command_raw),

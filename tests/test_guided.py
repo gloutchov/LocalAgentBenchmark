@@ -315,7 +315,7 @@ class GuidedTests(unittest.TestCase):
                     assets_directory=root / "dashboard",
                     snapshot_source=root / "snapshot.json",
                 ),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
             models = [f"model-{index}" for index in range(1, 7)]
             rankings = {
@@ -398,7 +398,7 @@ class GuidedTests(unittest.TestCase):
                     assets_directory=root / "dashboard",
                     snapshot_source=root / "snapshot.json",
                 ),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
             models = ["winner", "smoke-error", "standard-error", "valid"]
             runner = FakeRunner(
@@ -460,7 +460,7 @@ class GuidedTests(unittest.TestCase):
                 base,
                 root=root,
                 dashboard=replace(base.dashboard, results_directory=root / "results"),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
             runner = FakeRunner({"smoke": []}, cancel_profile="smoke")
             orchestrator = GuidedOrchestrator(
@@ -483,7 +483,7 @@ class GuidedTests(unittest.TestCase):
                 base,
                 root=root,
                 dashboard=replace(base.dashboard, results_directory=root / "results"),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
             runner = FakeRunner({"smoke": []})
             orchestrator = GuidedOrchestrator(
@@ -546,7 +546,7 @@ class GuidedTests(unittest.TestCase):
                 base,
                 root=root,
                 dashboard=replace(base.dashboard, results_directory=results),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
             built: list[list[Path]] = []
             started: list[list[str]] = []
@@ -637,7 +637,7 @@ class GuidedTests(unittest.TestCase):
                 base,
                 root=root,
                 dashboard=replace(base.dashboard, results_directory=results),
-                guided=replace(base.guided, preferences_file=root / ".local" / "prefs.json"),
+                guided=replace(base.guided, preliminary=False, preferences_file=root / ".local" / "prefs.json"),
             )
 
             def fail_dataset(_runs):
@@ -651,6 +651,61 @@ class GuidedTests(unittest.TestCase):
             with self.assertRaises(GuidedError) as raised:
                 orchestrator.reopen_dashboard(manifest)
             self.assertEqual("dashboard_failed", raised.exception.code)
+
+
+class PreliminaryGuidedTests(unittest.TestCase):
+    def test_optional_preliminary_keeps_descriptive_errors_and_official_promotions_separate(self):
+        from localagent_bench.preliminary_report import summarize
+        class Runner(FakeRunner):
+            def run(self, args, *, cwd, cancel_event, on_line=None):
+                profile=args[args.index('--profile')+1]
+                if profile != 'preliminary':
+                    return super().run(args,cwd=cwd,cancel_event=cancel_event,on_line=on_line)
+                self.commands.append(list(args))
+                output=Path(args[args.index('--output')+1]);output.mkdir(parents=True)
+                models=args[args.index('--models')+1:args.index('--seed')]
+                thinking={'status':'partial','disqualified_models':[models[0]],'requested':'off'}
+                manifest={'profile':profile,'models':models,'finished_at':'synthetic',
+                    'integrity':{'status':'violations_detected','aborted':False},'thinking_control':thinking,
+                    'preliminary':{'contexts':['short'],'probe_order':[{'id':'probe','repetition':1}],
+                        'observations':[{'model':m,'id':'probe','repetition':1,'context':'short','status':'error','error_type':'TimeoutError'} for m in models[1:]]}}
+                report={'run':{'profile':profile,'thinking_control':thinking},'leaderboard':[],'results':[],
+                    'integrity':{'status':'violations_detected','disqualified_models':[models[0]]},
+                    'preliminary':summarize(manifest,{models[0]})}
+                (output/'run.json').write_text(json.dumps(manifest));(output/'report.json').write_text(json.dumps(report))
+                return ProcessResult(returncode=1,cancelled=False,output_tail=())
+        base=load_config(ROOT/'benchmark.json')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            config=replace(base,root=root,dashboard=replace(base.dashboard,results_directory=root/'results'),guided=replace(base.guided,preliminary=True,preferences_file=root/'.local/prefs.json'))
+            runner=Runner({'smoke':['b','c'],'standard':['c','b'],'full':['c','b']})
+            dashboards=[]
+            orchestrator=GuidedOrchestrator(config,root/'benchmark.json',process_runner=runner,
+                dashboard_builder=lambda runs:dashboards.extend(runs),dashboard_starter=lambda args,**kwargs:object())
+            path=orchestrator.run(['a','b','c'],{'ok':True,'models':[{'name':m} for m in ['a','b','c']]})
+            payload=json.loads(path.read_text())
+            self.assertEqual(['preliminary','smoke','standard','full'],[p['profile'] for p in payload['phases']])
+            self.assertEqual(['b','c'],payload['phases'][1]['models'])
+            self.assertEqual(['b','c'],payload['transitions'][0]['selected'])
+            self.assertEqual(['c','b'],payload['transitions'][1]['selected'])
+            self.assertEqual(4,len(dashboards))
+            self.assertTrue(payload['settings']['preliminary'])
+            self.assertEqual('completed',payload['status'])
+
+
+    def test_cancellation_cleans_up_provider_even_after_forced_child_stop(self):
+        base=load_config(ROOT/'benchmark.json')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            config=replace(base,root=root,dashboard=replace(base.dashboard,results_directory=root/'results'),guided=replace(base.guided,preliminary=True,preferences_file=root/'.local/prefs.json'))
+            process=FakeRunner({},cancel_profile='preliminary')
+            orchestrator=GuidedOrchestrator(config,root/'benchmark.json',process_runner=process)
+            with patch('localagent_bench.guided.create_provider') as factory:
+                with self.assertRaises(GuidedCancelled):orchestrator.run(['a'],{'ok':True,'models':[{'name':'a'}]})
+                factory.return_value.unload.assert_called_once_with('a',timeout=5)
+            manifest=json.loads(orchestrator.manifest_path.read_text())
+            self.assertEqual('cancelled',manifest['status'])
+            self.assertEqual([{'model':'a','status':'ok'}],manifest['phases'][0]['cleanup'])
 
 
 if __name__ == "__main__":

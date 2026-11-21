@@ -4,14 +4,14 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, and the llama.cpp `llama-server` router. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.13.4 – manutenzione dei workflow CI e Pages / CI and Pages workflow maintenance**
+Stato / Status: **0.14.0 – manutenzione dei workflow CI e Pages / CI and Pages workflow maintenance**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
 
-La patch 0.13.4 aggiorna `actions/setup-python` da 7.0.0 a 7.1.0 nei workflow CI e Pages, mantenendo il pin al commit ufficiale. Il comportamento del benchmark e i requisiti Python restano invariati.
+La patch 0.14.0 aggiorna `actions/setup-python` da 7.0.0 a 7.1.0 nei workflow CI e Pages, mantenendo il pin al commit ufficiale. Il comportamento del benchmark e i requisiti Python restano invariati.
 
-Patch 0.13.4 updates `actions/setup-python` from 7.0.0 to 7.1.0 in the CI and Pages workflows, retaining the official commit pin. Benchmark behavior and Python requirements are unchanged.
+Patch 0.14.0 updates `actions/setup-python` from 7.0.0 to 7.1.0 in the CI and Pages workflows, retaining the official commit pin. Benchmark behavior and Python requirements are unchanged.
 
 ## Cosa misura / What it measures
 
@@ -351,3 +351,9 @@ The project runs directly from its checkout. Version 0.11.0 adds thin macOS, Win
 - [Piano di sviluppo](PLAN.md)
 - [Mappa del repository](MAP.md)
 - [Regole per agenti e maintainer](AGENTS.md)
+
+## Preliminary / Preliminary
+
+La 0.14.0 aggiunge `python3 benchmark.py run --profile preliminary`: reattività ripetuta su contesti brevi/lunghi e affidabilità su 16 quesiti sintetici. La fase è autonoma e opzionale prima dello smoke nel percorso rapido; non modifica score o promozioni. Misure, limiti e configurazione nella [guida Preliminary](QUICK-START_Preliminary.md).
+
+Version 0.14.0 adds an independent `preliminary` profile: repeated short/long-context responsiveness and grounding on 16 synthetic questions. Optionally run it before smoke in the quick path. Descriptive results do not affect scores or promotions; see the [Preliminary guide](QUICK-START_Preliminary.md).

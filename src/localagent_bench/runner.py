@@ -268,7 +268,8 @@ def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None)
     sandbox_ok = config.defaults.sandbox != "required" or bool(sandbox["available"])
     checks.append({"name": "sandbox", "ok": sandbox_ok, "detail": sandbox_detail})
     try:
-        require_clean_inputs(config.root, config.cases.values())
+        require_clean_inputs(config.root, config.cases.values(),
+                             (config.preliminary.suite,) if config.preliminary else ())
     except InputIntegrityError as exc:
         checks.append({"name": "inputs", "ok": False, "detail": str(exc).splitlines()[0]})
     else:
@@ -313,9 +314,13 @@ def run_benchmark(
     order_seed: int | None = None,
     sandbox_mode: str | None = None,
 ) -> Path:
+    preliminary = profile == "preliminary"
+    if preliminary and (requested_cases or config.preliminary is None):
+        raise BenchmarkError("preliminary richiede la propria suite e non accetta --cases / preliminary requires its suite, no --cases")
     cases = _resolve_cases(config, profile, requested_cases)
+    extra_paths = (config.preliminary.suite,) if preliminary else ()
     try:
-        require_clean_inputs(config.root, cases)
+        require_clean_inputs(config.root, cases, extra_paths)
     except InputIntegrityError as exc:
         raise BenchmarkError(str(exc)) from exc
     pi_version = _command_version([*config.pi_command, "--version"])
@@ -338,25 +343,36 @@ def run_benchmark(
     installed = provider.list_models()
     models = _resolve_models(config, requested_models, installed)
     installed = [provider.fingerprint_model(item) if item.name in models else item for item in installed]
-    repeat_count = repetitions or config.defaults.repetitions
-    timeout = timeout_seconds or config.defaults.timeout_seconds
+    repeat_count = repetitions if repetitions is not None else (config.preliminary.repetitions if preliminary else config.defaults.repetitions)
+    timeout = timeout_seconds if timeout_seconds is not None else (config.preliminary.timeout_seconds if preliminary else config.defaults.timeout_seconds)
+    if preliminary:
+        if not 2 <= repeat_count <= 20:
+            raise BenchmarkError("preliminary richiede 2..20 ripetizioni / preliminary requires 2..20 repetitions")
+        config = replace(config, preliminary=replace(config.preliminary, timeout_seconds=timeout))
     thinking_policy = resolve_thinking_policy(thinking_level or config.defaults.thinking)
     if repeat_count < 1 or timeout < 10:
         raise BenchmarkError("Ripetizioni e timeout devono essere positivi")
     should_warmup = config.defaults.warmup if use_warmup is None else use_warmup
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = (output_dir or config.root / "results" / timestamp).resolve()
+    if preliminary and config.root.resolve() not in run_dir.parents:
+        raise BenchmarkError("Output preliminary fuori progetto / Preliminary output outside project")
     if run_dir.exists() and any(run_dir.iterdir()):
         raise BenchmarkError(f"Directory output non vuota: {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)
     context_dir = run_dir / "benchmark-context"
+    execution_policy = EXECUTION_POLICY
+    if preliminary:
+        from .preliminary import PRELIMINARY_POLICY
+        execution_policy += PRELIMINARY_POLICY
     try:
         frozen_cases, input_manifest = snapshot_cases(
             cases,
             context_dir,
             config.root / "AGENTS.md",
             config.root / ".gitignore",
-            EXECUTION_POLICY,
+            execution_policy,
+            extra_paths=extra_paths,
         )
     except InputIntegrityError as exc:
         raise BenchmarkError(str(exc)) from exc
@@ -494,6 +510,23 @@ def run_benchmark(
     else:
         manifest["thinking_control"]["status"] = "partial"
     _write_manifest(run_dir, manifest)
+
+    if preliminary:
+        from .preliminary import execute, interruptible
+        try:
+            with interruptible():
+                execute(config, provider, thinking_policy, manifest, run_dir, repository_state,
+                        lambda: _write_manifest(run_dir, manifest))
+        except KeyboardInterrupt:
+            manifest['cancelled'] = True
+            manifest['integrity'].update(status='cancelled', aborted=True)
+            _write_manifest(run_dir, manifest)
+            write_report(run_dir)
+            raise
+        manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
+        _write_manifest(run_dir, manifest)
+        write_report(run_dir)
+        return run_dir
 
     active_model: str | None = None
     protected_paths = (config.root,)

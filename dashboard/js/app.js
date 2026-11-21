@@ -116,6 +116,7 @@
     UI.renderSource(state.meta, view);
     UI.renderKpis(view);
     UI.renderIntegrity(view);
+    UI.renderPreliminary(view);
     UI.renderLeaderboard(view);
     UI.renderComparison(view);
     UI.renderEfficiency(view);

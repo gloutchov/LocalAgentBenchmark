@@ -8,6 +8,13 @@
 
   const STRINGS = {
     it: {
+      preliminary_title: "Prima di scegliere, misura l’attesa.",
+      preliminary_text: "La fase preliminary descrive reattività e affidabilità dei modelli locali, prima delle task di coding. Puoi eseguirla da sola o all’inizio del percorso rapido.",
+      preliminary_guide: "Apri la guida Preliminary",
+      preliminary_speed: "Reattività: attesa del primo testo, token al secondo, durata e pause nello streaming, con contesti brevi e lunghi e misure ripetute.",
+      preliminary_grounding: "Affidabilità: risposte su documenti sintetici, informazioni mancanti e premesse false. Invenzioni, astensioni inutili e risposte non valutabili restano distinte.",
+      preliminary_independent: "Risultati descrittivi separati dalla classifica. Nessuna penalità automatica per lentezza; i controlli obbligatori restano attivi.",
+      preliminary_quick: "Prima dello smoke puoi attivare Preliminary per tutti i modelli selezionati. È facoltativa e non cambia le promozioni del funnel.",
       meta_description: "LocalAgent Benchmark confronta coding agent locali con Ollama, LM Studio e llama.cpp tramite task riproducibili.",
       skip: "Vai al contenuto",
       nav_label: "Navigazione principale",
@@ -153,6 +160,13 @@
       not_found_action: "Torna alla pagina iniziale"
     },
     en: {
+      preliminary_title: "Before choosing, measure the wait.",
+      preliminary_text: "The preliminary stage describes responsiveness and grounding of local models before coding tasks. Run it independently or at the start of the quick path.",
+      preliminary_guide: "Open the Preliminary guide",
+      preliminary_speed: "Responsiveness: time to first answer text, tokens per second, duration and streaming gaps, with short and long contexts and repeated measurements.",
+      preliminary_grounding: "Grounding: answers based on synthetic documents, missing information and false premises. Unsupported answers, unnecessary abstentions and unscorable responses remain separate.",
+      preliminary_independent: "Descriptive results separate from rankings. No automatic penalty for slowness; mandatory checks remain active.",
+      preliminary_quick: "Before smoke, optionally enable Preliminary for every selected model. It does not change funnel promotions.",
       meta_description: "LocalAgent Benchmark compares local coding agents with Ollama, LM Studio, and llama.cpp through reproducible tasks.",
       skip: "Skip to content",
       nav_label: "Primary navigation",

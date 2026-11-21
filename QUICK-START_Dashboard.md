@@ -141,3 +141,9 @@ node --test dashboard/tests/dashboard.test.js
 La dashboard non usa CDN, telemetria, API o asset remoti. Lo snapshot e gli export omettono prompt, risposte, reasoning, preflight dettagliati, comandi, log, path assoluti, evidenze di violazione ed errori liberi. Conservano però nomi modello, titoli dei casi, punteggi, tempi, stato/livello thinking, metriche e hash: revisionarli prima della condivisione.
 
 The dashboard uses no CDN, telemetry, API, or remote asset. The snapshot and exports omit prompts, responses, reasoning, detailed preflights, commands, logs, absolute paths, violation evidence, and free-form errors. They still retain model names, case titles, scores, timings, summarized thinking status/level, metrics, and hashes; review them before sharing.
+
+## Preliminary (schema 4)
+
+Passare anche la directory Preliminary a `python3 dashboard.py` oppure a `benchmark.py dashboard-data`. La sezione dedicata mostra mediane [min–max], metriche N/D, campioni falliti/troncati e conteggi di affidabilità, separati per run e thinking. Non aggiunge punti, mappe qualità o stadi al funnel. Export 1/2/3 restano compatibili; soltanto aggregati in whitelist passano nello schema 4.
+
+Include a Preliminary directory in `python3 dashboard.py` or `benchmark.py dashboard-data`. Its separate section shows medians [min–max], N/A telemetry, failed/truncated samples and grounding counts by run/thinking. It adds no scores, quality-map points or funnel stages. Legacy exports 1/2/3 remain supported; schema 4 contains only whitelisted aggregates. See [Preliminary](QUICK-START_Preliminary.md).

@@ -144,6 +144,7 @@ img { display: block; max-width: 100%; }
 }
 
 .header-panel {
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -151,7 +152,7 @@ img { display: block; max-width: 100%; }
   width: 100%;
 }
 
-.primary-nav { display: flex; align-items: center; gap: 0.25rem; }
+.primary-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
 .primary-nav a {
   padding: 0.65rem 0.45rem;
   border-radius: 0.55rem;

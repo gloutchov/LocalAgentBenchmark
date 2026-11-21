@@ -13,12 +13,12 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable
 
 
-DASHBOARD_SCHEMA_VERSION = 3
-SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2, 3}
+DASHBOARD_SCHEMA_VERSION = 4
+SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2, 3, 4}
 SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4}
 SUPPORTED_REPORT_SCHEMA_VERSIONS = {2, 3, 4}
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
-PROFILE_ORDER = ("smoke", "standard", "full", "thinking", "showcase")
+PROFILE_ORDER = ("preliminary", "smoke", "standard", "full", "thinking", "showcase")
 FUNNEL_PIPELINE = ("smoke", "standard", "full")
 RUN_FIELDS = {
     "id",
@@ -34,8 +34,10 @@ RUN_FIELDS = {
     "leaderboard",
     "tasks",
     "exclusions",
+    "preliminary",
 }
-SCHEMA_2_RUN_FIELDS = RUN_FIELDS - {"exclusions"}
+SCHEMA_3_RUN_FIELDS = RUN_FIELDS - {"preliminary"}
+SCHEMA_2_RUN_FIELDS = SCHEMA_3_RUN_FIELDS - {"exclusions"}
 LEGACY_RUN_FIELDS = SCHEMA_2_RUN_FIELDS - {"thinking_control"}
 EXCLUSION_FIELDS = {"model", "reason", "case_id"}
 EXCLUSION_REASONS = {
@@ -374,6 +376,32 @@ def _sanitize_exclusions(
     return output
 
 
+def _sanitize_preliminary(value: Any) -> list[dict[str, Any]]:
+    from .preliminary_report import METRICS, COUNTS
+    if not isinstance(value, list):
+        return []
+    output = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        model, context = _text(item.get('model')), _text(item.get('context'), maximum=64)
+        if not model or not context or not PUBLIC_CASE_ID.fullmatch(context) or item.get('status') not in {'measured','unavailable','excluded'}:
+            continue
+        row = {'model':model,'context':context,'status':item['status']}
+        row.update({key:_number(item.get(key),minimum=0) for key in METRICS})
+        row.update({key:_integer(item.get(key)) for key in COUNTS})
+        if any(row[key] is None for key in COUNTS):
+            continue
+        if row['completed']+row['failed'] != row['samples'] or row['truncated'] > row['completed']:
+            continue
+        if any(row[p+'_correct'] > row[p+'_total'] for p in ('known','missing','premise')):
+            continue
+        if row['status'] == 'excluded':
+            row.update(dict.fromkeys(METRICS))
+        output.append(row)
+    return output
+
+
 def _profile_order(profiles: Iterable[str]) -> list[str]:
     available = set(profiles)
     ordered = [profile for profile in PROFILE_ORDER if profile in available]
@@ -485,6 +513,7 @@ def build_dashboard_data(run_dirs: Iterable[Path]) -> dict[str, Any]:
                 "leaderboard": leaderboard,
                 "tasks": tasks,
                 "exclusions": _sanitize_exclusions(manifest, report_integrity, disqualified),
+                "preliminary": _sanitize_preliminary(report.get("preliminary")) if profile == "preliminary" else [],
             }
         )
 
@@ -523,7 +552,8 @@ def validate_dashboard_data(dataset: Any) -> None:
     ids: set[str] = set()
     for run in runs:
         expected_run_fields = (
-            RUN_FIELDS if dashboard_schema >= 3 else
+            RUN_FIELDS if dashboard_schema >= 4 else
+            SCHEMA_3_RUN_FIELDS if dashboard_schema == 3 else
             SCHEMA_2_RUN_FIELDS if dashboard_schema == 2 else LEGACY_RUN_FIELDS
         )
         run = _require_exact_fields(run, expected_run_fields, label="run dashboard")
@@ -532,6 +562,12 @@ def validate_dashboard_data(dataset: Any) -> None:
         if run["id"] in ids:
             raise DashboardDataError(f"ID run duplicato: {run['id']}")
         ids.add(run["id"])
+        if dashboard_schema >= 4:
+            if not isinstance(run["preliminary"], list) or run["preliminary"] != _sanitize_preliminary(run["preliminary"]):
+                raise DashboardDataError("Aggregati preliminary non validi / Invalid preliminary aggregates")
+            from .preliminary_report import FIELDS
+            if any(set(row) != FIELDS for row in run["preliminary"]) or (run["profile"] != "preliminary" and run["preliminary"]):
+                raise DashboardDataError("Campi preliminary non autorizzati / Unauthorized preliminary fields")
         if run.get("profile") not in profiles:
             raise DashboardDataError(f"Profilo run non dichiarato: {run.get('profile')!r}")
         for key, maximum in (("benchmark_version", 32), ("started_at", 64), ("finished_at", 64)):

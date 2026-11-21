@@ -138,7 +138,7 @@ test("handles degenerate and missing efficiency metrics without inventing points
 test("merges alternate datasets, deduplicates identical runs, and rejects collisions", () => {
   const alternate = alternateDataset();
   const merged = Core.mergeDashboardData([fixture, fixture, alternate]);
-  assert.equal(merged.schema_version, 3);
+  assert.equal(merged.schema_version, 4);
   assert.equal(merged.runs.length, fixture.runs.length + 1);
   assert.deepEqual(merged.profile_order, ["smoke", "standard", "full", "custom"]);
   assert.deepEqual(merged.funnel.map((stage) => stage.profile), ["smoke", "standard", "full"]);
@@ -247,4 +247,33 @@ test("official assets are semantic and contain no remote runtime hooks", () => {
   assert.match(source, /renderEfficiency/);
   assert.match(source, /createElementNS/);
   assert.match(html, /id="efficiency"/);
+});
+
+test("preliminary schema 4 stays descriptive and rejects raw content", () => {
+  const data = Core.mergeDashboardData([fixture]);
+  const run = structuredClone(data.runs[0]);
+  run.id = "synthetic-preliminary";
+  run.profile = "preliminary";
+  run.leaderboard = [];
+  run.tasks = [];
+  run.exclusions = [];
+  const row = {model: run.participants[0], context: "short", status: "measured"};
+  const metrics = ["first_answer_seconds","duration_seconds","output_tokens_per_second","decode_tokens_per_second","max_chunk_gap_seconds","first_answer_min_seconds","first_answer_max_seconds","output_tokens_min_per_second","output_tokens_max_per_second"];
+  const counts = ["samples","completed","failed","truncated","known_total","known_correct","missing_total","missing_correct","premise_total","premise_correct","unsupported_answers","unnecessary_abstentions","invalid_answers"];
+  metrics.forEach((key) => {row[key] = null;});
+  counts.forEach((key) => {row[key] = 0;});
+  row.samples = row.completed = 3;
+  run.preliminary = [row];
+  data.runs.push(run);
+  data.profile_order.unshift("preliminary");
+  const merged = Core.mergeDashboardData([data]);
+  const view = Core.createDashboardView(merged, {profile: "preliminary"});
+  assert.equal(view.preliminary.length, 1);
+  assert.deepEqual(view.leaderboard, []);
+  assert.deepEqual(view.efficiency, []);
+  assert.deepEqual(view.funnel, []);
+  assert.equal(view.preliminary[0].decode_tokens_per_second, null);
+  const leaked = structuredClone(merged);
+  leaked.runs.find((r) => r.profile === "preliminary").preliminary[0].answer = "private text";
+  assert.throws(() => Core.validateDashboardData(leaked));
 });

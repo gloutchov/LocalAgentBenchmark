@@ -17,6 +17,7 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 from . import __version__
+from .provider_adapter import create_provider
 from .config import BenchmarkConfig
 from .dashboard_data import DashboardDataError, build_dashboard_data
 from .guided_process import (
@@ -433,11 +434,11 @@ class GuidedOrchestrator:
         ]
 
     def _dashboard_command(self, run_directories: list[Path]) -> list[str]:
-        if not 1 <= len(run_directories) <= 3 or len(set(run_directories)) != len(
+        if not 1 <= len(run_directories) <= 4 or len(set(run_directories)) != len(
             run_directories
         ):
             raise GuidedError(
-                "dashboard_failed", "La dashboard richiede da uno a tre run distinti"
+                "dashboard_failed", "La dashboard richiede da uno a quattro run distinti"
             )
         return [
             python_executable(),
@@ -483,6 +484,7 @@ class GuidedOrchestrator:
         *,
         thinking: str | None = None,
         sandbox: str | None = None,
+        preliminary: bool | None = None,
         callback: Callable[[dict[str, Any]], None] | None = None,
     ) -> Path:
         if self.cancel_event.is_set():
@@ -517,7 +519,7 @@ class GuidedOrchestrator:
         base_seed = secrets.randbits(64)
         seed_source = random.Random(base_seed)
         phase_seeds = {
-            profile: seed_source.getrandbits(64) for profile in self.guided.profiles
+            profile: seed_source.getrandbits(64) for profile in ("preliminary", *self.guided.profiles)
         }
         discovered = []
         for item in discovery["models"]:
@@ -554,8 +556,12 @@ class GuidedOrchestrator:
         _write_manifest(self.manifest_path, manifest, root=self.config.root)
         current_models = selected
         completed_runs: list[Path] = []
-        profiles = self.guided.profiles
-        limits: tuple[int | None, ...] = (
+        include_preliminary = self.guided.preliminary if preliminary is None else preliminary
+        if type(include_preliminary) is not bool:
+            raise GuidedError("invalid_setting", "preliminary must be boolean")
+        profiles = (("preliminary",) if include_preliminary else ()) + self.guided.profiles
+        manifest["settings"]["preliminary"] = include_preliminary
+        limits: tuple[int | None, ...] = ((None,) if include_preliminary else ()) + (
             self.guided.promotion_limits[0],
             self.guided.promotion_limits[1],
             None,
@@ -601,6 +607,15 @@ class GuidedOrchestrator:
                     ),
                 )
                 if result.cancelled or self.cancel_event.is_set():
+                    if profile == 'preliminary':
+                        phase_record['cleanup'] = []
+                        cleanup_provider = create_provider(self.config)
+                        for model in current_models:
+                            try:
+                                cleanup_provider.unload(model, timeout=5)
+                                phase_record['cleanup'].append({'model':model,'status':'ok'})
+                            except Exception as exc:
+                                phase_record['cleanup'].append({'model':model,'status':'error','error_type':type(exc).__name__})
                     phase_record["status"] = "cancelled"
                     _write_manifest(self.manifest_path, manifest, root=self.config.root)
                     raise GuidedCancelled()
@@ -613,7 +628,10 @@ class GuidedOrchestrator:
                         "phase_failed",
                         f"La fase {profile} non ha prodotto artefatti completi: {detail}",
                     )
-                outcome = evaluate_phase(
+                outcome = evaluate_preliminary(
+                    output, root=self.config.root, expected_models=current_models,
+                    process_returncode=result.returncode,
+                ) if profile == "preliminary" else evaluate_phase(
                     output,
                     root=self.config.root,
                     expected_profile=profile,
@@ -636,6 +654,12 @@ class GuidedOrchestrator:
                         _relative(path, self.config.root) for path in completed_runs
                     ],
                 }
+                if profile == "preliminary":
+                    phase_record["eligible_models"] = list(outcome.promoted)
+                    phase_record["promoted"] = []
+                    current_models = list(outcome.promoted)
+                    if not current_models:
+                        raise GuidedError("no_candidates", "Nessun modello con controlli validi / No model passed mandatory controls")
                 if limit is not None:
                     manifest["transitions"].append(
                         {
@@ -701,7 +725,7 @@ class GuidedOrchestrator:
     def reopen_dashboard(self, manifest_path: Path) -> None:
         payload = _read_object(manifest_path, root=self.config.root)
         raw_directories = _manifest_run_directories(payload)
-        if not 1 <= len(raw_directories) <= 3:
+        if not 1 <= len(raw_directories) <= 4:
             raise GuidedError(
                 "dashboard_failed", "Nessun run disponibile per la dashboard"
             )
@@ -723,6 +747,40 @@ class GuidedOrchestrator:
             raise GuidedError("dashboard_failed", str(exc)) from exc
 
 
+def evaluate_preliminary(run_directory: Path, *, root: Path, expected_models: list[str], process_returncode: int) -> PhaseOutcome:
+    """Only mandatory controls exclude; descriptive errors never select the smoke cohort."""
+    manifest = _read_object(run_directory / 'run.json', root=root)
+    report = _read_object(run_directory / 'report.json', root=root)
+    if (manifest.get('profile') != 'preliminary' or manifest.get('models') != expected_models
+            or not manifest.get('finished_at') or report.get('run', {}).get('profile') != 'preliminary'
+            or manifest.get('integrity', {}).get('aborted') is True):
+        raise GuidedError('partial_run', 'Preliminary incompleto o incompatibile / Incomplete or incompatible preliminary')
+    if process_returncode not in {0,1} or manifest.get('thinking_control', {}).get('status') not in {'passed','partial','failed'}:
+        raise GuidedError('thinking_unverified', 'Controlli preliminary non verificati / Unverified preliminary controls')
+    observations = manifest.get('preliminary', {}).get('observations')
+    order = manifest.get('preliminary', {}).get('probe_order')
+    if not isinstance(observations, list) or not isinstance(order, list) or not order:
+        raise GuidedError('partial_run', 'Osservazioni preliminary mancanti / Missing preliminary observations')
+    excluded_controls = set(manifest.get('thinking_control', {}).get('disqualified_models', []))
+    expected = {(p.get('id'), p.get('repetition')) for p in order if isinstance(p, dict)}
+    if len(expected) != len(order):
+        raise GuidedError('invalid_report', 'Ordine sonde duplicato / Duplicate probe order')
+    for model in expected_models:
+        actual = [(p.get('id'),p.get('repetition')) for p in observations if isinstance(p,dict) and p.get('model') == model]
+        if model not in excluded_controls and (len(actual) != len(expected) or set(actual) != expected):
+            raise GuidedError('partial_run', 'Sonde preliminary incomplete / Incomplete preliminary probes')
+    if report.get('leaderboard') != [] or report.get('results') != [] or not isinstance(report.get('preliminary'), list):
+        raise GuidedError('invalid_report', 'Preliminary non può produrre una classifica / Preliminary cannot produce a ranking')
+    excluded = set(report.get('integrity', {}).get('disqualified_models', [])) | set(manifest.get('thinking_control', {}).get('disqualified_models', []))
+    if manifest.get('integrity', {}).get('status') != 'passed' and not excluded:
+        raise GuidedError('invalid_report', 'Integrità preliminary incoerente / Inconsistent preliminary integrity')
+    if process_returncode == 1 and not excluded:
+        raise GuidedError('invalid_report', 'Preliminary failed without mandatory exclusions')
+    return PhaseOutcome(profile='preliminary',run_directory=run_directory.resolve(),leaderboard=(),
+        promoted=tuple(m for m in expected_models if m not in excluded),
+        exclusions=tuple({'model':m,'reason':'integrity'} for m in expected_models if m in excluded))
+
+
 def find_latest_manifest(config: BenchmarkConfig) -> Path | None:
     results = config.dashboard.results_directory
     if not results.is_dir():
@@ -736,7 +794,7 @@ def find_latest_manifest(config: BenchmarkConfig) -> Path | None:
         except GuidedError:
             continue
         run_directories = _manifest_run_directories(payload)
-        if 1 <= len(run_directories) <= 3:
+        if 1 <= len(run_directories) <= 4:
             candidates.append(path)
     return max(candidates, key=lambda path: path.stat().st_mtime, default=None)
 

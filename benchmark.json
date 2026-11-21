@@ -34,15 +34,25 @@
   },
   "guided": {
     "profiles": ["smoke", "standard", "full"],
+    "preliminary": true,
     "promotion_limits": [4, 2],
     "preferences_file": ".localagent-benchmark/guided-preferences.json"
   },
   "profiles": {
+    "preliminary": [],
     "smoke": ["targeted_patch"],
     "standard": ["targeted_patch", "secure_workspace", "config_i18n", "thinking_challenge"],
     "full": ["targeted_patch", "secure_workspace", "config_i18n", "thinking_challenge", "milestone_closure"],
     "thinking": ["thinking_challenge"],
     "showcase": ["results_dashboard"]
+  },
+  "preliminary": {
+    "suite": "preliminary/suite.json",
+    "repetitions": 3,
+    "max_tokens": 512,
+    "timeout_seconds": 120,
+    "max_response_bytes": 1048576,
+    "max_event_bytes": 65536
   },
   "cases": {
     "directory": "cases"

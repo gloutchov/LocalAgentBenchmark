@@ -35,6 +35,7 @@
 
       <div class="header-panel" id="site-navigation" data-header-panel>
         <nav class="primary-nav" aria-label="Primary" data-i18n-aria-label="nav_label">
+          <a href="#preliminary">Preliminary</a>
           <a href="#news" data-i18n="news_index"></a>
           <a href="#why" data-i18n="why_index"></a>
           <a href="#method" data-i18n="method_index"></a>
@@ -126,6 +127,15 @@
             <span class="rail-meta">5 task</span>
           </li>
         </ol>
+      </section>
+
+      <section class="section section-preliminary" id="preliminary" aria-labelledby="preliminary-title">
+        <div class="news-heading">
+          <div><p class="section-index">Preliminary</p><h2 id="preliminary-title" data-i18n="preliminary_title"></h2></div>
+          <div class="news-summary"><p data-i18n="preliminary_text"></p>
+          <a class="text-link" href="https://github.com/gloutchov/LocalAgentBenchmark/blob/main/QUICK-START_Preliminary.md" rel="noreferrer" data-i18n="preliminary_guide"></a></div>
+        </div>
+        <ul class="quick-notes"><li data-i18n="preliminary_speed"></li><li data-i18n="preliminary_grounding"></li><li data-i18n="preliminary_independent"></li></ul>
       </section>
 
       <section class="section section-news" id="news" aria-labelledby="news-title">
@@ -243,6 +253,7 @@
             <a class="text-link" href="https://github.com/gloutchov/LocalAgentBenchmark/blob/main/QUICK-START_Guided.md" rel="noreferrer"><span data-i18n="quick_guide"></span><span aria-hidden="true"> ↗</span></a>
           </div>
         </div>
+        <p data-i18n="preliminary_quick"></p>
         <ol class="quick-funnel" aria-label="All models to four to two" data-i18n-aria-label="quick_funnel_label">
           <li><strong data-i18n="quick_all"></strong><span>smoke</span><p data-i18n="quick_all_text"></p></li>
           <li class="quick-arrow" aria-hidden="true">→</li>
@@ -317,7 +328,8 @@
 
         <div class="terminal-panel" aria-label="Full immersion commands" data-i18n-aria-label="immersion_commands_label">
           <div class="terminal-bar"><span></span><span></span><span></span><strong>localagent-benchmark</strong></div>
-          <pre><code><span class="prompt">$</span> python3 benchmark.py run --profile smoke \
+          <pre><code><span class="prompt">$</span> python3 benchmark.py run --profile preliminary --models MODEL
+<span class="prompt">$</span> python3 benchmark.py run --profile smoke \
     --models MODEL_A MODEL_B --thinking off
 <span class="prompt">$</span> python3 benchmark.py run --profile standard \
     --models MODEL_A --seed 42 --sandbox required

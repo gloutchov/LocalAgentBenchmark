@@ -251,12 +251,12 @@ def warmup(
     return raw if isinstance(raw, dict) else {}
 
 
-def unload(url: str, model: str) -> None:
+def unload(url: str, model: str, *, timeout: float = 30) -> None:
     _request(
         url,
         "/api/generate",
         {"model": model, "keep_alive": 0},
-        timeout=30,
+        timeout=timeout,
     )
 
 
@@ -289,7 +289,7 @@ class OllamaProvider:
         return None
 
     def unload(self, model: str, *, timeout: float = 30) -> None:
-        unload(self.url, model)
+        unload(self.url, model, timeout=timeout)
 
     def preflight_thinking(
         self, model: OllamaModel, policy: ThinkingPolicy, *, timeout: int

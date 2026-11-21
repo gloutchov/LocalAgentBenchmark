@@ -1,6 +1,6 @@
 # User Manual – LocalAgent Benchmark
 
-Current version: **0.13.4**. This patch updates the GitHub action that prepares Python in the CI and Pages workflows; benchmark installation, commands, and configuration are unchanged.
+Current version: **0.14.0**. This patch updates the GitHub action that prepares Python in the CI and Pages workflows; benchmark installation, commands, and configuration are unchanged.
 
 ## 1. Purpose
 
@@ -304,3 +304,9 @@ Do not add private data, real repositories, or credentials to cases. Manifests a
 - The preflight verifies observable endpoint behavior, not internal processes hidden by the provider or model. An active model that exposes no reasoning signal is excluded as unverifiable.
 - Guided launchers are source scripts rather than signed installers or native apps; Linux double-click behavior depends on the file manager, and the Python distribution must include Tkinter.
 - A cancelled or failed guided session is preserved but cannot resume from its interrupted stage; the dashboard can still reopen one to three available runs without starting a new benchmark.
+
+## Preliminary: describe models before coding tasks
+
+Run `python3 benchmark.py run --profile preliminary --models MODEL --thinking off --sandbox required`. This stage measures first answer text, E2E tokens/s, duration and streaming gaps, and checks 16 questions against synthetic sources. The new quick-path configuration enables the Preliminary toggle; disable it before starting to skip this stage. Scores, promotions and the smoke/standard/full funnel are unchanged. The model is unloaded afterwards; smoke repeats its own gates and warmup.
+
+The dashboard provides separate descriptive medians/ranges and counts for known answers, missing information, false premises, unsupported answers and unnecessary abstentions. N/A values, truncation and technical failures remain explicit. This is neither a universal hallucination rate nor a verified cold-start measurement. HTTP probes have no tools; recorded sandbox enforcement covers the Pi contract gate. [Complete configuration, privacy and troubleshooting](QUICK-START_Preliminary.md).

@@ -6,7 +6,7 @@ This workflow compares models from the local provider configured in `benchmark.j
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.13.4;
+- checkout sorgente completo di LocalAgent Benchmark 0.14.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - provider locale configurato su loopback con almeno un modello tool-capable;
@@ -130,3 +130,9 @@ The GUI adds no telemetry, CDN, or Internet call. Its application endpoints are 
 La release 0.11.0 distribuisce questi launcher come file sorgente nel repository e negli archivi sorgente generati da GitHub. Non promette installer, app bundle, eseguibili firmati o artifact binari multipiattaforma.
 
 Release 0.11.0 distributes these launchers as source files in the repository and GitHub-generated source archives. It does not claim to provide installers, signed app bundles, executables, or cross-platform binary artifacts.
+
+## Preliminary opzionale / Optional Preliminary
+
+Prima di smoke, il toggle Preliminary esegue sui modelli selezionati misure descrittive di reattività e affidabilità su fonti sintetiche. È attivo nella nuova configurazione e può essere disattivato prima di avviare. Le promozioni restano soltanto smoke → standard → full; la dashboard può ricevere quattro directory distinte, con Preliminary fuori dal funnel e dalle classifiche. Errori descrittivi non escludono modelli, i controlli obbligatori sì.
+
+Before smoke, optionally run descriptive responsiveness and synthetic-source grounding probes on all selected models. The new configuration enables this toggle; disable it before starting to skip it. Promotions remain smoke → standard → full. The dashboard may receive four distinct directories; Preliminary stays outside rankings and funnel. Descriptive errors do not exclude models; mandatory control failures do. See [Preliminary](QUICK-START_Preliminary.md).
