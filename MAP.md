@@ -16,18 +16,25 @@
 │   ├── favicon.svg                 # icona funzionale locale
 │   ├── data/snapshot.js            # output locale opzionale generato e ignorato da Git
 │   ├── js/                         # core dati, i18n, rendering e stato UI modulari
+│   │   └── preliminary.js         # tabelle titolate, valori mancanti e grafici descrittivi accessibili
 │   └── tests/dashboard.test.js     # trasformazioni, fixture, i18n e vincoli statici
 ├── site/                           # landing page pubblica statica per GitHub Pages
-│   ├── index.html                  # introduzione con CTA, sezione Novità sui provider, percorsi, documentazione, metadata e CSP
+│   ├── index.html                  # CTA, Novità Preliminary, provider in Cosa misura, menu raggruppati e documentazione
 │   ├── 404.html                    # fallback bilingue compatibile con /LocalAgentBenchmark/
 │   ├── css/styles.css              # griglia, temi, responsive, focus e reduced motion
 │   ├── js/                         # bootstrap tema, dizionari, preferenze e interazioni
 │   ├── assets/                     # favicon e fotogrammi dashboard/guided revisionati e ottimizzati
 │   └── tests/site.test.js          # i18n, preferenze e vincoli statici senza dipendenze
+├── preliminary/suite.json           # suite sintetica versionata e congelata per tutti i modelli
+├── QUICK-START_Preliminary.md       # misure, protocollo, limiti e configurazione IT/EN
 ├── schemas/
 │   ├── case.schema.json            # schema pubblico dei manifesti case.json
 │   └── dashboard-data.schema.json  # dataset ridotto per la finalissima offline
 ├── src/localagent_bench/
+│   ├── preliminary.py             # sonde descrittive dopo i gate comuni, lifecycle e cancellazione
+│   ├── preliminary_stream.py      # client SSE limitato a loopback, scarto reasoning, metriche
+│   ├── preliminary_suite.py       # configurazione e protocollo di affidabilità deterministico
+│   ├── preliminary_report.py      # mediane, intervalli e conteggi senza classifica
 │   ├── cli.py                      # doctor/list/run/report/compare/dashboard-data e comandi case
 │   ├── config.py                   # modello e validazione configurazione
 │   ├── case_sdk.py                 # discovery, manifesti, validatore e template atomico dei casi
@@ -75,6 +82,7 @@
 │       ├── grader.py               # 100 punti tecnici e dataset alternativo non hardcoded
 │       └── manual-rubric.md        # 20 punti visuali separati dalla classifica
 ├── tests/
+│   ├── test_preliminary.py        # HTTP sintetico, limiti, integrità, privacy, report e cancellazione
 │   ├── test_case_sdk.py            # schema, path corrotti, template, CLI e calibrazione
 │   ├── test_dashboard_data.py      # whitelist, privacy, funnel, path, atomicità e CLI
 │   ├── test_dashboard_app.py       # discovery, snapshot, confinement, server e header sicurezza
@@ -119,3 +127,5 @@
 ```
 
 `results/` nasce al primo run. Il percorso rapido crea `results/guided-<timestamp>-<suffix>/guided-run.json` più tre sottodirectory distinte `smoke/`, `standard/`, `full/`; il manifesto atomico conserva impostazioni, seed, classifiche, esclusioni e passaggi, mentre ogni sottodirectory mantiene i normali artefatti raw. `benchmark-context/` contiene la fotografia condivisa e verificata di manifesti, prompt, fixture, grader, rubriche e `EXECUTION_POLICY.snapshot.md`; `run.json` schema 4 registra commit/stato Git, seed, ordine task, SHA-256, versione audit, sandbox, hardware, versioni Pi/Ollama, digest/capability modello, policy/preflight thinking, retry, timeout idle, warmup e violazioni. Ogni tentativo contiene una `workspace/` deliberatamente modificabile dal modello, una `.benchmark-scratch/` interna ignorata da Git (profilo Seatbelt o socket del broker Linux quando applicabili), una `.pi-agent/` per-task e artefatti fratelli (`result.json`, `grade.json`, `pi-events.jsonl`, `diff.patch` e l'eventuale `manual-rubric.md`), inclusi tree baseline, audit, stato thinking osservabile, backend e metriche di sistema. Gli eventi raw possono contenere reasoning; preflight, report ed export ne conservano soltanto conteggi/stato. Su Windows, metadata di cleanup e sole fasi/conteggi byte del broker vengono registrati negli artefatti runtime; il named pipe vive nel namespace AppContainer della sessione. `comparison-*` contiene `comparison.json` e `COMPARISON.md` per run compatibili anche rispetto al controllo thinking. `dashboard-data-*.json` schema 3 contiene soltanto i campi in whitelist, inclusi codici sintetici d'esclusione; gli schemi 1/2 restano leggibili e i run legacy sono marcati non verificati. La dashboard presenta classifiche, fattori e mappe qualità/tempo e qualità/token separate per run/modalità, con assi orizzontali logaritmici, e limita il funnel alla progressione `smoke` → `standard` → `full`; i profili `thinking` e `showcase` restano coorti indipendenti. Il dataset definitivo va congelato nella fixture `results_dashboard` e committato prima del profilo `showcase`. La dashboard ufficiale usa quella fixture come fallback in memoria e, tramite `dashboard.py`, aggrega i run locali senza esporre i file raw. `dashboard/data/snapshot.js` viene creato soltanto su richiesta per l'apertura `file://` ed è ignorato da Git. La landing sotto `site/` è una superficie pubblica distinta: usa soltanto asset locali, distingue percorso rapido, full immersion da terminale e requisiti iniziali, filtra il manuale per lingua e mostra soltanto istruzioni e quick start nella sezione documentale; salva lingua/tema e il workflow Pages carica esclusivamente quella directory. I fotogrammi pubblicabili derivano da `assets/Dashboard.mov` e `assets/Guided.mov`, ma i video sorgente restano ignorati e fuori dall'artefatto Pages. `output/playwright/` e `.playwright-cli/` sono output locali ignorati. I file sorgente sotto `cases/` non devono essere modificati durante un'esecuzione; il preflight Git li richiede puliti e il confronto post-task rileva cambiamenti successivi.
+
+Preliminary 0.14.0: `preliminary_suite.py` valida impostazioni e grader JSON; `preliminary_stream.py` misura SSE locale con limiti; `preliminary.py` orchestra le sonde dietro i gate del runner; `preliminary_report.py` aggrega senza score. `tests/test_preliminary.py` verifica protocollo, tre provider sintetici, limiti, integrità, privacy ed esportazione. Dashboard schema 4 e landing mantengono asset locali.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from . import providers as shared
@@ -44,11 +45,15 @@ class LMStudioProvider(LocalProvider):
             raise ProviderError("LM Studio non ha confermato il caricamento del modello")
 
     def unload(self, model: str, *, timeout: float = 30) -> None:
-        models = shared._request(self.url, "/api/v1/models").get("models", [])
+        deadline = time.monotonic() + timeout
+        models = shared._request(self.url, "/api/v1/models", timeout=timeout).get("models", [])
         for item in models if isinstance(models, list) else []:
             if isinstance(item, dict) and item.get("key") == model:
                 for instance in item.get("loaded_instances", []):
                     if isinstance(instance, dict) and isinstance(instance.get("id"), str):
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise ProviderError("LM Studio unload timeout")
                         shared._request(
-                            self.url, "/api/v1/models/unload", {"instance_id": instance["id"]},
+                            self.url, "/api/v1/models/unload", {"instance_id": instance["id"]}, timeout=remaining,
                         )

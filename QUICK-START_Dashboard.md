@@ -129,7 +129,7 @@ node --test dashboard/tests/dashboard.test.js
 
 - **`index.html` non mostra dati tramite `file://` / `index.html` shows no data through `file://`**: avviare `python3 dashboard.py` oppure generare prima lo snapshot locale opzionale.
 - **Il browser non si apre / The browser does not open**: usare `python3 dashboard.py --no-open` e aprire l'URL stampato.
-- **La dashboard del percorso guidato non parte / Guided dashboard does not start**: usare **Riapri dashboard / Reopen dashboard** nella GUI dopo aver risolto il problema locale. Da uno a tre run disponibili vengono riutilizzati e non modificati.
+- **La dashboard del percorso guidato non parte / Guided dashboard does not start**: usare **Riapri dashboard / Reopen dashboard** nella GUI dopo aver risolto il problema locale. Da uno a quattro run disponibili vengono riutilizzati e non modificati.
 - **Porta occupata / Port already in use**: omettere `--port`, usare `--port 0` o scegliere un altro numero.
 - **Run ignorato / Run skipped**: verificare che la directory immediatamente sotto `results/` contenga `run.json` e `report.json` schema 2, 3 o 4 compatibili. Passarla esplicitamente per ottenere un errore dettagliato.
 - **File rifiutato / File rejected**: verificare che sia un export dashboard schema 1 o 2 creato da `dashboard-data`, non un report raw, e che non superi 32 MiB.
@@ -141,3 +141,13 @@ node --test dashboard/tests/dashboard.test.js
 La dashboard non usa CDN, telemetria, API o asset remoti. Lo snapshot e gli export omettono prompt, risposte, reasoning, preflight dettagliati, comandi, log, path assoluti, evidenze di violazione ed errori liberi. Conservano però nomi modello, titoli dei casi, punteggi, tempi, stato/livello thinking, metriche e hash: revisionarli prima della condivisione.
 
 The dashboard uses no CDN, telemetry, API, or remote asset. The snapshot and exports omit prompts, responses, reasoning, detailed preflights, commands, logs, absolute paths, violation evidence, and free-form errors. They still retain model names, case titles, scores, timings, summarized thinking status/level, metrics, and hashes; review them before sharing.
+
+## Preliminary (schema 4)
+
+Passare anche la directory Preliminary a `python3 dashboard.py` oppure a `benchmark.py dashboard-data`. La sezione dedicata mostra mediane [min–max], metriche N/D, campioni falliti/troncati e conteggi di affidabilità, separati per run e thinking. Non aggiunge punti, mappe qualità o stadi al funnel. Export 1/2/3 restano compatibili; soltanto aggregati in whitelist passano nello schema 4.
+
+Include a Preliminary directory in `python3 dashboard.py` or `benchmark.py dashboard-data`. Its separate section shows medians [min–max], N/A telemetry, failed/truncated samples and grounding counts by run/thinking. It adds no scores, quality-map points or funnel stages. Legacy exports 1/2/3 remain supported; schema 4 contains only whitelisted aggregates. See [Preliminary](QUICK-START_Preliminary.md).
+
+Le tabelle Preliminary sono distinte e titolate «Reattività e velocità» e «Affidabilità rispetto alle fonti». La nota sui token/s E2E è sotto la prima tabella. Dati assenti sono mostrati una sola volta come Non disponibile, senza intervalli fittizi. I grafici sottostanti usano barre da zero, unità separate e valori espliciti, mantenendo run e modalità thinking distinti; gli esclusi e i valori mancanti non hanno barre numeriche. Le risposte corrette mostrano conteggi e frazioni, gli errori restano conteggi separati. Ogni riga dei grafici è accessibile da tastiera.
+
+Preliminary tables have separate headings for responsiveness and grounding. The E2E tokens/s note follows the first table. Missing values appear once as unavailable, without fabricated ranges. Charts below use zero-based bars, separate units and explicit values, preserving run/thinking cohorts; excluded or missing measurements have no numeric bars. Correct responses show counts and fractions; error types remain separate counts. Chart rows are keyboard accessible.

@@ -172,6 +172,8 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
     loaded: list[tuple[Path, dict[str, Any], dict[str, Any]]] = []
     for run_dir in resolved_dirs:
         manifest = _load_object(run_dir / "run.json")
+        if manifest.get("profile") == "preliminary":
+            raise ComparisonError("Preliminary è descrittivo: usare report/dashboard, senza classifica aggregata / Preliminary is descriptive; use report/dashboard")
         report = _load_object(run_dir / "report.json")
         if report.get("schema_version") not in {2, 3, 4}:
             raise ComparisonError(f"Schema report non supportato in {run_dir.name}")

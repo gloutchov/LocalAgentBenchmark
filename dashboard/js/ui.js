@@ -1,9 +1,9 @@
 (function (root, factory) {
   "use strict";
-  const api = factory(root.LocalAgentDashboardI18n);
+  const api = factory(root.LocalAgentDashboardI18n, root.LocalAgentDashboardPreliminary);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LocalAgentDashboardUI = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n, Preliminary) {
   "use strict";
 
   const t = (key, values) => I18n.translate(key, values);
@@ -78,6 +78,10 @@
     document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
       node.setAttribute("placeholder", t(node.dataset.i18nPlaceholder));
     });
+  }
+
+  function renderPreliminary(view) {
+    Preliminary.render(view);
   }
 
   function renderSource(meta, view) {
@@ -597,6 +601,7 @@
     renderIntegrity,
     renderKpis,
     renderLeaderboard,
+    renderPreliminary,
     renderRuns,
     renderSource,
     renderTasks,

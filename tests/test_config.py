@@ -103,6 +103,7 @@ class ConfigTests(unittest.TestCase):
         ]
         raw["profiles"] = {"standard": ["legacy"]}
         raw.pop("guided", None)
+        raw.pop("preliminary", None)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fixture = root / "cases" / "legacy" / "fixture"

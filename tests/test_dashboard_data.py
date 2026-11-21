@@ -111,7 +111,7 @@ class DashboardDataTests(unittest.TestCase):
 
             dataset = build_dashboard_data([full, smoke, standard])
 
-            self.assertEqual(3, dataset["schema_version"])
+            self.assertEqual(4, dataset["schema_version"])
             self.assertEqual(["smoke", "standard", "full"], dataset["profile_order"])
             self.assertEqual(["smoke-run", "standard-run", "full-run"], [run["id"] for run in dataset["runs"]])
             smoke_stage = dataset["funnel"][0]
@@ -250,7 +250,7 @@ class DashboardDataTests(unittest.TestCase):
         fixture = json.loads(
             (ROOT / "cases" / "results_dashboard" / "fixture" / "dashboard-data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual([1, 2, 3], schema["properties"]["schema_version"]["enum"])
+        self.assertEqual([1, 2, 3, 4], schema["properties"]["schema_version"]["enum"])
         validate_dashboard_data(fixture)
         self.assertEqual(2, fixture["schema_version"])
         self.assertEqual(["smoke", "standard", "full"], fixture["profile_order"])

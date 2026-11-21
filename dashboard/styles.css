@@ -1335,3 +1335,24 @@ noscript {
     box-shadow: none;
   }
 }
+
+/* Preliminary: descriptive charts and distinct table sections. */
+.preliminary-run + .preliminary-run { margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line-strong); }
+.preliminary-section + .preliminary-section { margin-top: 2.75rem; padding-top: 1.75rem; border-top: 1px solid var(--line-strong); }
+.preliminary-section h4 { margin: 1rem 0 0.9rem; font-size: 1.1rem; }
+.preliminary-footnote { margin: 0.75rem 0 1.5rem; color: var(--muted); font-size: 0.875rem; }
+.preliminary-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem 2rem; margin-top: 1.5rem; }
+.preliminary-chart { min-width: 0; margin: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+.preliminary-chart figcaption { margin-bottom: 0.8rem; font-weight: 750; }
+.preliminary-bars { display: grid; gap: 0.8rem; margin: 0; padding: 0; list-style: none; }
+.preliminary-bar-row { min-width: 0; border-radius: 0.2rem; }
+.preliminary-bar-label { display: flex; justify-content: space-between; gap: 0.7rem; margin-bottom: 0.3rem; font-size: 0.85rem; }
+.preliminary-bar-label span { overflow-wrap: anywhere; }
+.preliminary-bar-label strong { max-width: 55%; flex-shrink: 1; overflow-wrap: anywhere; text-align: right; font-variant-numeric: tabular-nums; }
+.preliminary-bar-row svg { display: block; width: 100%; height: 0.55rem; }
+.preliminary-bar-track { fill: var(--line); }
+.preliminary-bar-fill { fill: var(--blue); }
+.preliminary-bar-unavailable { color: var(--muted); }
+@media (max-width: 44rem) { .preliminary-charts { grid-template-columns: minmax(0, 1fr); } }
+
+.preliminary-chart-scale { display: flex; justify-content: space-between; margin-top: 0.5rem; color: var(--muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }

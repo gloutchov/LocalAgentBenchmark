@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "performance": [
+    {
+      "id": "short",
+      "prompt": "Write a numbered list of 40 practical tips for organizing a small software project. Keep writing until the list is complete. Do not use tools."
+    },
+    {
+      "id": "long",
+      "prompt": "Reference notes:\nModule 000: stores synthetic record 0000; owner group 0; status reviewed.\nModule 001: stores synthetic record 0007; owner group 1; status reviewed.\nModule 002: stores synthetic record 0014; owner group 2; status reviewed.\nModule 003: stores synthetic record 0021; owner group 3; status reviewed.\nModule 004: stores synthetic record 0028; owner group 4; status reviewed.\nModule 005: stores synthetic record 0035; owner group 0; status reviewed.\nModule 006: stores synthetic record 0042; owner group 1; status reviewed.\nModule 007: stores synthetic record 0049; owner group 2; status reviewed.\nModule 008: stores synthetic record 0056; owner group 3; status reviewed.\nModule 009: stores synthetic record 0063; owner group 4; status reviewed.\nModule 010: stores synthetic record 0070; owner group 0; status reviewed.\nModule 011: stores synthetic record 0077; owner group 1; status reviewed.\nModule 012: stores synthetic record 0084; owner group 2; status reviewed.\nModule 013: stores synthetic record 0091; owner group 3; status reviewed.\nModule 014: stores synthetic record 0098; owner group 4; status reviewed.\nModule 015: stores synthetic record 0105; owner group 0; status reviewed.\nModule 016: stores synthetic record 0112; owner group 1; status reviewed.\nModule 017: stores synthetic record 0119; owner group 2; status reviewed.\nModule 018: stores synthetic record 0126; owner group 3; status reviewed.\nModule 019: stores synthetic record 0133; owner group 4; status reviewed.\nModule 020: stores synthetic record 0140; owner group 0; status reviewed.\nModule 021: stores synthetic record 0147; owner group 1; status reviewed.\nModule 022: stores synthetic record 0154; owner group 2; status reviewed.\nModule 023: stores synthetic record 0161; owner group 3; status reviewed.\nModule 024: stores synthetic record 0168; owner group 4; status reviewed.\nModule 025: stores synthetic record 0175; owner group 0; status reviewed.\nModule 026: stores synthetic record 0182; owner group 1; status reviewed.\nModule 027: stores synthetic record 0189; owner group 2; status reviewed.\nModule 028: stores synthetic record 0196; owner group 3; status reviewed.\nModule 029: stores synthetic record 0203; owner group 4; status reviewed.\nModule 030: stores synthetic record 0210; owner group 0; status reviewed.\nModule 031: stores synthetic record 0217; owner group 1; status reviewed.\nModule 032: stores synthetic record 0224; owner group 2; status reviewed.\nModule 033: stores synthetic record 0231; owner group 3; status reviewed.\nModule 034: stores synthetic record 0238; owner group 4; status reviewed.\nModule 035: stores synthetic record 0245; owner group 0; status reviewed.\nModule 036: stores synthetic record 0252; owner group 1; status reviewed.\nModule 037: stores synthetic record 0259; owner group 2; status reviewed.\nModule 038: stores synthetic record 0266; owner group 3; status reviewed.\nModule 039: stores synthetic record 0273; owner group 4; status reviewed.\nModule 040: stores synthetic record 0280; owner group 0; status reviewed.\nModule 041: stores synthetic record 0287; owner group 1; status reviewed.\nModule 042: stores synthetic record 0294; owner group 2; status reviewed.\nModule 043: stores synthetic record 0301; owner group 3; status reviewed.\nModule 044: stores synthetic record 0308; owner group 4; status reviewed.\nModule 045: stores synthetic record 0315; owner group 0; status reviewed.\nModule 046: stores synthetic record 0322; owner group 1; status reviewed.\nModule 047: stores synthetic record 0329; owner group 2; status reviewed.\nModule 048: stores synthetic record 0336; owner group 3; status reviewed.\nModule 049: stores synthetic record 0343; owner group 4; status reviewed.\nModule 050: stores synthetic record 0350; owner group 0; status reviewed.\nModule 051: stores synthetic record 0357; owner group 1; status reviewed.\nModule 052: stores synthetic record 0364; owner group 2; status reviewed.\nModule 053: stores synthetic record 0371; owner group 3; status reviewed.\nModule 054: stores synthetic record 0378; owner group 4; status reviewed.\nModule 055: stores synthetic record 0385; owner group 0; status reviewed.\nModule 056: stores synthetic record 0392; owner group 1; status reviewed.\nModule 057: stores synthetic record 0399; owner group 2; status reviewed.\nModule 058: stores synthetic record 0406; owner group 3; status reviewed.\nModule 059: stores synthetic record 0413; owner group 4; status reviewed.\nModule 060: stores synthetic record 0420; owner group 0; status reviewed.\nModule 061: stores synthetic record 0427; owner group 1; status reviewed.\nModule 062: stores synthetic record 0434; owner group 2; status reviewed.\nModule 063: stores synthetic record 0441; owner group 3; status reviewed.\nModule 064: stores synthetic record 0448; owner group 4; status reviewed.\nModule 065: stores synthetic record 0455; owner group 0; status reviewed.\nModule 066: stores synthetic record 0462; owner group 1; status reviewed.\nModule 067: stores synthetic record 0469; owner group 2; status reviewed.\nModule 068: stores synthetic record 0476; owner group 3; status reviewed.\nModule 069: stores synthetic record 0483; owner group 4; status reviewed.\nModule 070: stores synthetic record 0490; owner group 0; status reviewed.\nModule 071: stores synthetic record 0497; owner group 1; status reviewed.\nModule 072: stores synthetic record 0504; owner group 2; status reviewed.\nModule 073: stores synthetic record 0511; owner group 3; status reviewed.\nModule 074: stores synthetic record 0518; owner group 4; status reviewed.\nModule 075: stores synthetic record 0525; owner group 0; status reviewed.\nModule 076: stores synthetic record 0532; owner group 1; status reviewed.\nModule 077: stores synthetic record 0539; owner group 2; status reviewed.\nModule 078: stores synthetic record 0546; owner group 3; status reviewed.\nModule 079: stores synthetic record 0553; owner group 4; status reviewed.\nModule 080: stores synthetic record 0560; owner group 0; status reviewed.\nModule 081: stores synthetic record 0567; owner group 1; status reviewed.\nModule 082: stores synthetic record 0574; owner group 2; status reviewed.\nModule 083: stores synthetic record 0581; owner group 3; status reviewed.\nModule 084: stores synthetic record 0588; owner group 4; status reviewed.\nModule 085: stores synthetic record 0595; owner group 0; status reviewed.\nModule 086: stores synthetic record 0602; owner group 1; status reviewed.\nModule 087: stores synthetic record 0609; owner group 2; status reviewed.\nModule 088: stores synthetic record 0616; owner group 3; status reviewed.\nModule 089: stores synthetic record 0623; owner group 4; status reviewed.\nModule 090: stores synthetic record 0630; owner group 0; status reviewed.\nModule 091: stores synthetic record 0637; owner group 1; status reviewed.\nModule 092: stores synthetic record 0644; owner group 2; status reviewed.\nModule 093: stores synthetic record 0651; owner group 3; status reviewed.\nModule 094: stores synthetic record 0658; owner group 4; status reviewed.\nModule 095: stores synthetic record 0665; owner group 0; status reviewed.\nModule 096: stores synthetic record 0672; owner group 1; status reviewed.\nModule 097: stores synthetic record 0679; owner group 2; status reviewed.\nModule 098: stores synthetic record 0686; owner group 3; status reviewed.\nModule 099: stores synthetic record 0693; owner group 4; status reviewed.\nModule 100: stores synthetic record 0700; owner group 0; status reviewed.\nModule 101: stores synthetic record 0707; owner group 1; status reviewed.\nModule 102: stores synthetic record 0714; owner group 2; status reviewed.\nModule 103: stores synthetic record 0721; owner group 3; status reviewed.\nModule 104: stores synthetic record 0728; owner group 4; status reviewed.\nModule 105: stores synthetic record 0735; owner group 0; status reviewed.\nModule 106: stores synthetic record 0742; owner group 1; status reviewed.\nModule 107: stores synthetic record 0749; owner group 2; status reviewed.\nModule 108: stores synthetic record 0756; owner group 3; status reviewed.\nModule 109: stores synthetic record 0763; owner group 4; status reviewed.\nModule 110: stores synthetic record 0770; owner group 0; status reviewed.\nModule 111: stores synthetic record 0777; owner group 1; status reviewed.\nModule 112: stores synthetic record 0784; owner group 2; status reviewed.\nModule 113: stores synthetic record 0791; owner group 3; status reviewed.\nModule 114: stores synthetic record 0798; owner group 4; status reviewed.\nModule 115: stores synthetic record 0805; owner group 0; status reviewed.\nModule 116: stores synthetic record 0812; owner group 1; status reviewed.\nModule 117: stores synthetic record 0819; owner group 2; status reviewed.\nModule 118: stores synthetic record 0826; owner group 3; status reviewed.\nModule 119: stores synthetic record 0833; owner group 4; status reviewed.\nModule 120: stores synthetic record 0840; owner group 0; status reviewed.\nModule 121: stores synthetic record 0847; owner group 1; status reviewed.\nModule 122: stores synthetic record 0854; owner group 2; status reviewed.\nModule 123: stores synthetic record 0861; owner group 3; status reviewed.\nModule 124: stores synthetic record 0868; owner group 4; status reviewed.\nModule 125: stores synthetic record 0875; owner group 0; status reviewed.\nModule 126: stores synthetic record 0882; owner group 1; status reviewed.\nModule 127: stores synthetic record 0889; owner group 2; status reviewed.\nModule 128: stores synthetic record 0896; owner group 3; status reviewed.\nModule 129: stores synthetic record 0903; owner group 4; status reviewed.\nModule 130: stores synthetic record 0910; owner group 0; status reviewed.\nModule 131: stores synthetic record 0917; owner group 1; status reviewed.\nModule 132: stores synthetic record 0924; owner group 2; status reviewed.\nModule 133: stores synthetic record 0931; owner group 3; status reviewed.\nModule 134: stores synthetic record 0938; owner group 4; status reviewed.\nModule 135: stores synthetic record 0945; owner group 0; status reviewed.\nModule 136: stores synthetic record 0952; owner group 1; status reviewed.\nModule 137: stores synthetic record 0959; owner group 2; status reviewed.\nModule 138: stores synthetic record 0966; owner group 3; status reviewed.\nModule 139: stores synthetic record 0973; owner group 4; status reviewed.\nModule 140: stores synthetic record 0980; owner group 0; status reviewed.\nModule 141: stores synthetic record 0987; owner group 1; status reviewed.\nModule 142: stores synthetic record 0994; owner group 2; status reviewed.\nModule 143: stores synthetic record 1001; owner group 3; status reviewed.\nModule 144: stores synthetic record 1008; owner group 4; status reviewed.\nModule 145: stores synthetic record 1015; owner group 0; status reviewed.\nModule 146: stores synthetic record 1022; owner group 1; status reviewed.\nModule 147: stores synthetic record 1029; owner group 2; status reviewed.\nModule 148: stores synthetic record 1036; owner group 3; status reviewed.\nModule 149: stores synthetic record 1043; owner group 4; status reviewed.\nModule 150: stores synthetic record 1050; owner group 0; status reviewed.\nModule 151: stores synthetic record 1057; owner group 1; status reviewed.\nModule 152: stores synthetic record 1064; owner group 2; status reviewed.\nModule 153: stores synthetic record 1071; owner group 3; status reviewed.\nModule 154: stores synthetic record 1078; owner group 4; status reviewed.\nModule 155: stores synthetic record 1085; owner group 0; status reviewed.\nModule 156: stores synthetic record 1092; owner group 1; status reviewed.\nModule 157: stores synthetic record 1099; owner group 2; status reviewed.\nModule 158: stores synthetic record 1106; owner group 3; status reviewed.\nModule 159: stores synthetic record 1113; owner group 4; status reviewed.\nSummarize the organization of these modules in 30 numbered points. Do not use tools."
+    }
+  ],
+  "questions": [
+    {
+      "id": "larch_port",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Larch server. Default port: 9123. Maximum retries: 2.\nQuestion: What is the default port?",
+      "category": "answer",
+      "expected": "9123"
+    },
+    {
+      "id": "larch_retries",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Larch server. Default port: 9123. Maximum retries: 2.\nQuestion: What is the maximum number of retries?",
+      "category": "answer",
+      "expected": "2"
+    },
+    {
+      "id": "larch_missing",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Larch server. Default port: 9123. Maximum retries: 2.\nQuestion: What timeout in milliseconds is configured?",
+      "category": "unknown",
+      "expected": ""
+    },
+    {
+      "id": "larch_premise",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Larch server. Default port: 9123. Maximum retries: 2.\nQuestion: The default port is 8999. Confirm this value.",
+      "category": "false_premise",
+      "expected": "9123"
+    },
+    {
+      "id": "cedar_port",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Cedar server. Default port: 8251. Maximum retries: 4.\nQuestion: What is the default port?",
+      "category": "answer",
+      "expected": "8251"
+    },
+    {
+      "id": "cedar_retries",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Cedar server. Default port: 8251. Maximum retries: 4.\nQuestion: What is the maximum number of retries?",
+      "category": "answer",
+      "expected": "4"
+    },
+    {
+      "id": "cedar_missing",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Cedar server. Default port: 8251. Maximum retries: 4.\nQuestion: What timeout in milliseconds is configured?",
+      "category": "unknown",
+      "expected": ""
+    },
+    {
+      "id": "cedar_premise",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Cedar server. Default port: 8251. Maximum retries: 4.\nQuestion: The default port is 8999. Confirm this value.",
+      "category": "false_premise",
+      "expected": "8251"
+    },
+    {
+      "id": "birch_port",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Birch server. Default port: 7349. Maximum retries: 1.\nQuestion: What is the default port?",
+      "category": "answer",
+      "expected": "7349"
+    },
+    {
+      "id": "birch_retries",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Birch server. Default port: 7349. Maximum retries: 1.\nQuestion: What is the maximum number of retries?",
+      "category": "answer",
+      "expected": "1"
+    },
+    {
+      "id": "birch_missing",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Birch server. Default port: 7349. Maximum retries: 1.\nQuestion: What timeout in milliseconds is configured?",
+      "category": "unknown",
+      "expected": ""
+    },
+    {
+      "id": "birch_premise",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Birch server. Default port: 7349. Maximum retries: 1.\nQuestion: The default port is 8999. Confirm this value.",
+      "category": "false_premise",
+      "expected": "7349"
+    },
+    {
+      "id": "maple_port",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Maple server. Default port: 6437. Maximum retries: 3.\nQuestion: What is the default port?",
+      "category": "answer",
+      "expected": "6437"
+    },
+    {
+      "id": "maple_retries",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Maple server. Default port: 6437. Maximum retries: 3.\nQuestion: What is the maximum number of retries?",
+      "category": "answer",
+      "expected": "3"
+    },
+    {
+      "id": "maple_missing",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Maple server. Default port: 6437. Maximum retries: 3.\nQuestion: What timeout in milliseconds is configured?",
+      "category": "unknown",
+      "expected": ""
+    },
+    {
+      "id": "maple_premise",
+      "prompt": "Use only the supplied document. Reply with exactly one JSON object: {\"status\":\"answer|unknown|false_premise\",\"value\":\"...\"}. For missing information use unknown and an empty value. For a false premise use false_premise and the correct documented value. No explanations.\nDocument: Maple server. Default port: 6437. Maximum retries: 3.\nQuestion: The default port is 8999. Confirm this value.",
+      "category": "false_premise",
+      "expected": "6437"
+    }
+  ]
+}

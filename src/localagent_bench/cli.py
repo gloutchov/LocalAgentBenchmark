@@ -131,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
             payload = doctor(config)
             print("Profili:")
             for name, ids in config.profiles.items():
-                print(f"  - {name}: {', '.join(ids)}")
+                print(f"  - {name}: {', '.join(ids) if ids else 'reattività e fonti sintetiche / responsiveness and synthetic sources'}")
             print("\nCasi:")
             for case in config.cases.values():
                 print(f"  - {case.id}: {case.title} [{case.category}, peso {case.weight:g}]")
@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "report":
             report = write_report(args.run_dir.resolve())
-            print(json.dumps(report["leaderboard"], indent=2, ensure_ascii=False))
+            print(json.dumps(report.get("preliminary", report["leaderboard"]), indent=2, ensure_ascii=False))
             return 0
         if args.command == "compare":
             output = args.output or config.root / "results" / f"comparison-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -215,6 +215,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             print(f"Validazione completata: {len(reports)} casi validi")
             return 0
+    except KeyboardInterrupt:
+        print("Esecuzione annullata / Run cancelled", file=sys.stderr)
+        return 130
     except (
         CaseValidationError,
         ConfigError,

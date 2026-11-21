@@ -15,6 +15,7 @@
     <script src="data/snapshot.js" defer></script>
     <script src="js/core.js" defer></script>
     <script src="js/i18n.js" defer></script>
+    <script src="js/preliminary.js" defer></script>
     <script src="js/ui.js" defer></script>
     <script src="js/app.js" defer></script>
   </head>
@@ -118,6 +119,12 @@
         </div>
         <div id="kpis" class="kpi-grid"></div>
         <div id="integrity-banner" class="integrity-banner" role="note"></div>
+      </section>
+
+      <section id="preliminary-panel" class="panel" aria-labelledby="preliminary-heading" hidden>
+        <h2 id="preliminary-heading" data-i18n="preliminary_title">Preliminary</h2>
+        <p data-i18n="preliminary_note"></p>
+        <div id="preliminary-results"></div>
       </section>
 
       <div class="two-column-layout">

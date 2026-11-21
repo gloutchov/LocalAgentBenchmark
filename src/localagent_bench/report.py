@@ -227,6 +227,18 @@ def build_report(run_dir: Path) -> dict[str, Any]:
     results = _load_results(run_dir)
     manifest = _load_manifest(run_dir)
     integrity, disqualified_models = _integrity_summary(manifest, results)
+    if manifest.get("profile") == "preliminary":
+        from .preliminary_report import summarize
+        disqualified_models.update(manifest.get("preliminary", {}).get("disqualified_models", []))
+        if manifest.get("integrity", {}).get("aborted"):
+            disqualified_models.update(manifest.get("models", []))
+            integrity["status"] = manifest["integrity"]["status"]
+        integrity["disqualified_models"] = sorted(disqualified_models)
+        return {"schema_version": 4, "run": {"profile": "preliminary",
+                "sandbox": manifest.get("sandbox", {}), "environment": manifest.get("environment", {}),
+                "thinking_control": manifest.get("thinking_control", {})},
+                "integrity": integrity, "leaderboard": [], "results": [],
+                "preliminary": summarize(manifest, disqualified_models)}
     rankable_results = [
         item for item in results if str(item.get("model", "unknown")) not in disqualified_models
     ]
@@ -355,6 +367,9 @@ def build_report(run_dir: Path) -> dict[str, Any]:
 
 
 def render_markdown(report: dict[str, Any], run_dir: Path) -> str:
+    if report.get("run", {}).get("profile") == "preliminary":
+        from .preliminary_report import markdown
+        return markdown(report.get("preliminary", []))
     leaderboard = report.get("leaderboard", [])
     integrity = report.get("integrity", {})
     run_metadata = report.get("run", {})

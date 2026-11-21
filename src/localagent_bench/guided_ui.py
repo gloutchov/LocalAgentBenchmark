@@ -66,6 +66,7 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Impostazioni effettive",
+        "preliminary_toggle": "Preliminary: reattività e affidabilità",
         "thinking_toggle": "Thinking attivo (medium)",
         "sandbox_toggle": "Sandbox OS obbligatoria (required)",
         "sandbox_note_off": "Solo audit: nessun isolamento OS.",
@@ -80,7 +81,7 @@ TEXT = {
         "status": "Stato e avanzamento",
         "detecting": "Controllo prerequisiti e rilevamento modelli…",
         "ready": "Pronto. Controlla modelli e impostazioni, poi avvia.",
-        "running": "Fase {index}/3: {profile} · {count} modelli",
+        "running": "Fase {index}/{total}: {profile} · {count} modelli",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Controllo thinking: {model}",
         "pi_compatibility": "Compatibilità Pi verificata",
@@ -114,6 +115,7 @@ TEXT = {
         "no": "no",
         "unknown": "?",
         "settings": "Effective settings",
+        "preliminary_toggle": "Preliminary: responsiveness and grounding",
         "thinking_toggle": "Enable thinking (medium)",
         "sandbox_toggle": "Require OS sandbox (required)",
         "sandbox_note_off": "Audit only: no OS isolation.",
@@ -128,7 +130,7 @@ TEXT = {
         "status": "Status and progress",
         "detecting": "Checking prerequisites and detecting models…",
         "ready": "Ready. Review models and settings, then start.",
-        "running": "Stage {index}/3: {profile} · {count} models",
+        "running": "Stage {index}/{total}: {profile} · {count} models",
         "task": "{model} · {case} · task {current}/{total}",
         "preflight": "Thinking check: {model}",
         "pi_compatibility": "Pi compatibility verified",
@@ -255,7 +257,7 @@ def _size_text(value: Any) -> str:
 def _completed_task_progress(phase: int, current: int, total: int) -> float:
     if phase < 1 or total < 1:
         return 0.0
-    return min(3.0, phase - 1 + max(0, min(current - 1, total)) / total)
+    return min(4.0, phase - 1 + max(0, min(current - 1, total)) / total)
 
 
 def _sorted_model_indices(
@@ -319,6 +321,9 @@ def _summary(payload: dict[str, Any]) -> str:
             for item in phase.get("exclusions", [])
             if isinstance(item, dict)
         ) or "—"
+        if phase.get("profile") == "preliminary":
+            lines.append(f"Preliminary: risultati descrittivi; controlli validi: {', '.join(phase.get('eligible_models', []))}; esclusi {excluded}")
+            continue
         lines.append(
             f"{phase.get('profile')}: classifica {ranked}; promossi {promoted}; esclusi {excluded}"
         )
@@ -337,6 +342,9 @@ def _summary(payload: dict[str, Any]) -> str:
             for item in phase.get("exclusions", [])
             if isinstance(item, dict)
         ) or "—"
+        if phase.get("profile") == "preliminary":
+            lines.append(f"Preliminary: descriptive results; valid controls: {', '.join(phase.get('eligible_models', []))}; excluded {excluded}")
+            continue
         lines.append(
             f"{phase.get('profile')}: ranking {ranked}; promoted {promoted}; excluded {excluded}"
         )
@@ -372,6 +380,8 @@ class GuidedWindow:
         )
         self.language_choice = tk.StringVar(value=preferences.get("language", "auto"))
         self.theme_choice = tk.StringVar(value=preferences.get("theme", "auto"))
+        self.preliminary_enabled = tk.BooleanVar(value=self.orchestrator.guided.preliminary)
+        self.phase_total = 4 if self.preliminary_enabled.get() else 3
         self.thinking_enabled = tk.BooleanVar(value=self.config.defaults.thinking != "off")
         self.sandbox_enabled = tk.BooleanVar(value=self.config.defaults.sandbox == "required")
         self.title_var = tk.StringVar()
@@ -403,8 +413,9 @@ class GuidedWindow:
 
     def _build(self) -> None:
         tk, ttk = self.tk, self.ttk
-        self.root.minsize(760, 620)
-        self.root.geometry("900x720")
+        self.root.minsize(*self.orchestrator.guided.minimum_size)
+        width, height = self.orchestrator.guided.window_size
+        self.root.geometry(f"{width}x{height}")
         outer = ttk.Frame(self.root, padding=20)
         outer.pack(fill="both", expand=True)
 
@@ -470,6 +481,8 @@ class GuidedWindow:
         self.settings_frame.pack(fill="x", pady=10)
         toggles = ttk.Frame(self.settings_frame)
         toggles.pack(fill="x")
+        self.preliminary_toggle = ttk.Checkbutton(toggles, variable=self.preliminary_enabled)
+        self.preliminary_toggle.pack(anchor="w", pady=(0, 6))
         self.thinking_toggle = ttk.Checkbutton(
             toggles, variable=self.thinking_enabled, command=self._render_settings
         )
@@ -631,6 +644,7 @@ class GuidedWindow:
         self.none_button.configure(text=self.text("select_none"))
         self.refresh_button.configure(text=self.text("refresh"))
         self.settings_frame.configure(text=self.text("settings"))
+        self.preliminary_toggle.configure(text=self.text("preliminary_toggle"))
         self.thinking_toggle.configure(text=self.text("thinking_toggle"))
         self.sandbox_toggle.configure(text=self.text("sandbox_toggle"))
         self._render_settings()
@@ -661,6 +675,7 @@ class GuidedWindow:
         self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
+        self.preliminary_toggle.configure(state=normal if self.config.preliminary is not None and "preliminary" in self.config.profiles else "disabled")
         self.thinking_toggle.configure(state=normal)
         self.sandbox_toggle.configure(state=normal)
         self.cancel_button.configure(state="normal" if busy or self.detecting else "disabled")
@@ -812,11 +827,15 @@ class GuidedWindow:
         thinking_mode = "medium" if self.thinking_enabled.get() else "off"
         sandbox_mode = "required" if self.sandbox_enabled.get() else "audit"
 
+        include_preliminary = self.preliminary_enabled.get()
+        self.phase_total = 4 if include_preliminary else 3
+        self.progress.configure(maximum=self.phase_total)
+
         def work() -> None:
             try:
                 manifest = self.orchestrator.run(
                     selected, discovery, thinking=thinking_mode, sandbox=sandbox_mode,
-                    callback=self.events.put,
+                    preliminary=include_preliminary, callback=self.events.put,
                 )
             except GuidedError as exc:
                 self.events.put({"type": "error", "code": exc.code, "message": str(exc)})
@@ -879,7 +898,7 @@ class GuidedWindow:
             self.status_var.set(
                 self.text(
                     "running",
-                    index=event["index"],
+                    index=event["index"], total=event["total"],
                     profile=event["profile"],
                     count=len(event["models"]),
                 )
@@ -925,7 +944,7 @@ class GuidedWindow:
             self.latest_manifest = self.orchestrator.manifest_path or self.latest_manifest
             self._apply_preferences(save=False)
         elif kind == "run_done":
-            self.progress_var.set(3)
+            self.progress_var.set(self.phase_total)
             self.status_var.set(self.text("completed"))
             self.detail_var.set("")
             self.latest_manifest = Path(event["manifest"])

@@ -9,13 +9,13 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SCHEMA_VERSION = 3;
-  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3]);
+  const SCHEMA_VERSION = 4;
+  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3, 4]);
   const EXCLUSION_REASONS = new Set([
     "thinking_observed_off", "thinking_unverified", "workspace_boundary",
     "repository_mutation", "snapshot_mutation", "integrity_other",
   ]);
-  const PROFILE_ORDER = ["smoke", "standard", "full", "thinking", "showcase"];
+  const PROFILE_ORDER = ["preliminary", "smoke", "standard", "full", "thinking", "showcase"];
   const FUNNEL_PIPELINE = ["smoke", "standard", "full"];
   const SORT_FIELDS = new Set([
     "rank",
@@ -27,6 +27,19 @@
     "median_duration_seconds",
     "median_output_tokens",
   ]);
+
+  const PRELIMINARY_METRICS = ["first_answer_seconds", "duration_seconds", "output_tokens_per_second", "decode_tokens_per_second", "max_chunk_gap_seconds", "first_answer_min_seconds", "first_answer_max_seconds", "output_tokens_min_per_second", "output_tokens_max_per_second"];
+  const PRELIMINARY_COUNTS = ["samples", "completed", "failed", "truncated", "known_total", "known_correct", "missing_total", "missing_correct", "premise_total", "premise_correct", "unsupported_answers", "unnecessary_abstentions", "invalid_answers"];
+  function validatePreliminary(rows) {
+    if (!Array.isArray(rows)) fail("Invalid preliminary rows");
+    for (const row of rows) {
+      exactKeys(row, ["model","context","status",...PRELIMINARY_METRICS,...PRELIMINARY_COUNTS], "preliminary row");
+      if (!isText(row.model) || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(row.context) || !["measured","unavailable","excluded"].includes(row.status)) fail("Invalid preliminary metadata");
+      if (PRELIMINARY_METRICS.some((key) => !isNullableNumber(row[key])) || PRELIMINARY_COUNTS.some((key) => !Number.isInteger(row[key]) || row[key] < 0)) fail("Invalid preliminary measurements");
+      if (row.completed + row.failed !== row.samples || row.truncated > row.completed || ["known","missing","premise"].some((p) => row[p+"_correct"] > row[p+"_total"])) fail("Inconsistent preliminary counts");
+      if (row.status === "excluded" && PRELIMINARY_METRICS.some((key) => row[key] !== null)) fail("Excluded preliminary metrics");
+    }
+  }
 
   function fail(message) {
     throw new Error(message);
@@ -194,6 +207,11 @@
       ];
       if (dataset.schema_version >= 2) runFields.push("thinking_control");
       if (dataset.schema_version >= 3) runFields.push("exclusions");
+      if (dataset.schema_version >= 4) {
+        runFields.push("preliminary");
+        validatePreliminary(run.preliminary);
+        if (run.profile !== "preliminary" && run.preliminary.length) fail("Unexpected preliminary rows");
+      }
       exactKeys(
         run,
         runFields,
@@ -371,6 +389,7 @@
       };
     }
     if (schemaVersion < 3) normalized.exclusions = [];
+    if (schemaVersion < 4) normalized.preliminary = [];
     return normalized;
   }
 
@@ -591,6 +610,7 @@
     };
 
     return {
+      preliminary: runs.flatMap((run) => (run.preliminary || []).map((row) => ({...clone(row), run_id: run.id, thinking_mode: run.thinking_control ? run.thinking_control.requested : "unknown"}))).filter((row) => selectedModel === "all" || row.model === selectedModel),
       profiles: [...dataset.profile_order],
       runs: clone(runs),
       leaderboard,

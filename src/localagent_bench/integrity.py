@@ -115,7 +115,7 @@ def _copy_verified_file(source: Path, destination: Path, label: str) -> None:
         raise InputIntegrityError(f"La copia di {label} non coincide con la sorgente")
 
 
-def require_clean_inputs(root: Path, cases: Iterable[CaseSpec]) -> None:
+def require_clean_inputs(root: Path, cases: Iterable[CaseSpec], extra_paths: Iterable[Path] = ()) -> None:
     """Reject dirty instructions, manifests, prompts, graders, rubrics, or fixtures."""
     try:
         repository_root = Path(_git(root, "rev-parse", "--show-toplevel").stdout.strip()).resolve()
@@ -124,6 +124,13 @@ def require_clean_inputs(root: Path, cases: Iterable[CaseSpec]) -> None:
     if repository_root != root.resolve():
         raise InputIntegrityError(f"La configurazione non punta alla root Git: {root}")
     pathspecs = ["AGENTS.md", ".gitignore", *(str(case.directory.relative_to(root)) for case in cases)]
+    for path in extra_paths:
+        if path.is_symlink() or root.resolve() not in path.resolve().parents:
+            raise InputIntegrityError("Input aggiuntivo non confinato / Unconfined extra input")
+        relative = path.relative_to(root).as_posix()
+        if not _git(root, "ls-files", "--", relative).stdout.strip():
+            raise InputIntegrityError("Input aggiuntivo non tracciato / Untracked extra input")
+        pathspecs.append(relative)
     status = _git(root, "status", "--porcelain", "--untracked-files=all", "--", *pathspecs).stdout.strip()
     if status:
         raise InputIntegrityError(
@@ -148,6 +155,7 @@ def snapshot_cases(
     agents_path: Path,
     gitignore_path: Path,
     execution_policy: str | None = None,
+    extra_paths: Iterable[Path] = (),
 ) -> tuple[list[CaseSpec], dict[str, object]]:
     """Create one frozen input copy shared by every attempt in a run."""
     destination.mkdir(parents=True, exist_ok=False)
@@ -240,12 +248,22 @@ def snapshot_cases(
     }
     if policy_hash:
         manifest["execution_policy_sha256"] = policy_hash
+    extras = {}
+    for index, source in enumerate(extra_paths):
+        name = f"extra-{index}.json"
+        _copy_verified_file(source, destination / name, name)
+        extras[name] = fingerprint_tree(destination / name)
+    if extras:
+        manifest["extra_inputs"] = extras
     return snapshot_specs, manifest
 
 
 def verify_snapshot(destination: Path, manifest: dict[str, object]) -> list[str]:
     """Return snapshot components that no longer match their initial hashes."""
     changed: list[str] = []
+    for name, expected in manifest.get("extra_inputs", {}).items():
+        if Path(name).name != name or fingerprint_tree(destination / name) != expected:
+            changed.append("extra_input")
     agents = destination / "AGENTS.snapshot.md"
     if fingerprint_tree(agents) != manifest.get("agents_sha256"):
         changed.append("AGENTS.snapshot.md")

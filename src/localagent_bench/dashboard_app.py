@@ -32,6 +32,7 @@ STATIC_ASSETS = {
     "favicon.svg": "image/svg+xml",
     "js/core.js": "text/javascript; charset=utf-8",
     "js/i18n.js": "text/javascript; charset=utf-8",
+    "js/preliminary.js": "text/javascript; charset=utf-8",
     "js/ui.js": "text/javascript; charset=utf-8",
     "js/app.js": "text/javascript; charset=utf-8",
 }
