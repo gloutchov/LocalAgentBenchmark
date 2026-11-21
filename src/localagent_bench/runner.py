@@ -346,8 +346,10 @@ def run_benchmark(
     repeat_count = repetitions if repetitions is not None else (config.preliminary.repetitions if preliminary else config.defaults.repetitions)
     timeout = timeout_seconds if timeout_seconds is not None else (config.preliminary.timeout_seconds if preliminary else config.defaults.timeout_seconds)
     if preliminary:
-        if not 2 <= repeat_count <= 20:
+        if type(repeat_count) is not int or not 2 <= repeat_count <= 20:
             raise BenchmarkError("preliminary richiede 2..20 ripetizioni / preliminary requires 2..20 repetitions")
+        if type(timeout) is not int or not 10 <= timeout <= 1200:
+            raise BenchmarkError("preliminary timeout: 10..1200 seconds")
         config = replace(config, preliminary=replace(config.preliminary, timeout_seconds=timeout))
     thinking_policy = resolve_thinking_policy(thinking_level or config.defaults.thinking)
     if repeat_count < 1 or timeout < 10:

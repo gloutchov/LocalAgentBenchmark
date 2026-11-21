@@ -46,8 +46,6 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
     if initial_changes:
         manifest['integrity'].update(status='snapshot_compromised', aborted=True)
         manifest['preliminary'] = {'observations': [], 'contexts': ['short','long']}
-        manifest['thinking_control']['disqualified_models'] = list(manifest['models'])
-        manifest['thinking_control']['status'] = 'failed'
         save()
         return
     suite = load_suite(run_dir / 'benchmark-context' / 'extra-0.json')
@@ -62,7 +60,10 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
     settings['suite'] = options.suite.relative_to(config.root).as_posix()
     manifest['preliminary'] = {'version': 1, 'settings': settings,
         'contexts': [p['id'] for p in suite['performance']], 'model_order': models,
+        'disqualified_models': sorted(excluded),
         'probe_order': [{'id':p['id'],'repetition':r,'context':c} for p,r,c in probes],
+        'context_window_requested': config.defaults.context_window,
+        'context_window_verification': 'not_observable',
         'cache_policy': 'unique_seeded_prefix_fresh_conversation; runtime_cache_uncontrolled',
         'state': 'post_preflight; no_verified_cold_start',
         'scope': 'host HTTP probes without tools; sandbox applies to Pi contract gate',
@@ -73,7 +74,9 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
         excluded.add(model)
         manifest['integrity']['status'] = 'violations_detected'
         manifest['integrity']['violations'].append({'model':model,'case_id':'__preliminary__','repetition':0,'kind':kind,'details':[{'paths':paths}]})
-        manifest['thinking_control']['disqualified_models'] = sorted(excluded)
+        data['disqualified_models'] = sorted(excluded)
+        if kind == 'thinking_observed_off':
+            manifest['thinking_control']['disqualified_models'] = sorted(set(manifest['thinking_control']['disqualified_models']) | {model})
 
     def verify(model: str) -> bool:
         snapshot = verify_snapshot(run_dir/'benchmark-context', manifest['inputs'])
@@ -148,4 +151,5 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
             save()
         if manifest['integrity']['aborted']:
             break
-    manifest['thinking_control']['status'] = 'failed' if len(excluded) == len(models) else 'partial' if excluded else 'passed'
+    thinking_excluded = manifest['thinking_control']['disqualified_models']
+    manifest['thinking_control']['status'] = 'failed' if len(thinking_excluded) == len(models) else 'partial' if thinking_excluded else 'passed'

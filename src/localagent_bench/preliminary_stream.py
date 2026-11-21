@@ -130,6 +130,8 @@ def measure(url: str, model: str, prompt: str, policy: ThinkingPolicy,
     answer = _visible(content).strip()
     return {'duration_seconds': round(duration, 6),
             'first_answer_seconds': round(first - started, 6) if first is not None else None,
+            'input_tokens': _number(usage.get('prompt_tokens')),
+            'reasoning_tokens': _number(details.get('reasoning_tokens')) if isinstance(details, dict) else None,
             'output_tokens': tokens,
             'output_tokens_per_second': round(tokens / duration, 6) if tokens is not None and duration > 0 else None,
             'decode_tokens_per_second': decode,

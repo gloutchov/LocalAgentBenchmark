@@ -86,6 +86,8 @@ def grade_answer(text: str, question: dict[str, Any]) -> str:
         return 'correct'
     if question['category'] == 'answer' and answer['status'] == 'unknown':
         return 'unnecessary_abstention'
-    if question['category'] != 'answer' and answer['status'] == 'answer':
+    if question['category'] == 'false_premise' and answer['status'] == 'answer' and answer['value'].strip().casefold() == question['expected'].strip().casefold():
+        return 'incorrect'  # Correct fact with the wrong category is not a fabricated fact.
+    if question['category'] != 'answer' and answer['status'] == 'answer' and answer['value'].strip():
         return 'unsupported_answer'
     return 'incorrect'

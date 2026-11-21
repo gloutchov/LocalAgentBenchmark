@@ -35,6 +35,8 @@
   "guided": {
     "profiles": ["smoke", "standard", "full"],
     "preliminary": true,
+    "window_size": [900, 720],
+    "minimum_size": [760, 720],
     "promotion_limits": [4, 2],
     "preferences_file": ".localagent-benchmark/guided-preferences.json"
   },

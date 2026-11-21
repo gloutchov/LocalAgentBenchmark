@@ -229,6 +229,11 @@ def build_report(run_dir: Path) -> dict[str, Any]:
     integrity, disqualified_models = _integrity_summary(manifest, results)
     if manifest.get("profile") == "preliminary":
         from .preliminary_report import summarize
+        disqualified_models.update(manifest.get("preliminary", {}).get("disqualified_models", []))
+        if manifest.get("integrity", {}).get("aborted"):
+            disqualified_models.update(manifest.get("models", []))
+            integrity["status"] = manifest["integrity"]["status"]
+        integrity["disqualified_models"] = sorted(disqualified_models)
         return {"schema_version": 4, "run": {"profile": "preliminary",
                 "sandbox": manifest.get("sandbox", {}), "environment": manifest.get("environment", {}),
                 "thinking_control": manifest.get("thinking_control", {})},

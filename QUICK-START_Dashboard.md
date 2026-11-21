@@ -129,7 +129,7 @@ node --test dashboard/tests/dashboard.test.js
 
 - **`index.html` non mostra dati tramite `file://` / `index.html` shows no data through `file://`**: avviare `python3 dashboard.py` oppure generare prima lo snapshot locale opzionale.
 - **Il browser non si apre / The browser does not open**: usare `python3 dashboard.py --no-open` e aprire l'URL stampato.
-- **La dashboard del percorso guidato non parte / Guided dashboard does not start**: usare **Riapri dashboard / Reopen dashboard** nella GUI dopo aver risolto il problema locale. Da uno a tre run disponibili vengono riutilizzati e non modificati.
+- **La dashboard del percorso guidato non parte / Guided dashboard does not start**: usare **Riapri dashboard / Reopen dashboard** nella GUI dopo aver risolto il problema locale. Da uno a quattro run disponibili vengono riutilizzati e non modificati.
 - **Porta occupata / Port already in use**: omettere `--port`, usare `--port 0` o scegliere un altro numero.
 - **Run ignorato / Run skipped**: verificare che la directory immediatamente sotto `results/` contenga `run.json` e `report.json` schema 2, 3 o 4 compatibili. Passarla esplicitamente per ottenere un errore dettagliato.
 - **File rifiutato / File rejected**: verificare che sia un export dashboard schema 1 o 2 creato da `dashboard-data`, non un report raw, e che non superi 32 MiB.

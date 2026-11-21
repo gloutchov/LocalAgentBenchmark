@@ -30,6 +30,10 @@
 │   ├── case.schema.json            # schema pubblico dei manifesti case.json
 │   └── dashboard-data.schema.json  # dataset ridotto per la finalissima offline
 ├── src/localagent_bench/
+│   ├── preliminary.py             # sonde descrittive dopo i gate comuni, lifecycle e cancellazione
+│   ├── preliminary_stream.py      # client SSE limitato a loopback, scarto reasoning, metriche
+│   ├── preliminary_suite.py       # configurazione e protocollo di affidabilità deterministico
+│   ├── preliminary_report.py      # mediane, intervalli e conteggi senza classifica
 │   ├── cli.py                      # doctor/list/run/report/compare/dashboard-data e comandi case
 │   ├── config.py                   # modello e validazione configurazione
 │   ├── case_sdk.py                 # discovery, manifesti, validatore e template atomico dei casi
@@ -77,6 +81,7 @@
 │       ├── grader.py               # 100 punti tecnici e dataset alternativo non hardcoded
 │       └── manual-rubric.md        # 20 punti visuali separati dalla classifica
 ├── tests/
+│   ├── test_preliminary.py        # HTTP sintetico, limiti, integrità, privacy, report e cancellazione
 │   ├── test_case_sdk.py            # schema, path corrotti, template, CLI e calibrazione
 │   ├── test_dashboard_data.py      # whitelist, privacy, funnel, path, atomicità e CLI
 │   ├── test_dashboard_app.py       # discovery, snapshot, confinement, server e header sicurezza

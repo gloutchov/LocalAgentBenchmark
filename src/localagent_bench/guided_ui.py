@@ -413,8 +413,9 @@ class GuidedWindow:
 
     def _build(self) -> None:
         tk, ttk = self.tk, self.ttk
-        self.root.minsize(760, 620)
-        self.root.geometry("900x720")
+        self.root.minsize(*self.orchestrator.guided.minimum_size)
+        width, height = self.orchestrator.guided.window_size
+        self.root.geometry(f"{width}x{height}")
         outer = ttk.Frame(self.root, padding=20)
         outer.pack(fill="both", expand=True)
 
@@ -674,7 +675,7 @@ class GuidedWindow:
         self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
-        self.preliminary_toggle.configure(state=normal)
+        self.preliminary_toggle.configure(state=normal if self.config.preliminary is not None and "preliminary" in self.config.profiles else "disabled")
         self.thinking_toggle.configure(state=normal)
         self.sandbox_toggle.configure(state=normal)
         self.cancel_button.configure(state="normal" if busy or self.detecting else "disabled")

@@ -1,8 +1,8 @@
 # Percorso rapido guidato / Guided quick path
 
-Questa procedura confronta i modelli del provider locale configurato in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio e il router llama.cpp; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run.
+Questa procedura confronta i modelli del provider locale configurato in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio e il router llama.cpp; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
 
-This workflow compares models from the local provider configured in `benchmark.json`: Ollama, LM Studio, or the llama.cpp router. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three runs.
+This workflow compares models from the local provider configured in `benchmark.json`: Ollama, LM Studio, or the llama.cpp router. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
 
 ## Requisiti / Requirements
 
@@ -83,9 +83,9 @@ Il pulsante **Annulla / Cancel** chiede conferma, termina il runner e i suoi pro
 
 **Cancel** asks for confirmation, stops the runner process tree, and preserves completed or diagnostic artifacts. Interrupted sessions are not resumed or partially promoted; fix the issue and start a new session.
 
-Al completamento viene validato in memoria il dataset ridotto dei tre run e viene avviata la dashboard ufficiale su `127.0.0.1`. Se il funnel si ferma, **Riapri dashboard / Reopen dashboard** può usare da uno a tre run già disponibili e mostrare i risultati parziali senza reinterpretarli come completamento. Funziona anche dopo aver riaperto la GUI e non riesegue il benchmark. La dashboard non è la dashboard candidata del profilo `showcase`.
+Al completamento viene validato in memoria il dataset ridotto dei tre run e viene avviata la dashboard ufficiale su `127.0.0.1`. Se il funnel si ferma, **Riapri dashboard / Reopen dashboard** può usare da uno a quattro run già disponibili e mostrare i risultati parziali senza reinterpretarli come completamento. Funziona anche dopo aver riaperto la GUI e non riesegue il benchmark. La dashboard non è la dashboard candidata del profilo `showcase`.
 
-After completion the reduced three-run dataset is validated in memory and the official loopback dashboard is launched. If the funnel stops, **Reopen dashboard** can reuse one to three available runs and show partial results without presenting them as a completed funnel. It also works after restarting the GUI and never reruns models.
+After completion the reduced three-run dataset is validated in memory and the official loopback dashboard is launched. If the funnel stops, **Reopen dashboard** can reuse one to four available runs and show partial results without presenting them as a completed funnel. It also works after restarting the GUI and never reruns models.
 
 ## Configurazione / Configuration
 
@@ -136,3 +136,5 @@ Release 0.11.0 distributes these launchers as source files in the repository and
 Prima di smoke, il toggle Preliminary esegue sui modelli selezionati misure descrittive di reattività e affidabilità su fonti sintetiche. È attivo nella nuova configurazione e può essere disattivato prima di avviare. Le promozioni restano soltanto smoke → standard → full; la dashboard può ricevere quattro directory distinte, con Preliminary fuori dal funnel e dalle classifiche. Errori descrittivi non escludono modelli, i controlli obbligatori sì.
 
 Before smoke, optionally run descriptive responsiveness and synthetic-source grounding probes on all selected models. The new configuration enables this toggle; disable it before starting to skip it. Promotions remain smoke → standard → full. The dashboard may receive four distinct directories; Preliminary stays outside rankings and funnel. Descriptive errors do not exclude models; mandatory control failures do. See [Preliminary](QUICK-START_Preliminary.md).
+
+Le dimensioni GUI sono centralizzate in `guided.window_size` (900×720) e `guided.minimum_size` (760×720). Il minimo mantiene visibili i pulsanti anche con Preliminary; i file legacy senza queste opzioni usano gli stessi valori. / GUI dimensions are configured by `guided.window_size` (900×720) and `guided.minimum_size` (760×720), keeping actions visible with Preliminary; legacy configurations use these defaults.

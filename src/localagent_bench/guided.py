@@ -503,6 +503,11 @@ class GuidedOrchestrator:
         if not discovery.get("ok"):
             raise _error_from_doctor(discovery)
 
+        include_preliminary = self.guided.preliminary if preliminary is None else preliminary
+        if type(include_preliminary) is not bool:
+            raise GuidedError("invalid_setting", "preliminary must be boolean")
+        if include_preliminary and (self.config.preliminary is None or "preliminary" not in self.config.profiles):
+            raise GuidedError("invalid_setting", "Preliminary non configurato / Preliminary not configured")
         thinking_mode = thinking if thinking is not None else self.config.defaults.thinking
         sandbox_mode = sandbox if sandbox is not None else self.config.defaults.sandbox
         if thinking_mode not in THINKING_LEVELS:
@@ -556,9 +561,6 @@ class GuidedOrchestrator:
         _write_manifest(self.manifest_path, manifest, root=self.config.root)
         current_models = selected
         completed_runs: list[Path] = []
-        include_preliminary = self.guided.preliminary if preliminary is None else preliminary
-        if type(include_preliminary) is not bool:
-            raise GuidedError("invalid_setting", "preliminary must be boolean")
         profiles = (("preliminary",) if include_preliminary else ()) + self.guided.profiles
         manifest["settings"]["preliminary"] = include_preliminary
         limits: tuple[int | None, ...] = ((None,) if include_preliminary else ()) + (
@@ -761,7 +763,7 @@ def evaluate_preliminary(run_directory: Path, *, root: Path, expected_models: li
     order = manifest.get('preliminary', {}).get('probe_order')
     if not isinstance(observations, list) or not isinstance(order, list) or not order:
         raise GuidedError('partial_run', 'Osservazioni preliminary mancanti / Missing preliminary observations')
-    excluded_controls = set(manifest.get('thinking_control', {}).get('disqualified_models', []))
+    excluded_controls = set(manifest.get('thinking_control', {}).get('disqualified_models', [])) | set(report.get('integrity', {}).get('disqualified_models', []))
     expected = {(p.get('id'), p.get('repetition')) for p in order if isinstance(p, dict)}
     if len(expected) != len(order):
         raise GuidedError('invalid_report', 'Ordine sonde duplicato / Duplicate probe order')

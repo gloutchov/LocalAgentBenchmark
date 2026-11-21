@@ -60,6 +60,8 @@ class GuidedSettings:
     promotion_limits: tuple[int, int]
     preferences_file: Path
     preliminary: bool = False
+    window_size: tuple[int, int] = (900, 720)
+    minimum_size: tuple[int, int] = (760, 720)
 
 
 @dataclass(frozen=True)
@@ -299,7 +301,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         if not isinstance(guided_raw, dict):
             raise ConfigError("'guided' deve essere di tipo dict")
         unknown_guided = sorted(
-            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file", "preliminary"}
+            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file", "preliminary", "window_size", "minimum_size"}
         )
         if unknown_guided:
             raise ConfigError(f"Campi sconosciuti in guided: {', '.join(unknown_guided)}")
@@ -330,7 +332,17 @@ def load_config(path: Path) -> BenchmarkConfig:
             raise ConfigError(
                 "guided.promotion_limits deve essere decrescente (per esempio 4, 2)"
             )
+        geometry = {}
+        for key, default in (("window_size", [900,720]), ("minimum_size", [760,720])):
+            pair = guided_raw.get(key, default)
+            if (not isinstance(pair, list) or len(pair) != 2 or any(type(v) is not int for v in pair)
+                    or not 760 <= pair[0] <= 7680 or not 720 <= pair[1] <= 4320):
+                raise ConfigError(f"guided.{key}: dimensioni non valide / invalid dimensions")
+            geometry[key] = tuple(pair)
+        if any(a < b for a,b in zip(geometry["window_size"],geometry["minimum_size"])):
+            raise ConfigError("guided.window_size inferiore al minimo / smaller than minimum")
         guided = GuidedSettings(
+            **geometry,
             profiles=tuple(guided_profiles_raw),  # type: ignore[arg-type]
             promotion_limits=tuple(promotion_limits_raw),  # type: ignore[arg-type]
             preferences_file=_repository_path(

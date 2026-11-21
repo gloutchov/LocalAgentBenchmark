@@ -64,7 +64,7 @@ Il funnel esegue `smoke` su tutti i selezionati, usa l'ordine della leaderboard 
 
 `defaults.timeout_seconds` in `benchmark.json` limita **ogni task** (1.200 secondi, cioè 20 minuti, per default), non l'intero funnel. Il controllo Pi, il preflight thinking e il warmup hanno limiti separati; la GUI mostra il valore task prima della conferma. Su Windows, alla scadenza il runner chiude l'albero dei processi Pi/Node e limita anche la raccolta finale dell'output. Per un primo test più breve, selezionare un solo modello e impostare `defaults.timeout_seconds` prima di aprire la GUI, oppure usare `--timeout 300` da CLI. Non cambiare la configurazione durante un run.
 
-**Annulla** termina il gruppo di processi dopo conferma e conserva gli artefatti. Una sessione interrotta non è ripresa: risolvere il problema e crearne una nuova. **Riapri dashboard** riutilizza invece da uno a tre run disponibili dell'ultima sessione senza rieseguire i modelli, anche dopo il riavvio della GUI. La durata non è garantita. Procedura completa, comportamento per piattaforma e privacy: [QUICK-START_Guided.md](QUICK-START_Guided.md).
+**Annulla** termina il gruppo di processi dopo conferma e conserva gli artefatti. Una sessione interrotta non è ripresa: risolvere il problema e crearne una nuova. **Riapri dashboard** riutilizza invece da uno a quattro run disponibili dell'ultima sessione senza rieseguire i modelli, anche dopo il riavvio della GUI. La durata non è garantita. Procedura completa, comportamento per piattaforma e privacy: [QUICK-START_Guided.md](QUICK-START_Guided.md).
 
 ### Confronto rapido
 
@@ -277,7 +277,7 @@ All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubric
 - Provider locale non raggiungibile: avviare il server configurato in `benchmark.json` e verificare `benchmark.py doctor`.
 - GUI guidata senza modelli o prerequisiti: usare **Rileva di nuovo** dopo aver avviato il provider/installato Pi; gli input protetti sporchi devono essere revisionati e committati, non aggirati.
 - percorso guidato interrotto: consultare `results/guided-*/guided-run.json` e i run già creati; nessun risultato parziale viene promosso e nessun run precedente viene cancellato.
-- dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a tre run disponibili vengono riutilizzati senza rieseguire i modelli.
+- dashboard guidata non avviabile: usare **Riapri dashboard** dopo aver risolto il problema locale; da uno a quattro run disponibili vengono riutilizzati senza rieseguire i modelli.
 - `pi: comando non trovato`: installare Pi o modificare `pi.command` con il percorso corretto.
 - `Modelli non installati`: usare il nome esatto restituito da `doctor` e installare/importare il modello nel provider configurato.
 - `timeout`: aumentare `--timeout` o `defaults.timeout_seconds` per la GUI; controllare anche memoria e log `stderr.log`. Il limite riguarda ciascuna task e non include preflight e warmup.
@@ -325,7 +325,7 @@ Non inserire dati privati, repository reali o credenziali nelle fixture. Manifes
 - La dashboard ufficiale non rende anonimo un export e non pubblica risultati: nomi, punteggi e hash vanno revisionati prima di condividere lo snapshot o un `dashboard-data.json`.
 - Il preflight prova il comportamento osservabile dell'endpoint, non può dimostrare processi interni che il provider o il modello non espongono. Un modello che non espone reasoning in modalità attiva viene escluso come non verificabile.
 - I launcher guidati sono script sorgente, non installer o applicazioni firmate; il doppio clic Linux dipende dal file manager e Tkinter deve essere incluso nella distribuzione Python.
-- Una sessione guidata annullata o fallita viene conservata ma non può essere ripresa dal punto interrotto; la dashboard può comunque riaprire da uno a tre run già disponibili senza un nuovo benchmark.
+- Una sessione guidata annullata o fallita viene conservata ma non può essere ripresa dal punto interrotto; la dashboard può comunque riaprire da uno a quattro run già disponibili senza un nuovo benchmark.
 
 ## Preliminary: descrivere i modelli prima delle task
 

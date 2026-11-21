@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
+from localagent_bench.comparison import ComparisonError, build_comparison
 from localagent_bench.config import ConfigError, load_config
 from localagent_bench.dashboard_data import build_dashboard_data, validate_dashboard_data, DashboardDataError
 from localagent_bench.guided import evaluate_preliminary, GuidedError
@@ -91,6 +92,8 @@ class PreliminaryUnitTests(unittest.TestCase):
         self.assertEqual('unsupported_answer',grade_answer('{"status":"answer","value":"2000"}',q))
         for text in ('garbage','{}','{"status":[],"value":""}','[]'):
             self.assertEqual('invalid',grade_answer(text,q))
+        false=next(q for q in suite['questions'] if q['category']=='false_premise')
+        self.assertEqual('incorrect',grade_answer(json.dumps({'status':'answer','value':false['expected']}),false))
         known=next(q for q in suite['questions'] if q['category']=='answer')
         self.assertEqual('unnecessary_abstention',grade_answer('{"status":"unknown","value":""}',known))
 
@@ -158,7 +161,7 @@ class PreliminaryHTTPTests(unittest.TestCase):
         with self.assertRaises(ProviderError):
             measure('http://example.invalid','m','test',resolve_thinking_policy('off'),self.options,temperature=0,seed=1)
 
-    def _run(self, root, *, kind='ollama', failed_preflight=False, mutate=None):
+    def _run(self, root, *, kind='ollama', failed_preflight=False, failed_load=False, mutate=None):
         suite=root/'preliminary/suite.json';suite.parent.mkdir();shutil.copy2(ROOT/'preliminary/suite.json',suite)
         (root/'AGENTS.md').write_text('Synthetic test policy\n')
         (root/'.gitignore').write_text('results/\n')
@@ -174,6 +177,7 @@ class PreliminaryHTTPTests(unittest.TestCase):
         provider.list_models.return_value=[model];provider.inspect_model.return_value=model
         provider.fingerprint_model.return_value=model;provider.version.return_value='synthetic'
         provider.preflight_thinking.return_value=ThinkingPreflight('provider_error' if failed_preflight else 'passed','off','none',False,False,0,0,1)
+        if failed_load:provider.load.side_effect=ProviderError('private-secret')
         original=measure
         def controlled(*args,**kwargs):
             result=original(*args,**kwargs)
@@ -201,6 +205,8 @@ class PreliminaryHTTPTests(unittest.TestCase):
                 self.assertNotIn('prompt',json.dumps(public));self.assertNotIn(str(root),json.dumps(public))
                 outcome=evaluate_preliminary(run,root=root,expected_models=['synthetic'],process_returncode=0)
                 self.assertEqual(('synthetic',),outcome.promoted)
+                second=root/'results/second';shutil.copytree(run,second)
+                with self.assertRaisesRegex(ComparisonError,'Preliminary'):build_comparison([run,second])
                 # Dirty probes cannot be run a second time.
                 (root/'preliminary/suite.json').write_text('{}')
                 with self.assertRaises(InputIntegrityError):require_clean_inputs(root,[],[root/'preliminary/suite.json'])
@@ -216,6 +222,15 @@ class PreliminaryHTTPTests(unittest.TestCase):
             manifest=json.loads((run/'run.json').read_text());manifest['preliminary']['observations'].pop()
             (run/'run.json').write_text(json.dumps(manifest))
             with self.assertRaises(GuidedError):evaluate_preliminary(run,root=root,expected_models=['synthetic'],process_returncode=0)
+
+    def test_load_failure_excludes_without_mislabeling_thinking(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);run,_=self._run(root,kind='lmstudio',failed_load=True)
+            manifest=json.loads((run/'run.json').read_text());report=json.loads((run/'report.json').read_text())
+            self.assertEqual('passed',manifest['thinking_control']['status'])
+            self.assertEqual(['synthetic'],report['integrity']['disqualified_models'])
+            self.assertEqual((),evaluate_preliminary(run,root=root,expected_models=['synthetic'],process_returncode=1).promoted)
+            self.assertNotIn('private-secret',(run/'run.json').read_text())
 
     def test_preflight_failure_never_calls_measurement(self):
         with tempfile.TemporaryDirectory() as directory:

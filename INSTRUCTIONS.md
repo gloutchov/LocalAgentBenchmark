@@ -64,7 +64,7 @@ The funnel runs `smoke` on every selected model, consumes the official leaderboa
 
 `defaults.timeout_seconds` in `benchmark.json` limits **each task** (1,200 seconds, or 20 minutes, by default), not the complete funnel. The Pi contract, thinking preflight, and warmup have separate limits; the GUI shows the task limit before confirmation. On Windows, expiry stops the Pi/Node process tree and also bounds final output collection. For a shorter first test, select one model and set `defaults.timeout_seconds` before opening the GUI, or use `--timeout 300` from the CLI. Do not change configuration during a run.
 
-**Cancel** asks for confirmation, terminates the process tree, and retains diagnostic artifacts. Interrupted sessions are not resumed; fix the issue and create a new session. **Reopen dashboard** reuses one to three available runs from the latest session without rerunning models, including after restarting the GUI. Duration is not guaranteed. See [QUICK-START_Guided.md](QUICK-START_Guided.md) for platform behavior, configuration, troubleshooting, and privacy.
+**Cancel** asks for confirmation, terminates the process tree, and retains diagnostic artifacts. Interrupted sessions are not resumed; fix the issue and create a new session. **Reopen dashboard** reuses one to four available runs from the latest session without rerunning models, including after restarting the GUI. Duration is not guaranteed. See [QUICK-START_Guided.md](QUICK-START_Guided.md) for platform behavior, configuration, troubleshooting, and privacy.
 
 - `smoke` checks Pi/provider integration and basic tool calling.
 - `standard` covers a targeted patch, security hardening, validated configuration/i18n, and the exact multi-constraint `thinking_challenge` case.
@@ -303,7 +303,7 @@ Do not add private data, real repositories, or credentials to cases. Manifests a
 - The official dashboard does not anonymize or publish exports; review names, scores, and hashes before sharing a snapshot or `dashboard-data.json`.
 - The preflight verifies observable endpoint behavior, not internal processes hidden by the provider or model. An active model that exposes no reasoning signal is excluded as unverifiable.
 - Guided launchers are source scripts rather than signed installers or native apps; Linux double-click behavior depends on the file manager, and the Python distribution must include Tkinter.
-- A cancelled or failed guided session is preserved but cannot resume from its interrupted stage; the dashboard can still reopen one to three available runs without starting a new benchmark.
+- A cancelled or failed guided session is preserved but cannot resume from its interrupted stage; the dashboard can still reopen one to four available runs without starting a new benchmark.
 
 ## Preliminary: describe models before coding tasks
 
