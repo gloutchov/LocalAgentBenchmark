@@ -105,7 +105,7 @@
 │   └── Guided.mov                  # sorgente del fotogramma del percorso guidato
 ├── .github/workflows/ci.yml        # Pi, Node 24, compile, test e documenti su tre OS
 ├── .github/workflows/pages.yml     # valida e pubblica soltanto site/ su GitHub Pages
-├── .github/dependabot.yml          # aggiornamenti settimanali delle GitHub Actions
+├── .github/dependabot.yml          # aggiornamenti mensili delle GitHub Actions
 ├── AGENTS.md                       # modus operandi copiato in ogni fixture
 ├── README.md                       # overview bilingue e quick start
 ├── ISTRUZIONI.md                   # manuale italiano
