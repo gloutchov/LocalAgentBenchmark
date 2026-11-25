@@ -172,8 +172,8 @@ class UnslothConfigIntegrationTests(unittest.TestCase):
         manifest = {"thinking_control": {"requested": "off", "disqualified_models": [MODEL],
                     "preflights": {MODEL: {"status": "passed"}}}}
         for kind, reason in (("provider_context_mismatch", "provider_context_mismatch"),
-                             ("provider_warmup_failed", "provider_incompatible"),
-                             ("provider_load_failed", "provider_incompatible")):
+                             ("provider_warmup_failed", "integrity_other"),
+                             ("provider_load_failed", "integrity_other")):
             integrity = {"violations": [{"model": MODEL, "kind": kind, "case_id": "__warmup__",
                                         "details": [{"error_type": "synthetic-private-error"}]}]}
             with self.subTest(kind=kind):

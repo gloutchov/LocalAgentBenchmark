@@ -9,6 +9,10 @@ Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
 
+La verifica locale 0.15.0 comprende smoke Pi e Preliminary Unsloth da CLI e dall’orchestratore guidato su macOS, con thinking `off`, Seatbelt `required` e integrità validi. La verifica manuale della GUI IT/EN e chiaro/scuro è ancora pendente; versione non pubblicata. I punteggi dei modelli non certificano la compatibilità del provider e questi smoke non sono un confronto statistico.
+
+Local 0.15.0 validation includes Unsloth Pi smoke and Preliminary through the CLI and guided orchestrator on macOS, with valid thinking `off`, Seatbelt `required` and integrity controls. Manual GUI checks in IT/EN and light/dark themes are pending; this version has not been published. Model scores do not certify provider compatibility, and these smoke runs are not a statistical comparison.
+
 La 0.14.0 aggiunge il profilo descrittivo Preliminary, con misure di reattività, quesiti su fonti sintetiche e grafici dedicati. Il percorso rapido può eseguirlo prima del funnel; score e promozioni restano separati.
 
 Version 0.14.0 adds the descriptive Preliminary profile, measuring responsiveness and grounding against synthetic sources, with dedicated charts. Optionally run it before the quick-path funnel; scores and promotions remain separate.

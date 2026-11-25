@@ -343,8 +343,8 @@ def _sanitize_exclusions(
             "repository_mutation": "repository_mutation",
             "snapshot_mutation": "snapshot_mutation",
             "provider_context_mismatch": "provider_context_mismatch",
-            "provider_load_failed": "provider_incompatible",
-            "provider_warmup_failed": "provider_incompatible",
+            "provider_load_failed": "integrity_other",
+            "provider_warmup_failed": "integrity_other",
         }
         for item in violations:
             if not isinstance(item, dict):
