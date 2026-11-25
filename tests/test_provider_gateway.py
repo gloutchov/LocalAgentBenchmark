@@ -36,6 +36,7 @@ class _Upstream(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Connection", "close")
+        self.send_header("X-Untrusted-Echo", _key())
         self.end_headers()
         self.close_connection = True
         self.wfile.write(raw)
@@ -51,8 +52,8 @@ class _Upstream(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.close_connection = True
                 return
-            if self.server.mode == "upstream_error":
-                self._json({"error": _key()}, 401)
+            if self.server.mode in {"upstream_error", "models_forbidden"}:
+                self._json({"error": _key()}, 403 if self.server.mode == "models_forbidden" else 401)
                 return
             self._json({"data": [{"id": "local-coder", "owned_by": "unsloth-studio",
                                   "loaded": self.server.loaded, "quant": self.server.quant,
@@ -62,6 +63,8 @@ class _Upstream(BaseHTTPRequestHandler):
                 self._json({"detail": "This API key is inference only: " + _key()}, 403)
             elif self.server.scope == "full":
                 self._json({"keys": [{"value": _key()}]})
+            elif self.server.scope == "unauthorized":
+                self._json({"detail": _key()}, 401)
             else:
                 self._json({"detail": "Invalid key: " + _key()}, 403)
         else:
@@ -159,14 +162,35 @@ class ProviderGatewayTests(unittest.TestCase):
     def test_inference_only_probe_normalizes_and_discards_management_content(self):
         with ProviderGateway(self.url, _key()) as gateway:
             self.assertEqual((200, b'{"inference_only":true}'), self._call(gateway, "/benchmark/unsloth-policy"))
-            for scope in ("full", "invalid"):
+            for scope, expected in (("full", 403), ("invalid", 503), ("unauthorized", 503)):
                 self.server.scope = scope
                 status, raw = self._call(gateway, "/benchmark/unsloth-policy")
-                self.assertEqual(503, status)
+                self.assertEqual(expected, status)
                 self.assertNotIn(_key().encode(), raw)
             count = len(self.server.calls)
             self.assertEqual(404, self._call(gateway, "/api/auth/api-keys")[0])
             self.assertEqual(count, len(self.server.calls))
+
+    def test_policy_authentication_diagnostics_are_allowlisted_without_remote_headers(self):
+        with ProviderGateway(self.url, _key()) as gateway:
+            for mode, status, code in (
+                ("upstream_error", 401, "provider_gateway_credential_rejected"),
+                ("models_forbidden", 403, "provider_gateway_credential_rejected"),
+                ("normal", 403, "provider_gateway_inference_scope_required"),
+            ):
+                self.server.mode = mode
+                self.server.scope = "full"
+                connection = http.client.HTTPConnection("127.0.0.1", int(gateway.url.rsplit(":", 1)[1]), timeout=3)
+                try:
+                    connection.request("GET", "/benchmark/unsloth-policy")
+                    response = connection.getresponse()
+                    self.assertEqual(status, response.status)
+                    self.assertIsNone(response.getheader("X-Untrusted-Echo"))
+                    raw = response.read()
+                    self.assertEqual({"error": {"code": code}}, json.loads(raw))
+                    self.assertNotIn(_key().encode(), raw)
+                finally:
+                    connection.close()
 
     def test_generation_keeps_thinking_and_tools_client_side(self):
         with ProviderGateway(self.url, _key()) as gateway:
@@ -183,7 +207,9 @@ class ProviderGatewayTests(unittest.TestCase):
             self.assertEqual([], forwarded["enabled_tools"])
             self.server.scope = "full"
             count = sum(call[0] == "POST" for call in self.server.calls)
-            self.assertEqual(503, self._call(gateway, "/v1/chat/completions", payload)[0])
+            status, raw = self._call(gateway, "/v1/chat/completions", payload)
+            self.assertEqual(403, status)
+            self.assertEqual({"error": {"code": "provider_gateway_inference_scope_required"}}, json.loads(raw))
             self.assertEqual(count, sum(call[0] == "POST" for call in self.server.calls))
 
     def test_remote_selectors_images_sessions_and_unloaded_models_are_rejected(self):
@@ -247,7 +273,7 @@ class ProviderGatewayTests(unittest.TestCase):
             warnings.simplefilter("always", ResourceWarning)
             with ProviderGateway(self.url, _key()) as gateway:
                 for _ in range(5):
-                    self.assertEqual(503, self._call(gateway, "/benchmark/unsloth-policy")[0])
+                    self.assertEqual(403, self._call(gateway, "/benchmark/unsloth-policy")[0])
             gc.collect()
         self.assertFalse([warning for warning in caught if issubclass(warning.category, ResourceWarning)])
 

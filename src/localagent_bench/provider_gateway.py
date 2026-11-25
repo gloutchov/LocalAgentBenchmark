@@ -18,6 +18,19 @@ class GatewayError(RuntimeError):
     """Gateway setup failed; messages never include upstream content or keys."""
 
 
+class _PolicyRejection(GatewayError):
+    """Allowlisted diagnostic only; never constructed from an upstream body."""
+    _REASONS = {
+        "credential_401": (401, "provider_gateway_credential_rejected"),
+        "credential_403": (403, "provider_gateway_credential_rejected"),
+        "inference_scope": (403, "provider_gateway_inference_scope_required"),
+    }
+
+    def __init__(self, reason: str):
+        self.status, self.code = self._REASONS[reason]
+        super().__init__(self.code)
+
+
 def _target(url: str) -> tuple[str, int]:
     try:
         parsed = urlsplit(url)
@@ -239,6 +252,8 @@ class _Handler(BaseHTTPRequestHandler):
         # The scope check is a read-only call to an existing authenticated route.
         # Full-access key metadata and free-form denials never reach the caller.
         response = self._open("GET", "/v1/models")
+        if response.status in {401, 403}:
+            raise _PolicyRejection("credential_401" if response.status == 401 else "credential_403")
         if response.status != 200:
             raise GatewayError("provider_gateway_policy_unverified")
         models = self._small_json(response).get("data")
@@ -246,6 +261,8 @@ class _Handler(BaseHTTPRequestHandler):
             raise GatewayError("provider_gateway_policy_unverified")
         self.upstream.close()
         response = self._open("GET", "/api/auth/api-keys")
+        if response.status == 200:
+            raise _PolicyRejection("inference_scope")
         if response.status != 403:
             raise GatewayError("provider_gateway_policy_unverified")
         detail = self._small_json(response).get("detail")
@@ -374,6 +391,17 @@ class _Handler(BaseHTTPRequestHandler):
     def _run(self) -> None:
         try:
             self._forward()
+        except _PolicyRejection as exc:
+            # Refused management responses may contain key metadata. Discard
+            # them before emitting an allowlisted local status/code pair.
+            if self.response is not None:
+                self.response.close()
+            if self.upstream is not None:
+                self.upstream.close()
+            try:
+                self._reply(exc.status, {"error": {"code": exc.code}})
+            except OSError:
+                pass
         except (OSError, ValueError, TypeError, OverflowError, http.client.HTTPException, GatewayError):
             try:
                 self._reply(503, {"error": {"code": "provider_gateway_unavailable"}})

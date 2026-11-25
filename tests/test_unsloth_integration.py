@@ -17,6 +17,7 @@ from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from urllib.error import HTTPError
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +32,7 @@ from localagent_bench.guided_process import ProcessResult
 from localagent_bench.pi_adapter import PiRun
 from localagent_bench.pi_compatibility import CONTRACT_VERSION, PiCompatibility
 from localagent_bench.provider_session import provider_session
+from localagent_bench.providers import ProviderError, _request
 from localagent_bench.runner import BenchmarkError, doctor, run_benchmark
 
 
@@ -110,6 +112,23 @@ class _UnslothHandler(BaseHTTPRequestHandler):
 
 
 class UnslothConfigIntegrationTests(unittest.TestCase):
+    def test_authentication_diagnostics_only_accept_static_gateway_codes(self):
+        marker = "synthetic-private-" + uuid.uuid4().hex
+        for status, code, expected in [
+            (401, "provider_gateway_credential_rejected", "chiave API rifiutata"),
+            (403, "provider_gateway_inference_scope_required", "sola inferenza"),
+            (401, "provider_gateway_inference_scope_required", "HTTP 401"),
+            (403, marker, "HTTP 403"),
+        ]:
+            with self.subTest(status=status, code=code):
+                body = io.BytesIO(json.dumps({"error": {"code": code, "message": marker}}).encode())
+                error = HTTPError("http://127.0.0.1/policy", status, marker, {}, body)
+                with patch("localagent_bench.providers._OPENER.open", side_effect=error):
+                    with self.assertRaisesRegex(ProviderError, expected) as caught:
+                        _request("http://127.0.0.1:1234", "/benchmark/unsloth-policy")
+                self.assertNotIn(marker, str(caught.exception))
+                self.assertTrue(body.closed)
+
     def test_reference_transport_backend_and_secret_validation_precede_case_loading(self):
         raw = json.loads((ROOT / "benchmark.json").read_text(encoding="utf-8"))
         raw["provider"].update(kind="unsloth", credential_ref="integration-reference")
