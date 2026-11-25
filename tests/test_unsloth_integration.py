@@ -164,6 +164,9 @@ class UnslothConfigIntegrationTests(unittest.TestCase):
                     "preflights": {MODEL: {"status": "tool_calling_not_verified"}}}}
         exclusions = _sanitize_exclusions(manifest, {}, [MODEL])
         self.assertEqual([{"model": MODEL, "reason": "provider_incompatible", "case_id": None}], exclusions)
+        manifest["thinking_control"]["preflights"][MODEL]["status"] = "context_window_mismatch"
+        exclusions = _sanitize_exclusions(manifest, {}, [MODEL])
+        self.assertEqual([{"model": MODEL, "reason": "provider_context_mismatch", "case_id": None}], exclusions)
 
 
 class UnslothRuntimeIntegrationTests(unittest.TestCase):
@@ -369,8 +372,20 @@ class UnslothRuntimeIntegrationTests(unittest.TestCase):
             manifest["configuration"].update(provider_kind="unsloth", provider_url=self.url)
             manifest["environment"].update(provider_kind="unsloth", provider_version="synthetic-studio",
                                           provider_backend_version="synthetic-llama")
+            for metadata in manifest["model_metadata"].values():
+                metadata.setdefault("details", {})["context_length"] = 32768
             path.write_text(json.dumps(manifest), encoding="utf-8")
         self.assertEqual("unsloth", build_comparison(runs)["compatibility"]["provider_kind"])
+        context_path = runs[1] / "run.json"
+        context_manifest = json.loads(context_path.read_text(encoding="utf-8"))
+        metadata = next(iter(context_manifest["model_metadata"].values()))
+        for context in (65536, None, True):
+            metadata["details"]["context_length"] = context
+            context_path.write_text(json.dumps(context_manifest), encoding="utf-8")
+            with self.subTest(resident_context=context), self.assertRaises(ComparisonError):
+                build_comparison(runs)
+        metadata["details"]["context_length"] = 32768
+        context_path.write_text(json.dumps(context_manifest), encoding="utf-8")
         for field in ("provider_backend_version", "provider_version"):
             path = runs[1] / "run.json"
             manifest = json.loads(path.read_text(encoding="utf-8"))

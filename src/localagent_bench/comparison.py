@@ -73,6 +73,8 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         retry_policy = {}
     model_metadata = manifest.get("model_metadata", {})
     capability_signature: list[tuple[str, bool | None, tuple[str, ...]]] = []
+    resident_contexts: list[tuple[str, int | None]] = []
+    provider_kind = configuration.get("provider_kind", environment.get("provider_kind", "ollama"))
     if isinstance(model_metadata, dict):
         for model, raw in sorted(model_metadata.items(), key=lambda item: str(item[0])):
             details = raw if isinstance(raw, dict) else {}
@@ -86,6 +88,10 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
             capability_signature.append(
                 (str(model), capable if isinstance(capable, bool) else None, capabilities)
             )
+            if provider_kind == "unsloth":
+                provider_details = details.get("details")
+                context = provider_details.get("context_length") if isinstance(provider_details, dict) else None
+                resident_contexts.append((str(model), context if type(context) is int and context > 0 else None))
     cases = manifest.get("cases")
     if not isinstance(cases, list):
         cases = sorted({str(item.get("case_id")) for item in report.get("results", []) if isinstance(item, dict)})
@@ -123,6 +129,7 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         "provider_url": configuration.get("provider_url", configuration.get("ollama_url")),
         "provider_version": environment.get("provider_version", environment.get("ollama")),
         "provider_backend_version": environment.get("provider_backend_version"),
+        "provider_resident_contexts": tuple(resident_contexts),
         "provider_transport": tuple(sorted((configuration.get("provider_transport") or {}).items())),
         "provider_controls": json.dumps(manifest.get("provider_controls", {}), sort_keys=True),
         "model_capabilities": tuple(capability_signature),
@@ -185,8 +192,12 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
     reference = _compatibility_signature(loaded[0][1], loaded[0][2])
     if reference["provider_kind"] != "ollama":
         for run_dir, manifest, report in loaded:
-            if reference["provider_kind"] == "unsloth" and not manifest.get("environment", {}).get("provider_backend_version"):
+            signature = _compatibility_signature(manifest, report)
+            if reference["provider_kind"] == "unsloth" and not signature["provider_backend_version"]:
                 raise ComparisonError(f"Versione backend Unsloth non registrata in {run_dir.name}")
+            if reference["provider_kind"] == "unsloth" and (not signature["provider_resident_contexts"]
+                    or any(context is None for _, context in signature["provider_resident_contexts"])):
+                raise ComparisonError(f"Contesto residente Unsloth non verificabile in {run_dir.name}")
             if not _compatibility_signature(manifest, report).get("provider_version"):
                 raise ComparisonError(f"Versione runtime locale non registrata in {run_dir.name}")
             metadata = manifest.get("model_metadata", {})

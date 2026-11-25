@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from localagent_bench.ollama import OllamaModel
 from localagent_bench.providers import LocalProvider, ProviderError
 from localagent_bench.thinking import resolve_thinking_policy
-from localagent_bench.unsloth import UnslothProvider
+from localagent_bench.unsloth import ContextWindowMismatch, UnslothProvider
 
 
 POLICY = {"inference_only": True}
@@ -170,6 +170,65 @@ class UnslothAdapterTests(unittest.TestCase):
         result = self.provider.warmup("local/coder", resolve_thinking_policy("off"), timeout=5, context_window=8192)
         self.assertEqual("preloaded_manual", result["lifecycle_mode"])
         self.assertEqual("none", request.call_args.args[2]["reasoning_effort"])
+
+    @patch("localagent_bench.providers._request")
+    def test_known_undersized_context_excludes_before_any_generation_without_hiding_model(self, request):
+        request.side_effect = [POLICY, {"data": [_row(context_length=8192)]}]
+        listed = self.provider.list_models()
+        self.assertEqual(["local/coder"], [model.name for model in listed])
+        self.assertEqual(8192, listed[0].details["context_length"])
+        self.assertEqual("api", listed[0].details["context_length_source"])
+        # Discovery metadata can be stale: preflight must read fresh residency.
+        stale = OllamaModel("local/coder", None, None, None, {"context_length": 65536})
+        request.reset_mock()
+        request.side_effect = [POLICY, {"data": [_row(context_length=8192)]}]
+        result = self.provider.preflight_thinking(stale, resolve_thinking_policy("off"), timeout=5)
+        self.assertEqual("context_window_mismatch", result.status)
+        self.assertEqual("none", result.reasoning_effort)
+        self.assertFalse(result.thinking_observed)
+        self.assertEqual(["/benchmark/unsloth-policy", "/v1/models"],
+                         [call.args[1] for call in request.call_args_list])
+
+    @patch("localagent_bench.providers._request")
+    def test_equal_or_larger_resident_context_preserves_normal_preflight(self, request):
+        for context in (32768, 65536):
+            with self.subTest(context=context):
+                request.reset_mock()
+                request.side_effect = [POLICY, {"data": [_row(context_length=context)]}, _answer(), _answer(tool=True)]
+                result = self.provider.preflight_thinking(
+                    OllamaModel("local/coder", None, None, None, {}), resolve_thinking_policy("off"), timeout=5,
+                )
+                self.assertTrue(result.passed)
+                self.assertEqual(4, request.call_count)
+                self.assertEqual(["none", "none"], [call.args[2]["reasoning_effort"]
+                                 for call in request.call_args_list if call.args[1] == "/v1/chat/completions"])
+
+    @patch("localagent_bench.providers._request")
+    def test_unknown_context_remains_unknown_and_does_not_invent_a_mismatch(self, request):
+        for context in (None, 0, -1, True, "8192"):
+            with self.subTest(context=context):
+                request.side_effect = [POLICY, {"data": [_row(context_length=context)]}]
+                model = self.provider.list_models()[0]
+                self.assertIsNone(model.details["context_length"])
+                self.assertEqual("unknown", model.details["context_length_source"])
+                request.side_effect = [POLICY, {"data": [_row(context_length=context)]}, _answer(), _answer(tool=True)]
+                self.assertTrue(self.provider.preflight_thinking(model, resolve_thinking_policy("off"), timeout=5).passed)
+
+    @patch("localagent_bench.providers._request")
+    def test_load_rechecks_context_after_successful_preflight_and_warmup_refuses_it(self, request):
+        model = OllamaModel("local/coder", None, None, None, {})
+        request.side_effect = [POLICY, {"data": [_row(context_length=32768)]}, _answer(), _answer(tool=True)]
+        self.assertTrue(self.provider.preflight_thinking(model, resolve_thinking_policy("off"), timeout=5).passed)
+        for operation in (
+            lambda: self.provider.load(model.name, timeout=5),
+            lambda: self.provider.warmup(model.name, resolve_thinking_policy("off"), timeout=5, context_window=32768),
+        ):
+            request.reset_mock()
+            request.side_effect = [POLICY, {"data": [_row(context_length=8192)]}]
+            with self.assertRaisesRegex(ContextWindowMismatch, "context_window_mismatch"):
+                operation()
+            self.assertEqual(["/benchmark/unsloth-policy", "/v1/models"],
+                             [call.args[1] for call in request.call_args_list])
 
 
 class _GatewayHandler(BaseHTTPRequestHandler):

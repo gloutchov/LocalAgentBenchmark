@@ -18,6 +18,10 @@ from .providers import LocalProvider, ProviderError
 from .thinking import ThinkingPolicy
 
 
+class ContextWindowMismatch(ValueError):
+    """The resident model cannot honor the requested Pi context budget."""
+
+
 class UnslothProvider(LocalProvider):
     """A resident model is verified, never silently loaded or unloaded."""
 
@@ -94,6 +98,10 @@ class UnslothProvider(LocalProvider):
             context = item.get("context_length")
             if isinstance(context, int) and not isinstance(context, bool) and context > 0:
                 details["context_length"] = context
+                details["context_length_source"] = "api"
+            else:
+                details["context_length"] = None
+                details["context_length_source"] = "unknown"
             models.append(self._model_from_item(
                 item, name, item.get("size_bytes"), details, with_digest=with_digest,
             ))
@@ -114,9 +122,16 @@ class UnslothProvider(LocalProvider):
         )
 
     def load(self, model: str, *, timeout: float) -> dict[str, str]:
-        if not any(item.name == model for item in self._models(timeout=timeout)):
+        current = next((item for item in self._models(timeout=timeout) if item.name == model), None)
+        if current is None:
             raise ProviderError(
                 "Unsloth: modello non residente; caricarlo manualmente / model not resident; load manually"
+            )
+        context = current.details.get("context_length")
+        if type(context) is int and context < self.context_window:
+            raise ContextWindowMismatch(
+                f"context_window_mismatch: Unsloth contesto residente {context}, richiesto {self.context_window} / "
+                "resident context is smaller than the requested context window"
             )
         return {"status": "resident_verified", "mode": self.lifecycle_mode}
 
@@ -129,7 +144,14 @@ class UnslothProvider(LocalProvider):
         self, model: OllamaModel, policy: ThinkingPolicy, *, timeout: int
     ) -> ThinkingPreflight:
         started = time.monotonic()
-        result = super().preflight_thinking(model, policy, timeout=timeout)
+        try:
+            result = super().preflight_thinking(model, policy, timeout=timeout)
+        except ContextWindowMismatch:
+            return ThinkingPreflight(
+                "context_window_mismatch", policy.requested, policy.reasoning_effort,
+                model.thinking_capable, False, 0, None,
+                max(0, round((time.monotonic() - started) * 1000)),
+            )
         if not result.passed:
             return result
         remaining = timeout - (time.monotonic() - started)
