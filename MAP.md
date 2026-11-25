@@ -40,11 +40,15 @@
 │   ├── case_sdk.py                 # discovery, manifesti, validatore e template atomico dei casi
 │   ├── integrity.py                # preflight Git, snapshot, SHA-256 e drift repository
 │   ├── thinking.py                 # mapping puro e policy thinking Pi/provider
-│   ├── provider_adapter.py         # contratto interno e selezione dei tre adattatori
+│   ├── provider_adapter.py         # contratto interno e selezione dei quattro adattatori
 │   ├── ollama.py                   # adapter Ollama: tags/version, capability, preflight, warmup e unload
 │   ├── providers.py                # HTTP locale condiviso, SHA-256 GGUF e preflight OpenAI-compatible
 │   ├── lmstudio.py                 # discovery, load e unload LM Studio
 │   ├── llama_cpp.py                # discovery e transizioni load/unload del router llama.cpp
+│   ├── unsloth.py                  # GGUF residenti, policy inference-only, thinking e tool calling
+│   ├── provider_auth.py            # lookup host OS store o prompt CLI in memoria, nessuna persistenza
+│   ├── provider_gateway.py         # HTTP loopback a destinazione/route fisse, auth e limiti I/O
+│   ├── provider_session.py         # vita gateway condivisa CLI/GUI e origine stabile nei manifesti
 │   ├── pi_adapter.py               # config/payload Pi, JSONL, timeout/cleanup processi, scratch e audit path/rete
 │   ├── pi_compatibility.py         # server sintetico loopback e gate contrattuale Pi
 │   ├── runner.py                   # ordine seeded, preflight, workspace, controlli e artefatti
@@ -94,6 +98,10 @@
 │   ├── test_ollama.py              # capability, mapping, preflight e warmup thinking
 │   ├── test_providers.py           # discovery, hash GGUF, preflight e gestione modelli alternativi
 │   ├── test_provider_http.py       # roundtrip HTTP, timeout e transizioni dei provider locali
+│   ├── test_provider_auth.py       # store sintetici, prompt, validazione e assenza leak
+│   ├── test_provider_gateway.py    # scope key, route, framing, SSE, timeout, limiti e redazione
+│   ├── test_unsloth.py             # GGUF precaricati, policy, thinking, tool calling e lifecycle
+│   ├── test_unsloth_integration.py # sessione host, runner/GUI/Preliminary, privacy e comparabilità
 │   ├── test_pi_thinking_contract.py # Pi reale contro server OpenAI-compatible fittizio
 │   ├── test_pi_compatibility.py    # regressioni del gate Pi con payload/errori simulati
 │   ├── test_pi_adapter.py          # eventi Pi, audit e timeout con processi figli
@@ -116,7 +124,7 @@
 ├── QUICK-START_Showcase.md          # export, freeze, run finalisti e verifica browser
 ├── QUICK-START_Dashboard.md         # launcher, import, snapshot locale e troubleshooting
 ├── QUICK-START_Guided.md            # funnel senza terminale, piattaforme, privacy e limiti
-├── QUICK-START_LocalProviders.md    # installazione Pi/provider, router GGUF e provenienza
+├── QUICK-START_LocalProviders.md    # installazione Pi/provider, Unsloth, credenziali e provenienza
 ├── SECURITY_MODEL.md               # controlli, rischi e limiti bilingui
 ├── SECURITY.md                     # canale privato e ambito delle segnalazioni
 ├── CONTRIBUTING.md                 # regole e verifiche per contribuire
@@ -129,3 +137,5 @@
 `results/` nasce al primo run. Il percorso rapido crea `results/guided-<timestamp>-<suffix>/guided-run.json` più tre sottodirectory distinte `smoke/`, `standard/`, `full/`; il manifesto atomico conserva impostazioni, seed, classifiche, esclusioni e passaggi, mentre ogni sottodirectory mantiene i normali artefatti raw. `benchmark-context/` contiene la fotografia condivisa e verificata di manifesti, prompt, fixture, grader, rubriche e `EXECUTION_POLICY.snapshot.md`; `run.json` schema 4 registra commit/stato Git, seed, ordine task, SHA-256, versione audit, sandbox, hardware, versioni Pi/Ollama, digest/capability modello, policy/preflight thinking, retry, timeout idle, warmup e violazioni. Ogni tentativo contiene una `workspace/` deliberatamente modificabile dal modello, una `.benchmark-scratch/` interna ignorata da Git (profilo Seatbelt o socket del broker Linux quando applicabili), una `.pi-agent/` per-task e artefatti fratelli (`result.json`, `grade.json`, `pi-events.jsonl`, `diff.patch` e l'eventuale `manual-rubric.md`), inclusi tree baseline, audit, stato thinking osservabile, backend e metriche di sistema. Gli eventi raw possono contenere reasoning; preflight, report ed export ne conservano soltanto conteggi/stato. Su Windows, metadata di cleanup e sole fasi/conteggi byte del broker vengono registrati negli artefatti runtime; il named pipe vive nel namespace AppContainer della sessione. `comparison-*` contiene `comparison.json` e `COMPARISON.md` per run compatibili anche rispetto al controllo thinking. `dashboard-data-*.json` schema 3 contiene soltanto i campi in whitelist, inclusi codici sintetici d'esclusione; gli schemi 1/2 restano leggibili e i run legacy sono marcati non verificati. La dashboard presenta classifiche, fattori e mappe qualità/tempo e qualità/token separate per run/modalità, con assi orizzontali logaritmici, e limita il funnel alla progressione `smoke` → `standard` → `full`; i profili `thinking` e `showcase` restano coorti indipendenti. Il dataset definitivo va congelato nella fixture `results_dashboard` e committato prima del profilo `showcase`. La dashboard ufficiale usa quella fixture come fallback in memoria e, tramite `dashboard.py`, aggrega i run locali senza esporre i file raw. `dashboard/data/snapshot.js` viene creato soltanto su richiesta per l'apertura `file://` ed è ignorato da Git. La landing sotto `site/` è una superficie pubblica distinta: usa soltanto asset locali, distingue percorso rapido, full immersion da terminale e requisiti iniziali, filtra il manuale per lingua e mostra soltanto istruzioni e quick start nella sezione documentale; salva lingua/tema e il workflow Pages carica esclusivamente quella directory. I fotogrammi pubblicabili derivano da `assets/Dashboard.mov` e `assets/Guided.mov`, ma i video sorgente restano ignorati e fuori dall'artefatto Pages. `output/playwright/` e `.playwright-cli/` sono output locali ignorati. I file sorgente sotto `cases/` non devono essere modificati durante un'esecuzione; il preflight Git li richiede puliti e il confronto post-task rileva cambiamenti successivi.
 
 Preliminary 0.14.0: `preliminary_suite.py` valida impostazioni e grader JSON; `preliminary_stream.py` misura SSE locale con limiti; `preliminary.py` orchestra le sonde dietro i gate del runner; `preliminary_report.py` aggrega senza score. `tests/test_preliminary.py` verifica protocollo, tre provider sintetici, limiti, integrità, privacy ed esportazione. Dashboard schema 4 e landing mantengono asset locali.
+
+Unsloth 0.15.0: `provider_auth.py` legge una chiave protetta soltanto nell'host; `provider_session.py` gestisce il gateway per comando/fase; `provider_gateway.py` verifica la policy inference-only e inoltra solo discovery/chat, con deadline, limiti e redazione. `unsloth.py` seleziona GGUF locali residenti e verifica thinking e tool calling senza load/unload automatici. Configurazione e manifesti mantengono riferimenti/stati, origine stabile, versione runtime/backend e digest; la porta effimera e la chiave reale restano fuori dagli artefatti. Le nuove suite usano esclusivamente credenziali e server sintetici. I due GET aggiunti a ogni POST rientrano nei tempi E2E, mentre preflight/warmup separati restano esclusi dalle metriche task.

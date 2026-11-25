@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -65,6 +66,15 @@ class GuidedSettings:
 
 
 @dataclass(frozen=True)
+class ProviderTransportSettings:
+    timeout_seconds: int = 1200
+    max_request_bytes: int = 8 * 1024 * 1024
+    max_response_bytes: int = 32 * 1024 * 1024
+    max_header_bytes: int = 16384
+    max_connections: int = 16
+
+
+@dataclass(frozen=True)
 class BenchmarkConfig:
     root: Path
     ollama_url: str
@@ -80,6 +90,11 @@ class BenchmarkConfig:
     model_files: dict[str, Path] | None = None
     provider_version: str | None = None
     preliminary: PreliminarySettings | None = None
+    provider_auth_ref: str | None = None
+    provider_transport: ProviderTransportSettings = ProviderTransportSettings()
+    provider_origin_url: str | None = None  # In-memory gateway origin; never a credential.
+    provider_auth_prompt: bool = False  # CLI-only opt-in; not a persisted preference.
+    provider_backend_version: str | None = None
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -121,8 +136,28 @@ def load_config(path: Path) -> BenchmarkConfig:
         provider_kind = _require(provider, "kind", str)
     else:
         raise ConfigError("'provider' deve essere un oggetto")
-    if provider_kind not in {"ollama", "lmstudio", "llama_cpp"}:
+    if provider_kind not in {"ollama", "lmstudio", "llama_cpp", "unsloth"}:
         raise ConfigError("provider.kind non supportato")
+    if any(key in provider for key in ("api_key", "apiKey", "token", "password", "secret")):
+        raise ConfigError("Credenziali in configurazione vietate / Credentials must not be stored in configuration")
+    auth_ref = provider.get("credential_ref")
+    if auth_ref is not None and (not isinstance(auth_ref, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", auth_ref) or auth_ref.startswith("sk-")):
+        raise ConfigError("provider.credential_ref non valido / Invalid credential reference")
+    if provider_kind == "unsloth" and not auth_ref:
+        raise ConfigError("Unsloth richiede provider.credential_ref / Unsloth requires a protected credential reference")
+    if auth_ref and provider_kind != "unsloth":
+        raise ConfigError("provider.credential_ref è supportato solo per Unsloth / Credential references currently require Unsloth")
+    transport_raw = provider.get("transport", {})
+    if not isinstance(transport_raw, dict) or set(transport_raw) - set(ProviderTransportSettings.__dataclass_fields__):
+        raise ConfigError("provider.transport non valido / Invalid transport settings")
+    transport_values = {**ProviderTransportSettings().__dict__, **transport_raw}
+    bounds = {"timeout_seconds": (10, 7200), "max_request_bytes": (1024, 32 * 1024 * 1024),
+              "max_response_bytes": (1024, 128 * 1024 * 1024), "max_header_bytes": (1024, 65536),
+              "max_connections": (1, 64)}
+    if any(type(value) is not int or not bounds[key][0] <= value <= bounds[key][1]
+           for key, value in transport_values.items()):
+        raise ConfigError("provider.transport fuori limite / Transport settings outside supported limits")
+    transport = ProviderTransportSettings(**transport_values)
     ollama_url = _require(provider, "url", str).rstrip("/")
     parsed_url = urlparse(ollama_url)
     try:
@@ -132,6 +167,8 @@ def load_config(path: Path) -> BenchmarkConfig:
     if (parsed_url.scheme != "http" or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
             or parsed_url.username or parsed_url.password or parsed_url.path or parsed_url.query or parsed_url.fragment):
         raise ConfigError("provider.url deve essere un URL HTTP locale su loopback, senza path o credenziali")
+    if provider_kind == "unsloth" and (parsed_url.port is None or not 1 <= parsed_url.port <= 65535):
+        raise ConfigError("Unsloth richiede una porta esplicita valida / Unsloth requires an explicit valid port")
     raw_files = provider.get("model_files", {})
     if not isinstance(raw_files, dict) or any(
         not isinstance(name, str) or not isinstance(value, str) or not value
@@ -142,6 +179,10 @@ def load_config(path: Path) -> BenchmarkConfig:
     provider_version = provider.get("runtime_version")
     if provider_version is not None and (not isinstance(provider_version, str) or not provider_version.strip() or len(provider_version) > 128):
         raise ConfigError("provider.runtime_version deve essere una stringa breve non vuota")
+    backend_version = provider.get("backend_version")
+    if backend_version is not None and (provider_kind != "unsloth" or not isinstance(backend_version, str)
+            or not backend_version.strip() or len(backend_version) > 128):
+        raise ConfigError("provider.backend_version deve essere una stringa breve per Unsloth / Invalid Unsloth backend version")
 
     pi = _require(raw, "pi", dict)
     pi_command_raw = _require(pi, "command", list)
@@ -384,4 +425,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         provider_kind=provider_kind,
         model_files=model_files,
         provider_version=provider_version,
+        provider_auth_ref=auth_ref,
+        provider_transport=transport,
+        provider_backend_version=backend_version,
     )

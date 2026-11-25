@@ -2,9 +2,9 @@
 
 ## Italiano
 
-Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo** oppure al **router `llama-server` di llama.cpp**. Configurare un solo provider alla volta in `benchmark.json`; lo stesso provider viene usato da CLI, percorso guidato, preflight, warmup e task. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi, token o download automatici.
+Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo**, al **router `llama-server` di llama.cpp** oppure a **Unsloth** con un GGUF locale già caricato e una chiave di sola inferenza. Configurare un solo provider alla volta in `benchmark.json`; lo stesso provider viene usato da CLI, percorso guidato, preflight, warmup e task. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi o download automatici; Unsloth richiede una chiave locale protetta, mentre gli altri tre adapter mantengono la modalità senza autenticazione.
 
-I tre provider sono gestiti da adattatori interni separati. La selezione resta `provider.kind` in `benchmark.json`: non servono file ricetta aggiuntivi e il formato dei run non cambia.
+I quattro provider sono gestiti da adattatori interni separati. La selezione resta `provider.kind` in `benchmark.json`: non servono file ricetta aggiuntivi e il formato dei run non cambia.
 
 ### Installazione e verifica su Windows
 
@@ -51,9 +51,56 @@ Poi eseguire `doctor`, `list` e uno smoke su un solo modello come sopra. L'integ
 
 `/models/load` e `/models/unload` possono confermare le richieste prima che l'istanza del modello abbia concluso il cambio di stato. Il benchmark attende `loaded` da `/models` prima dell'inferenza e `unloaded` prima di un nuovo caricamento. Un processo fallito o un timeout di caricamento escludono il modello prima dell'inferenza. Caricamento e scaricamento non contribuiscono ai tempi della task.
 
+### Unsloth
+
+1. Installare manualmente una versione di [Unsloth con API locale](https://unsloth.ai/docs/basics/api). Caricare nell'app un **GGUF locale** compatibile con tool calling e mantenere attivo il server su HTTP loopback. Modelli remoti, MLX e modelli non ancora caricati non appartengono al percorso Unsloth di questa versione del benchmark.
+2. Creare nell'interfaccia ufficiale una chiave con accesso **`inference`**, senza privilegi completi. Il benchmark ne verifica la restrizione prima dell'inferenza; una chiave completa, una versione senza la policy richiesta o un controllo non verificabile interrompono il percorso. La policy di sola inferenza del server disabilita strumenti host, ricerca web, esecuzione codice e caricamento automatico; gli strumenti delle task rimangono quelli di Pi nella sandbox selezionata.
+3. Conservare la chiave usando il gestore credenziali del proprio sistema, senza inserirla in `benchmark.json`, file `.env`, comandi o variabili d'ambiente. Il benchmark legge elementi già esistenti e non li crea né modifica:
+   - **macOS:** in Accesso Portachiavi creare un elemento password generico con servizio/nome `LocalAgentBenchmark` e account `unsloth-local`.
+   - **Windows:** in Gestione credenziali aggiungere una credenziale generica con destinazione `LocalAgentBenchmark:unsloth-local`; la password è la chiave API, conservata come stringa UTF-16. Il nome utente non è usato per il lookup.
+   - **Linux:** usare un Secret Service disponibile nella sessione e `secret-tool`. Per creare un elemento interattivo: `secret-tool store --label='LocalAgent Benchmark Unsloth' service LocalAgentBenchmark account unsloth-local`; inserire la chiave al prompt del gestore, senza aggiungerla alla riga di comando.
+4. Configurare il provider nel file centrale, usando la porta mostrata dalla propria installazione. L'URL è la sola origine, **senza `/v1`**:
+
+   ```json
+   "provider": {
+     "kind": "unsloth",
+     "url": "http://127.0.0.1:8888",
+     "credential_ref": "unsloth-local",
+     "runtime_version": "versione-Unsloth-verificata-localmente",
+     "backend_version": "versione-backend-verificata-localmente",
+     "model_files": {"ID_GGUF_DA_LIST": "/percorso/locale/modello.gguf"},
+     "transport": {
+       "timeout_seconds": 1200,
+       "max_request_bytes": 8388608,
+       "max_response_bytes": 33554432,
+       "max_header_bytes": 16384,
+       "max_connections": 16
+     }
+   }
+   ```
+
+   `credential_ref` è soltanto un nome scelto dall'utente e deve coincidere con l'account/riferimento del portachiavi. Tutti i limiti di `provider.transport` sono validati e facoltativi; i valori mostrati sono i default. Su Windows usare un percorso GGUF del tipo `C:/modelli/modello.gguf`. Per `compare` sono richiesti versione Unsloth dichiarata, `provider.backend_version` e digest GGUF; questi dati restano dichiarazioni dell'utente sull'installazione selezionata.
+5. Eseguire `python3 benchmark.py doctor`, `python3 benchmark.py list`, quindi uno smoke su un solo ID realmente caricato: `python3 benchmark.py run --profile smoke --models ID_GGUF_DA_LIST --thinking off --sandbox required --timeout 300`. Su Windows usare `py -3` al posto di `python3`.
+
+Per usare la CLI senza conservare la chiave nel portachiavi, scegliere esplicitamente il prompt in memoria **prima del sottocomando**:
+
+```bash
+python3 benchmark.py --credential-prompt doctor
+python3 benchmark.py --credential-prompt list
+python3 benchmark.py --credential-prompt run --profile smoke --models ID_GGUF_DA_LIST --thinking off --sandbox required --timeout 300
+```
+
+Ogni processo richiede nuovamente la chiave; il prompt richiede un terminale interattivo, non è persistito e non è disponibile nella GUI. Il percorso guidato legge il portachiavi prima del rilevamento e nelle singole fasi. La chiave reale resta nel gateway host a destinazione fissa; Pi riceve una chiave fittizia e soltanto il canale locale controllato. Nei risultati viene conservato l'endpoint di origine, senza la porta effimera del gateway o la chiave.
+
+**Misure:** ogni POST di generazione attraversa due letture aggiuntive di policy/modelli nel gateway. Il loro tempo è incluso nella latenza al primo testo, nella durata E2E delle task Pi e nelle sonde Preliminary, incluso il denominatore token/s E2E. Preflight e warmup separati restano esclusi dalle metriche delle task. Per confronti usare lo stesso provider e condizioni compatibili; il costo del gateway non è decode puro.
+
+**Lifecycle:** il benchmark verifica i GGUF già caricati; non esegue load/unload di Unsloth, non scarica pesi e non può certificare un reset della cache o un avvio a freddo. Caricamenti, scaricamenti e cambi del set di modelli sono operazioni manuali, da completare prima di un nuovo run. Un modello scaricato durante la prova fallisce il controllo invece di essere ricaricato automaticamente.
+
+**Diagnosi:** credenziale assente/negata → controllare riferimento e accesso al gestore o usare il prompt CLI; chiave completa/policy non verificabile → creare una chiave `inference` su una versione supportata; elenco vuoto → caricare un GGUF locale; esclusione thinking → scegliere una combinazione modello/template che rispetti la modalità richiesta, senza fallback; timeout → controllare separatamente timeout della task, delle sonde Preliminary e del gateway. Le letture native dei portachiavi e gli smoke reali dipendono dalla piattaforma e richiedono verifica locale; test con server sintetici non attestano da soli la compatibilità di un'installazione Unsloth reale.
+
 ### Provenienza e confronti
 
-Per `compare` su più run LM Studio/llama.cpp, aggiungere alla sezione `provider` la versione del runtime letta localmente (`lms --version` o `llama-server --version`) e il file GGUF effettivo di ogni modello selezionato:
+Per `compare` su più run LM Studio/llama.cpp/Unsloth, aggiungere alla sezione `provider` la versione del runtime letta localmente (`lms --version` o `llama-server --version`) e il file GGUF effettivo di ogni modello selezionato:
 
 ```json
 "runtime_version": "versione-letta-dal-comando-locale",
@@ -66,9 +113,9 @@ Il preflight usa `reasoning_effort: "none"` per `off` e verifica che non emerga 
 
 ## English
 
-Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, or the **llama.cpp `llama-server` router**. Select one provider at a time in `benchmark.json`; CLI, guided mode, preflight, warmup, and tasks share it. The server must use HTTP loopback. No extra Python packages, tokens, or automatic model downloads are needed.
+Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, the **llama.cpp `llama-server` router**, or **Unsloth** with an already-loaded local GGUF and an inference-only key. Select one provider at a time in `benchmark.json`; CLI, guided mode, preflight, warmup, and tasks share it. The server must use HTTP loopback. No extra Python packages or automatic model downloads are needed. Unsloth requires a protected local key; the original three adapters retain their unauthenticated mode.
 
-The three providers use separate built-in adapters. Select one with `provider.kind` in `benchmark.json`; no extra recipe files are required, and run formats do not change.
+The four providers use separate built-in adapters. Select one with `provider.kind` in `benchmark.json`; no extra recipe files are required, and run formats do not change.
 
 ### Install and verify on Windows
 
@@ -100,12 +147,31 @@ On Windows, replace `<gguf-directory>` with the real path in quotes; use the ful
 
 `/models/load` and `/models/unload` may acknowledge requests before the model instance has finished changing state. The benchmark waits for `/models` to report `loaded` before inference and `unloaded` before another load. A failed child process or load timeout excludes the model before inference. Loading and unloading time do not count toward task timing.
 
-To aggregate LM Studio or llama.cpp runs, set `provider.runtime_version` from the local runtime command and map each exact model ID to its local GGUF file in `provider.model_files`, as in the JSON example above. Paths stay local; `run.json` records SHA-256 and allowlisted metadata. Runtime version is **user-declared**, not checked against the server. `compare` rejects missing provenance or incompatible provider, endpoint, version, digest, thinking control, or other settings. An LM Studio MLX model can run individually but cannot be statistically aggregated without a GGUF digest. Hashing a large model adds startup time.
+### Unsloth
+
+1. Manually install an [Unsloth version with the local API](https://unsloth.ai/docs/basics/api). Load a tool-capable **local GGUF** in the app and keep its HTTP loopback server running. Remote models, MLX models and models that have not been loaded are outside this release's Unsloth integration.
+2. Create an **`inference`** access key through the official interface, without full privileges. The benchmark checks this restriction before inference; a full-access key, a server version lacking the required policy or an unverifiable check stops the flow. The server's inference-only policy disables provider-hosted tools, web search, code execution and automatic model loading. Task tools remain inside Pi under the selected sandbox.
+3. Store the key using your OS credential manager. Do not put it in `benchmark.json`, `.env` files, command arguments or environment variables. The benchmark only reads existing entries; it does not create or modify them:
+   - **macOS:** use Keychain Access to create a generic password item with service/name `LocalAgentBenchmark` and account `unsloth-local`.
+   - **Windows:** add a generic credential in Credential Manager with target `LocalAgentBenchmark:unsloth-local`; its password is the API key, stored as a UTF-16 string. The lookup does not use its user name.
+   - **Linux:** provide a session Secret Service and `secret-tool`. Create an entry interactively with `secret-tool store --label='LocalAgent Benchmark Unsloth' service LocalAgentBenchmark account unsloth-local`, entering the key at the store's prompt rather than in the command line.
+4. Use the same provider JSON shown in the Italian section. Replace the port with your installation's port; `provider.url` is the origin **without `/v1`**. `credential_ref` is a non-secret user-selected name matching the credential-store account/reference. The optional, validated `provider.transport` fields shown are the defaults: 1,200 seconds, 8 MiB request body, 32 MiB response body, 16 KiB headers and 16 concurrent connections. On Windows use a GGUF path such as `C:/models/model.gguf`. For `compare`, declare both the Unsloth runtime version and `provider.backend_version`, and provide GGUF digests. The runtime/backend versions remain user declarations about the selected installation.
+5. Run `python3 benchmark.py doctor`, `python3 benchmark.py list`, then a single-model smoke: `python3 benchmark.py run --profile smoke --models LOADED_GGUF_ID --thinking off --sandbox required --timeout 300`. On Windows replace `python3` with `py -3`.
+
+For the CLI's explicit memory-only key prompt, place `--credential-prompt` **before the subcommand**, for example `python3 benchmark.py --credential-prompt doctor` or `python3 benchmark.py --credential-prompt run --profile smoke --models LOADED_GGUF_ID --thinking off --sandbox required --timeout 300`. Each process asks again and requires an interactive terminal. The GUI has no key prompt: it reads the existing OS credential before discovery and each stage. The real key stays in the host's fixed-destination gateway; Pi receives only its dummy key and the controlled local channel. Results record the origin endpoint, excluding the gateway's ephemeral port and real key.
+
+**Measurements:** each generation POST includes two additional gateway reads checking policy/models. Their latency is included in first-answer time, Pi task E2E duration and Preliminary probes, including the E2E tokens/s denominator. Separate preflight and warmup remain outside task metrics. Compare the same provider under compatible conditions; gateway overhead is not pure decode time.
+
+**Lifecycle:** only already-loaded GGUF models are checked. The benchmark does not load/unload Unsloth models, download weights, certify cache reset or claim a cold start. Complete manual loading, unloading or model-set changes before a new run. A model unloaded during a run fails its check rather than being loaded automatically.
+
+**Troubleshooting:** for missing/denied credentials, check the reference and OS-store access or use the CLI prompt; for full keys or unverifiable policy, create an `inference` key on a supported server; for an empty list, load a local GGUF; for thinking exclusions, use a model/template combination honoring the requested policy without fallback; for timeouts, distinguish task, Preliminary-probe and gateway deadlines. Native credential-store access and real smoke coverage depend on the host platform and require local verification. Synthetic HTTP tests alone do not certify a real Unsloth installation.
+
+To aggregate LM Studio, llama.cpp or Unsloth runs, set `provider.runtime_version` from the local runtime command and map each exact model ID to its local GGUF file in `provider.model_files`, as in the JSON example above. Paths stay local; `run.json` records SHA-256 and allowlisted metadata. Runtime version is **user-declared**, not checked against the server. `compare` rejects missing provenance or incompatible provider, endpoint, version, digest, thinking control, or other settings. An LM Studio MLX model can run individually but cannot be statistically aggregated without a GGUF digest. Hashing a large model adds startup time.
 
 The mandatory thinking preflight sends `reasoning_effort: "none"` for `off` and checks for observable reasoning; active modes require an observable signal. Rejected or unverifiable control excludes the model without fallback. The separate Pi contract probe uses the configured provider ID against a synthetic loopback server. `required` sandbox mode allows only the selected loopback endpoint. LM Studio and llama.cpp run on the host outside the task sandbox; GGUF files are never copied into task workspaces.
 
 ## Preliminary
 
-I tre provider possono essere descritti con `python3 benchmark.py run --profile preliminary`. Le sonde usano `/v1/chat/completions` in streaming senza strumenti e richiedono il protocollo SSE con usage quando disponibile. Il preflight thinking resta obbligatorio: nessun fallback se il provider non lo rispetta. Token/sec E2E e decode dichiarato sono distinti; campi mancanti risultano N/D.
+I quattro provider possono essere descritti con `python3 benchmark.py run --profile preliminary`. Le sonde usano `/v1/chat/completions` in streaming senza strumenti e richiedono il protocollo SSE con usage quando disponibile. Il preflight thinking resta obbligatorio: nessun fallback se il provider non lo rispetta. Token/sec E2E e decode dichiarato sono distinti; campi mancanti risultano N/D.
 
-All three providers support the independent Preliminary flow through streaming `/v1/chat/completions`, without tools. SSE usage is used when available. Thinking preflight remains mandatory, with no silent fallback. E2E tokens/s and provider-reported decode are distinct; unavailable fields stay N/A. See [Preliminary](QUICK-START_Preliminary.md).
+All four providers support the independent Preliminary flow through streaming `/v1/chat/completions`, without tools. SSE usage is used when available. Thinking preflight remains mandatory, with no silent fallback. E2E tokens/s and provider-reported decode are distinct; unavailable fields stay N/A. See [Preliminary](QUICK-START_Preliminary.md).

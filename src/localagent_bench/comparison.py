@@ -122,6 +122,9 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         "provider_kind": configuration.get("provider_kind", environment.get("provider_kind", "ollama")),
         "provider_url": configuration.get("provider_url", configuration.get("ollama_url")),
         "provider_version": environment.get("provider_version", environment.get("ollama")),
+        "provider_backend_version": environment.get("provider_backend_version"),
+        "provider_transport": tuple(sorted((configuration.get("provider_transport") or {}).items())),
+        "provider_controls": json.dumps(manifest.get("provider_controls", {}), sort_keys=True),
         "model_capabilities": tuple(capability_signature),
         "warmup": configuration.get("warmup", manifest.get("warmup")),
         "context_window": configuration.get("context_window"),
@@ -182,6 +185,8 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
     reference = _compatibility_signature(loaded[0][1], loaded[0][2])
     if reference["provider_kind"] != "ollama":
         for run_dir, manifest, report in loaded:
+            if reference["provider_kind"] == "unsloth" and not manifest.get("environment", {}).get("provider_backend_version"):
+                raise ComparisonError(f"Versione backend Unsloth non registrata in {run_dir.name}")
             if not _compatibility_signature(manifest, report).get("provider_version"):
                 raise ComparisonError(f"Versione runtime locale non registrata in {run_dir.name}")
             metadata = manifest.get("model_metadata", {})

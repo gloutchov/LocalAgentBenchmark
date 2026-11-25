@@ -100,12 +100,12 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
             if not verify(model):
                 break
             provider.unload(model)
-            data['lifecycle'].append({'model':model,'event':'unload_before','status':'ok'})
+            data['lifecycle'].append({'model':model,'event':'unload_before','status':'not_supported' if provider.kind == 'unsloth' else 'ok'})
             if provider.explicit_load:
                 load_started = time.monotonic()
                 provider.load(model, timeout=options.timeout_seconds)
-                manifest["load_events"].append({"model":model,"status":"loaded","scope":"preliminary","duration_ms":round((time.monotonic()-load_started)*1000)})
-                data['lifecycle'].append({'model':model,'event':'load','status':'ok'})
+                manifest["load_events"].append({"model":model,"status":"preloaded" if provider.kind == 'unsloth' else "loaded","scope":"preliminary","duration_ms":round((time.monotonic()-load_started)*1000)})
+                data['lifecycle'].append({'model':model,'event':'load','status':'preloaded' if provider.kind == 'unsloth' else 'ok'})
             if manifest['warmup']:
                 metrics = provider.warmup(model,policy,timeout=options.timeout_seconds,context_window=config.defaults.context_window)
                 safe_metrics = {key:metrics.get(key) for key in ("total_duration","load_duration","prompt_eval_count","eval_count","eval_duration") if type(metrics.get(key)) in (int,float)} if isinstance(metrics,dict) else {}
@@ -143,7 +143,7 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
         finally:
             try:
                 provider.unload(model)
-                data['lifecycle'].append({'model':model,'event':'unload_after','status':'ok'})
+                data['lifecycle'].append({'model':model,'event':'unload_after','status':'not_supported' if provider.kind == 'unsloth' else 'ok'})
             except Exception as exc:
                 data['lifecycle'].append({'model':model,'event':'unload_after','status':'error','error_type':type(exc).__name__})
                 violation(model,'provider_unload_failed',[])

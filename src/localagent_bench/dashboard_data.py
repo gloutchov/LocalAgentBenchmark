@@ -41,7 +41,7 @@ SCHEMA_2_RUN_FIELDS = SCHEMA_3_RUN_FIELDS - {"exclusions"}
 LEGACY_RUN_FIELDS = SCHEMA_2_RUN_FIELDS - {"thinking_control"}
 EXCLUSION_FIELDS = {"model", "reason", "case_id"}
 EXCLUSION_REASONS = {
-    "thinking_observed_off", "thinking_unverified", "workspace_boundary",
+    "thinking_observed_off", "thinking_unverified", "provider_incompatible", "workspace_boundary",
     "repository_mutation", "snapshot_mutation", "integrity_other",
 }
 PUBLIC_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -364,7 +364,9 @@ def _sanitize_exclusions(
     output: list[dict[str, str | None]] = []
     for model in disqualified:
         preflight = preflights.get(model) if isinstance(preflights.get(model), dict) else {}
-        if requested == "off" and preflight.get("status") == "unexpected_thinking":
+        if preflight.get("status") == "tool_calling_not_verified":
+            by_model[model].insert(0, ("provider_incompatible", None))
+        elif requested == "off" and preflight.get("status") == "unexpected_thinking":
             by_model[model].insert(0, ("thinking_observed_off", None))
         elif model in _string_list(thinking.get("disqualified_models")):
             by_model[model].insert(0, ("thinking_unverified", None))

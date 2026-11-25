@@ -41,6 +41,8 @@ from .pi_adapter import (
 )
 from .pi_compatibility import PiCompatibility, REFERENCE_PI_VERSION, check_pi_compatibility
 from .provider_adapter import create_provider
+from .providers import ProviderError
+from .provider_session import provider_origin, provider_session
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
 from .system_metrics import hardware_snapshot
@@ -238,16 +240,25 @@ def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None)
     git_path = shutil.which("git")
     checks.append({"name": "git", "ok": git_path is not None, "detail": git_path or "comando non trovato"})
     try:
-        provider = create_provider(config)
-        models = provider.list_models()
-        inspected: list[OllamaModel] = []
-        for model in models:
+        if config.provider_kind == "unsloth" and not pi_compatibility.passed:
+            raise ProviderError("Unsloth: credenziale non letta, contratto Pi fallito / credential not read, Pi contract failed")
+        if config.provider_kind == "unsloth":
             try:
-                inspected.append(provider.inspect_model(model))
-            except Exception:
-                inspected.append(model)
-        models = inspected
-        provider_version = provider.version()
+                require_clean_inputs(config.root, config.cases.values(),
+                                     (config.preliminary.suite,) if config.preliminary else ())
+            except InputIntegrityError:
+                raise ProviderError("Unsloth: credenziale non letta, input protetti modificati / credential not read, protected inputs are dirty") from None
+        with provider_session(config) as provider_config:
+            provider = create_provider(provider_config)
+            models = provider.list_models()
+            inspected: list[OllamaModel] = []
+            for model in models:
+                try:
+                    inspected.append(provider.inspect_model(model))
+                except Exception:
+                    inspected.append(model)
+            models = inspected
+            provider_version = provider.version()
         checks.append(
             {
                 "name": config.provider_kind,
@@ -339,6 +350,24 @@ def run_benchmark(
             f"Pi {REFERENCE_PI_VERSION} è la versione di riferimento verificata / "
             f"Pi {REFERENCE_PI_VERSION} is the verified reference version"
         )
+    with provider_session(config) as active_config:
+        return _run_provider_session(
+            active_config, profile=profile, requested_models=requested_models,
+            cases=cases, extra_paths=extra_paths, preliminary=preliminary,
+            repetitions=repetitions, timeout_seconds=timeout_seconds,
+            thinking_level=thinking_level, use_warmup=use_warmup,
+            output_dir=output_dir, order_seed=order_seed, sandbox=sandbox,
+            pi_version=pi_version, pi_compatibility=pi_compatibility,
+        )
+
+
+def _run_provider_session(
+    config: BenchmarkConfig, *, profile: str, requested_models: list[str] | None,
+    cases: list[CaseSpec], extra_paths: tuple[Path, ...], preliminary: bool,
+    repetitions: int | None, timeout_seconds: int | None, thinking_level: str | None,
+    use_warmup: bool | None, output_dir: Path | None, order_seed: int | None,
+    sandbox: Any, pi_version: str | None, pi_compatibility: PiCompatibility,
+) -> Path:
     provider = create_provider(config)
     installed = provider.list_models()
     models = _resolve_models(config, requested_models, installed)
@@ -419,9 +448,9 @@ def run_benchmark(
         "sandbox": sandbox.to_dict(),
         "configuration": {
             "provider_kind": config.provider_kind,
-            "provider_url": config.ollama_url,
+            "provider_url": provider_origin(config),
             "pi_command": list(config.pi_command),
-            "ollama_url": config.ollama_url,
+            "ollama_url": provider_origin(config),
             "timeout_seconds": timeout,
             "repetitions": repeat_count,
             "thinking": thinking_policy.requested,
@@ -462,6 +491,15 @@ def run_benchmark(
         },
         "model_metadata": {name: asdict(installed_by_name[name]) for name in models},
     }
+    if config.provider_kind == "unsloth":
+        manifest["provider_controls"] = {
+            "authentication": "memory_prompt" if config.provider_auth_prompt else "protected_reference",
+            "server_tools": "disabled_by_inference_only_key",
+            "lifecycle": "preloaded_manual",
+            "cold_start_verified": False,
+        }
+        manifest["configuration"]["provider_transport"] = asdict(config.provider_transport)
+        manifest["environment"]["provider_backend_version"] = config.provider_backend_version
     _write_manifest(run_dir, manifest)
 
     preflight_by_model: dict[str, ThinkingPreflight] = {}
@@ -574,7 +612,8 @@ def run_benchmark(
                     active_model = None
                     continue
                 manifest["load_events"].append({
-                    "sequence": current, "model": model, "status": "loaded",
+                    "sequence": current, "model": model,
+                    "status": "preloaded" if provider.kind == "unsloth" else "loaded",
                     "duration_ms": max(0, round((time.monotonic() - load_started) * 1000)),
                 })
             if should_warmup:

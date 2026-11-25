@@ -1,17 +1,17 @@
 # Manuale utente – LocalAgent Benchmark
 
-Versione corrente: **0.14.0**. Questa patch aggiorna l'azione GitHub che prepara Python nei workflow CI e Pages; installazione, comandi e configurazione del benchmark restano invariati.
+Versione corrente: **0.15.0**. Aggiunge Unsloth come provider locale con autenticazione protetta, strumenti host disabilitati e GGUF già caricati; Pi resta l'agente delle task.
 
 ## 1. Scopo
 
-LocalAgent Benchmark confronta modelli locali Ollama, LM Studio o llama.cpp quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
+LocalAgent Benchmark confronta modelli locali Ollama, LM Studio, llama.cpp o Unsloth quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
 
 Ogni provider usa un adattatore interno dedicato, selezionato da `provider.kind` in `benchmark.json`. Comandi, configurazione e formato dei risultati restano uguali; Pi rimane l'agente utilizzato per le task.
 
 ## 2. Requisiti
 
 - Python 3.10+ e Git nel `PATH`;
-- un server locale configurato e raggiungibile su loopback: Ollama, LM Studio 0.4+ oppure il router `llama-server`;
+- un server locale configurato e raggiungibile su loopback: Ollama, LM Studio 0.4+, il router `llama-server` oppure Unsloth con chiave di sola inferenza;
 - Pi installato come comando `pi` (ogni versione deve superare il test di compatibilità locale);
 - modelli locali già scaricati e adatti al tool calling;
 - spazio libero sufficiente per una copia delle fixture per ogni esecuzione.
@@ -215,8 +215,11 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 
 `benchmark.json` contiene tutti i parametri modificabili:
 
-- `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;
+- `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`, `unsloth`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;
 - `provider.runtime_version` e `provider.model_files`: versione dichiarata e path GGUF opzionali per il singolo run, obbligatori per aggregare run dei provider alternativi;
+- `provider.credential_ref`: solo per Unsloth, riferimento non segreto a una chiave protetta, per esempio `unsloth-local`;
+- `provider.backend_version`: versione backend Unsloth dichiarata dall'utente, necessaria insieme a runtime e digest GGUF per `compare`;
+- `provider.transport`: limiti del gateway Unsloth, con default `timeout_seconds: 1200`, `max_request_bytes: 8388608`, `max_response_bytes: 33554432`, `max_header_bytes: 16384`, `max_connections: 16`;
 - `pi.command`: comando e argomenti iniziali di Pi;
 - `models`: `installed` oppure lista stabile;
 - `defaults`: timeout task/preflight, ripetizioni, thinking, timeout idle HTTP, retry agente/provider, warmup, keep-alive, contesto, output massimo, temperatura e modalità sandbox;
@@ -225,7 +228,13 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 - `dashboard`: directory degli asset, directory dei risultati, sorgente dello snapshot, host loopback, porta e apertura automatica del browser.
 - `guided`: sequenza obbligatoria `smoke`, `standard`, `full`, limiti di promozione decrescenti `4`, `2` e file locale delle preferenze GUI.
 
-La configurazione viene validata all'avvio. Non contiene e non deve contenere segreti. Pi riceve una chiave fittizia pari all'ID del provider; sono supportati server locali senza autenticazione. I GGUF dichiarati sono letti dall'host per calcolare SHA-256, senza copiarli nei risultati; la corrispondenza fra ID modello e file è dichiarata dall'utente. La versione runtime non è verificata automaticamente. Un run singolo funziona senza questi campi, ma `compare` richiede versione e digest per LM Studio/llama.cpp. La GUI e la CLI usano la stessa selezione; per cambiarla occorre modificare `benchmark.json` prima di avviare un nuovo run.
+La configurazione viene validata all'avvio. Non contiene e non deve contenere segreti. Pi riceve una chiave fittizia pari all'ID del provider. Unsloth usa una chiave reale soltanto nel gateway host, letta dal portachiavi del sistema o inserita esplicitamente in memoria da terminale. I GGUF dichiarati sono letti dall'host per calcolare SHA-256, senza copiarli nei risultati; la corrispondenza fra ID modello e file è dichiarata dall'utente. La versione runtime non è verificata automaticamente. Un run singolo funziona senza questi campi, ma `compare` richiede versione e digest per LM Studio/llama.cpp/Unsloth. La GUI e la CLI usano la stessa selezione; per cambiarla occorre modificare `benchmark.json` prima di avviare un nuovo run.
+
+### Unsloth: credenziali e modelli residenti
+
+Seguire la [guida provider](QUICK-START_LocalProviders.md#unsloth) per creare una chiave con accesso `inference` e un elemento nel portachiavi del sistema. La GUI legge soltanto tale elemento. La CLI può invece richiedere la chiave per il solo processo con `python3 benchmark.py --credential-prompt doctor` oppure `python3 benchmark.py --credential-prompt run --profile smoke --models ID_GGUF --thinking off --sandbox required`. L'opzione precede il sottocomando e richiede un terminale interattivo; non inserire la chiave nel comando o nell'ambiente.
+
+Caricare manualmente un GGUF locale in Unsloth prima di `doctor` e `list` e conservarlo caricato per tutta la prova. Le chiavi complete, i modelli remoti/MLX, il caricamento automatico e gli strumenti host Unsloth non sono ammessi. Nessun unload o reset cache è certificato per questo provider. Ogni POST di generazione include due controlli host di policy/modelli: il loro costo rientra nel primo testo e nei tempi E2E Pi/Preliminary, distinto da preflight e warmup esclusi dalle metriche task.
 
 ### Creazione e validazione di casi personali
 
@@ -268,7 +277,7 @@ Il modello primo in classifica non è automaticamente il migliore per ogni uso. 
 
 ## 7. Riproducibilità
 
-Usare stessa configurazione, stesso profilo, stessa modalità thinking, stesso numero di ripetizioni, stesso seed e stesso computer. Chiudere carichi pesanti e mantenere condizioni termiche/alimentazione comparabili. Il runner scarica il modello, esegue il preflight separato e lo scarica di nuovo; prima di ogni cambio modello può poi registrare un warmup aggiuntivo e avviare la task. Preflight e warmup non entrano nei tempi o token della task.
+Usare stessa configurazione, stesso profilo, stessa modalità thinking, stesso numero di ripetizioni, stesso seed e stesso computer. Chiudere carichi pesanti e mantenere condizioni termiche/alimentazione comparabili. Per i provider con lifecycle automatico il runner scarica il modello, esegue il preflight separato e lo scarica di nuovo; Unsloth conserva i GGUF precaricati e registra il lifecycle manuale; prima di ogni cambio modello può poi registrare un warmup aggiuntivo e avviare la task. Preflight e warmup non entrano nei tempi o token della task.
 
 All'avvio `AGENTS.md`, `.gitignore`, manifesti, prompt, fixture, grader e rubriche selezionati devono essere puliti rispetto a Git. Il runner copia una volta in `benchmark-context/` soltanto i file tracciati e la policy di esecuzione, escludendo cache e output ignorati, e tutte le workspace nascono da quella fotografia. Gli hash degli input includono anche manifesto e rubrica. Ogni workspace contiene `.benchmark-scratch/`, ignorata da Git e usata anche come `TMPDIR`, `TMP` e `TEMP`: i modelli devono usarla per smoke test e file temporanei senza ricorrere a `/tmp`. Non modificare né sorgenti né snapshot durante il run. La temperatura zero limita, ma non elimina, la variabilità. Conservare l'intera directory del run quando il risultato deve essere confrontato nel tempo.
 
@@ -329,7 +338,7 @@ Non inserire dati privati, repository reali o credenziali nelle fixture. Manifes
 
 ## Preliminary: descrivere i modelli prima delle task
 
-Eseguire `python3 benchmark.py run --profile preliminary --models NOME_MODELLO --thinking off --sandbox required`. La fase misura primo testo, token/sec E2E, durata e pause, e verifica 16 domande su fonti sintetiche. Nel percorso rapido il toggle Preliminary è attivo nella nuova configurazione; si può disattivare prima dell'avvio. Non modifica score, promozioni o funnel smoke/standard/full. Dopo la fase il runner scarica il modello; lo smoke ripete i propri controlli e warmup.
+Eseguire `python3 benchmark.py run --profile preliminary --models NOME_MODELLO --thinking off --sandbox required`. La fase misura primo testo, token/sec E2E, durata e pause, e verifica 16 domande su fonti sintetiche. Nel percorso rapido il toggle Preliminary è attivo nella nuova configurazione; si può disattivare prima dell'avvio. Non modifica score, promozioni o funnel smoke/standard/full. Dopo la fase il runner richiede lo scaricamento quando supportato; Unsloth resta residente con lifecycle manuale. Lo smoke ripete i propri controlli e warmup.
 
 La dashboard mostra una sezione descrittiva separata, con mediane/intervalli e conteggi di risposte corrette, mancanti, premesse false, invenzioni e astensioni inutili. N/D, troncamenti e fallimenti tecnici restano espliciti. Non è un tasso generale di allucinazioni né una misura di avvio a freddo. Le sonde HTTP non usano strumenti; la sandbox registrata copre il gate contrattuale Pi. [Guida completa, configurazione, privacy e troubleshooting](QUICK-START_Preliminary.md).
 

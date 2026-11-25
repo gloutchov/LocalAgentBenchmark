@@ -292,7 +292,7 @@ def _error_from_doctor(payload: dict[str, Any]) -> GuidedError:
     detail = "; ".join(str(item.get("detail", "")) for item in failed)
     if "ollama" in names:
         return GuidedError("ollama_unavailable", detail or "Ollama non raggiungibile")
-    if "lmstudio" in names or "llama_cpp" in names:
+    if names & {"lmstudio", "llama_cpp", "unsloth"}:
         return GuidedError("provider_unavailable", detail or "Provider locale non raggiungibile")
     if "pi" in names:
         return GuidedError("pi_unavailable", detail or "Pi non disponibile")
@@ -615,7 +615,7 @@ class GuidedOrchestrator:
                         for model in current_models:
                             try:
                                 cleanup_provider.unload(model, timeout=5)
-                                phase_record['cleanup'].append({'model':model,'status':'ok'})
+                                phase_record['cleanup'].append({'model':model,'status':'not_supported' if self.config.provider_kind == 'unsloth' else 'ok'})
                             except Exception as exc:
                                 phase_record['cleanup'].append({'model':model,'status':'error','error_type':type(exc).__name__})
                     phase_record["status"] = "cancelled"

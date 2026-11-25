@@ -45,7 +45,9 @@ def _request(url: str, path: str, payload: dict[str, Any] | None = None, *, time
                 raise ProviderError(f"Risposta troppo grande da {path}")
             result = json.loads(raw)
     except urllib.error.HTTPError as exc:
-        raise ProviderError(f"Endpoint locale {path}: HTTP {exc.code}") from exc
+        status = exc.code
+        exc.close()
+        raise ProviderError(f"Endpoint locale {path}: HTTP {status}") from None
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise ProviderError(f"Endpoint locale {path} non disponibile: {type(exc).__name__}") from exc
     if not isinstance(result, dict):
@@ -78,13 +80,17 @@ class LocalProvider:
                 from .llama_cpp import LlamaCppProvider
 
                 cls = LlamaCppProvider
+            elif kind == "unsloth":
+                from .unsloth import UnslothProvider
+
+                cls = UnslothProvider
             else:
                 raise ProviderError(f"Provider non supportato: {kind}")
         return super().__new__(cls)
 
     def __init__(self, kind: str, url: str, model_files: dict[str, Path] | None = None,
                  runtime_version: str | None = None, context_window: int = 32768):
-        if kind not in {"lmstudio", "llama_cpp"}:
+        if kind not in {"lmstudio", "llama_cpp", "unsloth"}:
             raise ProviderError(f"Provider non supportato: {kind}")
         self.kind = kind
         self.url = url.rstrip("/")
