@@ -24,6 +24,7 @@ class _PolicyRejection(GatewayError):
         "credential_401": (401, "provider_gateway_credential_rejected"),
         "credential_403": (403, "provider_gateway_credential_rejected"),
         "inference_scope": (403, "provider_gateway_inference_scope_required"),
+        "context_window": (409, "provider_gateway_context_window_mismatch"),
     }
 
     def __init__(self, reason: str):
@@ -275,6 +276,46 @@ class _Handler(BaseHTTPRequestHandler):
         self._verify_policy()
         self._reply(200, {"inference_only": True})
 
+    def _reasoning_history(self, message: dict[str, Any]) -> None:
+        text_fields = {"reasoning", "reasoning_content", "reasoning_text"}
+        fields = text_fields | {"reasoning_details"}
+        present = fields & set(message)
+        if not present:
+            return
+        if message.get("role") != "assistant":
+            raise GatewayError("provider_gateway_request_protocol")
+        # The complete encoded request already has a byte limit. Apply that
+        # bound to replay text too, and keep structured replay metadata shallow.
+        limit = self.server.gateway.max_request_bytes
+        for field in text_fields & present:
+            if not isinstance(message[field], str) or len(message[field].encode("utf-8")) > limit:
+                raise GatewayError("provider_gateway_request_protocol")
+        if "reasoning_details" not in present:
+            return
+        details = message["reasoning_details"]
+        if not isinstance(details, list) or len(details) > 128:
+            raise GatewayError("provider_gateway_request_protocol")
+        payload_fields = {"reasoning.text": "text", "reasoning.summary": "summary", "reasoning.encrypted": "data"}
+        for detail in details:
+            if not isinstance(detail, dict) or not isinstance(detail.get("type"), str):
+                raise GatewayError("provider_gateway_request_protocol")
+            content_field = payload_fields.get(detail["type"])
+            allowed = {"type", "id", "format", "index", content_field}
+            if detail["type"] == "reasoning.text":
+                allowed.add("signature")
+            if content_field is None or set(detail) - allowed or not isinstance(detail.get(content_field), str):
+                raise GatewayError("provider_gateway_request_protocol")
+            if len(detail[content_field].encode("utf-8")) > limit:
+                raise GatewayError("provider_gateway_request_protocol")
+            for field in ("id", "signature"):
+                value = detail.get(field)
+                if value is not None and (not isinstance(value, str) or len(value.encode("utf-8")) > limit):
+                    raise GatewayError("provider_gateway_request_protocol")
+            if "format" in detail and (not isinstance(detail["format"], str) or len(detail["format"]) > 128):
+                raise GatewayError("provider_gateway_request_protocol")
+            if "index" in detail and (type(detail["index"]) is not int or not 0 <= detail["index"] <= 2147483647):
+                raise GatewayError("provider_gateway_request_protocol")
+
     def _generation_body(self, payload: Any) -> bytes:
         allowed = {"model", "messages", "tools", "tool_choice", "stream", "stream_options",
                    "max_tokens", "max_completion_tokens", "temperature", "reasoning_effort",
@@ -290,9 +331,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(messages, list) or not messages:
             raise GatewayError("provider_gateway_request_protocol")
         for message in messages:
-            if (not isinstance(message, dict) or set(message) - {"role", "content", "name", "tool_call_id", "tool_calls"}
+            if (not isinstance(message, dict) or set(message) - {"role", "content", "name", "tool_call_id", "tool_calls",
+                                                                "reasoning", "reasoning_content", "reasoning_text", "reasoning_details"}
                     or message.get("role") not in {"system", "developer", "user", "assistant", "tool"}):
                 raise GatewayError("provider_gateway_request_protocol")
+            self._reasoning_history(message)
             content = message.get("content")
             if isinstance(content, list):
                 if any(not isinstance(part, dict) or set(part) != {"type", "text"}
@@ -308,13 +351,18 @@ class _Handler(BaseHTTPRequestHandler):
         if not isinstance(model, str) or not 1 <= len(model) <= 256:
             raise GatewayError("provider_gateway_request_protocol")
         models = self._verify_policy()
-        admitted = any(isinstance(item, dict) and item.get("id") == model
-                       and item.get("owned_by") == "unsloth-studio" and item.get("loaded") is True
-                       and (item.get("task") is None or item.get("task") == "text-generation")
-                       and ((isinstance(item.get("quant"), str) and bool(item["quant"].strip()))
-                            or model in self.server.gateway.gguf_model_ids) for item in models)
+        admitted = [item for item in models if isinstance(item, dict) and item.get("id") == model
+                    and item.get("owned_by") == "unsloth-studio" and item.get("loaded") is True
+                    and (item.get("task") is None or item.get("task") == "text-generation")
+                    and ((isinstance(item.get("quant"), str) and bool(item["quant"].strip()))
+                         or model in self.server.gateway.gguf_model_ids)]
         if not admitted:
             raise GatewayError("provider_gateway_model_not_resident_gguf")
+        expected_context = self.server.gateway.expected_context_window
+        for item in admitted:
+            context = item.get("context_length")
+            if expected_context is not None and type(context) is int and 0 < context < expected_context:
+                raise _PolicyRejection("context_window")
         payload = dict(payload)
         payload.update(store=False, enable_tools=False, enabled_tools=[], mcp_enabled=False,
                        auto_heal_tool_calls=False, nudge_tool_calls=False)
@@ -425,7 +473,7 @@ class ProviderGateway:
     def __init__(self, url: str, secret: str, *, timeout_seconds: float = 1200,
                  max_request_bytes: int = 8388608, max_response_bytes: int = 33554432,
                  max_header_bytes: int = 16384, max_connections: int = 16,
-                 gguf_model_ids: tuple[str, ...] = ()):
+                 gguf_model_ids: tuple[str, ...] = (), expected_context_window: int | None = None):
         self.target = _target(url)
         self._secret = validate_secret(secret)
         if (type(timeout_seconds) not in {float, int} or not math.isfinite(timeout_seconds)
@@ -445,6 +493,9 @@ class ProviderGateway:
         if not isinstance(gguf_model_ids, tuple) or any(not isinstance(name, str) or not name or len(name) > 256 for name in gguf_model_ids):
             raise GatewayError("provider_gateway_model_ids_invalid")
         self.gguf_model_ids = frozenset(gguf_model_ids)
+        if expected_context_window is not None and (type(expected_context_window) is not int or expected_context_window <= 0):
+            raise GatewayError("provider_gateway_context_window_invalid")
+        self.expected_context_window = expected_context_window
         self._server: _Server | None = None
         self._thread: threading.Thread | None = None
         self.url: str | None = None

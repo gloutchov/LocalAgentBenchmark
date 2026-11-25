@@ -168,6 +168,18 @@ class UnslothConfigIntegrationTests(unittest.TestCase):
         exclusions = _sanitize_exclusions(manifest, {}, [MODEL])
         self.assertEqual([{"model": MODEL, "reason": "provider_context_mismatch", "case_id": None}], exclusions)
 
+    def test_runtime_provider_exclusions_keep_the_public_reason_without_free_errors(self):
+        manifest = {"thinking_control": {"requested": "off", "disqualified_models": [MODEL],
+                    "preflights": {MODEL: {"status": "passed"}}}}
+        for kind, reason in (("provider_context_mismatch", "provider_context_mismatch"),
+                             ("provider_warmup_failed", "provider_incompatible"),
+                             ("provider_load_failed", "provider_incompatible")):
+            integrity = {"violations": [{"model": MODEL, "kind": kind, "case_id": "__warmup__",
+                                        "details": [{"error_type": "synthetic-private-error"}]}]}
+            with self.subTest(kind=kind):
+                exclusions = _sanitize_exclusions(manifest, integrity, [MODEL])
+                self.assertEqual([{"model": MODEL, "reason": reason, "case_id": None}], exclusions)
+
 
 class UnslothRuntimeIntegrationTests(unittest.TestCase):
     def setUp(self):

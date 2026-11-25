@@ -58,6 +58,46 @@ class BenchmarkError(RuntimeError):
     """Raised for failures that prevent a benchmark run from starting."""
 
 
+def _terminal_provider_error_code(stdout: str) -> str | None:
+    """Read an allowlisted code only from Pi's terminal provider-error fields."""
+    allowed = "provider_gateway_context_window_mismatch"
+
+    def code(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        # OpenAI's client prefixes its JSON error body with the HTTP status.
+        # Prose containing a code, assistant content and prompts are not errors.
+        body = re.sub(r"^[45][0-9]{2}\s+", "", value.strip(), count=1)
+        try:
+            payload = json.loads(body)
+        except (ValueError, TypeError):
+            return None
+        error = payload.get("error") if isinstance(payload, dict) else None
+        return allowed if isinstance(error, dict) and error.get("code") == allowed else None
+
+    terminal = None
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "message_end":
+            message = event.get("message")
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            reason = message.get("stopReason")
+            if isinstance(reason, str):
+                terminal = code(message.get("errorMessage")) if reason == "error" else None
+        elif event.get("type") == "auto_retry_end" and type(event.get("success")) is bool:
+            if event["success"]:
+                terminal = None
+            elif "finalError" in event:
+                terminal = code(event["finalError"])
+    return terminal
+
+
 EXECUTION_POLICY = f"""# Confine di esecuzione del benchmark / Benchmark execution boundary
 
 - Opera soltanto nella directory di lavoro corrente e nei suoi discendenti. Non leggere, elencare, copiare o modificare altri path, inclusi repository reali e directory sorelle.
@@ -630,10 +670,26 @@ def _run_provider_session(
                         if key in warmup_result
                     }
                 except Exception as exc:
-                    event["error"] = str(exc)
-                    print(f"[avviso] warmup fallito per {model}: {exc}", file=sys.stderr, flush=True)
+                    if provider.kind == "unsloth":
+                        event.update(status="failed", error_code="provider_warmup_failed",
+                                     error_type=type(exc).__name__)
+                        disqualified_thinking.add(model)
+                        manifest["thinking_control"]["disqualified_models"] = sorted(disqualified_thinking)
+                        manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
+                        _record_integrity_violation(
+                            manifest, model=model, case_id="__warmup__", repetition=0,
+                            kind="provider_warmup_failed", details=[{"error_type": type(exc).__name__}],
+                        )
+                        print(f"[avviso] warmup fallito per {model}: provider_warmup_failed",
+                              file=sys.stderr, flush=True)
+                    else:
+                        event["error"] = str(exc)
+                        print(f"[avviso] warmup fallito per {model}: {exc}", file=sys.stderr, flush=True)
                 manifest["warmup_events"].append(event)
                 _write_manifest(run_dir, manifest)
+                if model in disqualified_thinking:
+                    active_model = None
+                    continue
             active_model = model
 
         case_dir = run_dir / "models" / _slug(model) / "cases" / f"{case.id}-r{repetition}"
@@ -717,9 +773,23 @@ def _run_provider_session(
             thinking_violations.append(
                 {"reason": "unexpected_retry", "retry_events": int(retry_events)}
             )
+        provider_context_error = (
+            _terminal_provider_error_code(pi_run.stdout)
+            if config.provider_kind == "unsloth" and pi_run.metrics.get("terminal_agent_error") is True
+            else None
+        )
         valid_for_ranking = not (
             source_mutations or snapshot_mutations or external_accesses or thinking_violations
+            or provider_context_error
         )
+        if provider_context_error:
+            disqualified_thinking.add(model)
+            manifest["thinking_control"]["disqualified_models"] = sorted(disqualified_thinking)
+            manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
+            _record_integrity_violation(
+                manifest, model=model, case_id=case.id, repetition=repetition,
+                kind="provider_context_mismatch", details=[{"code": provider_context_error}],
+            )
         if source_mutations:
             _record_integrity_violation(
                 manifest,

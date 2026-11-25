@@ -217,6 +217,42 @@ class ComparisonTests(unittest.TestCase):
             ):
                 write_comparison([off, legacy], root / "mixed-legacy")
 
+    def test_corrupt_provider_signature_metadata_raises_comparison_error(self):
+        mutations = [
+            ("configuration", "provider_transport", value)
+            for value in ([], [1], "", "corrupt", False, 0, None,
+                          {"timeout_seconds": []}, {"timeout_seconds": True},
+                          {"timeout_seconds": 0}, {"timeout_seconds": float("nan")})
+        ] + [
+            (None, "provider_controls", value)
+            for value in ([], [1], "", "corrupt", False, 0, None, {"control": float("nan")})
+        ] + [
+            ("environment", "provider_backend_version", value)
+            for value in ([], [1], {}, False, 1, "", " " * 2, "v" * 129)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = [self._write_run(root, name, overall=75, verified_thinking=True)
+                    for name in ("first", "second")]
+            originals = [path.joinpath("run.json").read_text(encoding="utf-8") for path in runs]
+            for run_index in (0, 1):
+                path = runs[run_index] / "run.json"
+                for parent, field, value in mutations:
+                    manifest = json.loads(originals[run_index])
+                    target = manifest if parent is None else manifest[parent]
+                    target[field] = value
+                    path.write_text(json.dumps(manifest), encoding="utf-8")
+                    with self.subTest(run_index=run_index, field=field, value_type=type(value).__name__):
+                        with self.assertRaisesRegex(ComparisonError, field):
+                            write_comparison(runs, root / "invalid-output")
+                        self.assertFalse((root / "invalid-output").exists())
+                path.write_text(originals[run_index], encoding="utf-8")
+            # Legacy runs omit these new fields and remain compatible.
+            comparison = write_comparison(runs, root / "legacy-compatible")
+            self.assertEqual((), comparison["compatibility"]["provider_transport"])
+            self.assertEqual("{}", comparison["compatibility"]["provider_controls"])
+            self.assertIsNone(comparison["compatibility"]["provider_backend_version"])
+
     def test_pi_contract_version_is_part_of_comparison(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

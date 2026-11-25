@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import io
 import subprocess
 import sys
 import tempfile
 import unittest
 from dataclasses import replace
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,8 +23,10 @@ from localagent_bench.integrity import (
     verify_snapshot,
 )
 from localagent_bench.ollama import OllamaModel, ThinkingPreflight
-from localagent_bench.pi_adapter import AUDIT_VERSION, SCRATCH_DIRECTORY, PiRun
+from localagent_bench.pi_adapter import AUDIT_VERSION, SCRATCH_DIRECTORY, PiRun, parse_json_events
 from localagent_bench.pi_compatibility import CONTRACT_VERSION, PiCompatibility
+from localagent_bench.providers import ProviderError
+from localagent_bench.unsloth import ContextWindowMismatch
 from localagent_bench.runner import (
     BenchmarkError,
     EXECUTION_POLICY,
@@ -30,6 +34,7 @@ from localagent_bench.runner import (
     _capture_git,
     _git,
     _prepare_workspace,
+    _terminal_provider_error_code,
     run_benchmark,
 )
 
@@ -195,6 +200,187 @@ class RunnerGitTests(unittest.TestCase):
             self.assertIn("lmstudio", json.loads(settings.read_text(encoding="utf-8"))["providers"])
             manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
             self.assertEqual("loaded", manifest["load_events"][0]["status"])
+
+    def test_unsloth_warmup_revalidation_failure_excludes_without_calling_pi_or_saving_error_body(self):
+        model = OllamaModel("local/coder", 1, "gguf-digest", None, {"context_length": 32768})
+        config = replace(load_config(ROOT / "benchmark.json"), provider_kind="unsloth",
+                         ollama_url="http://127.0.0.1:8000", provider_version="synthetic")
+        sensitive = "synthetic-provider-private-error-body"
+        for failure in (ContextWindowMismatch(sensitive), ProviderError(sensitive)):
+            with self.subTest(error_type=type(failure).__name__), tempfile.TemporaryDirectory() as directory:
+                with (patch("localagent_bench.runner.require_clean_inputs"),
+                      patch("localagent_bench.runner._command_version", return_value="synthetic"),
+                      patch("localagent_bench.runner.provider_session", return_value=nullcontext(config)),
+                      patch("localagent_bench.runner.create_provider") as factory,
+                      patch("localagent_bench.runner.run_pi") as pi_mock,
+                      redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as errors):
+                    provider = _mock_provider(
+                        factory, model, ThinkingPreflight("passed", "off", "none", None, False, 0, None, 1),
+                        kind="unsloth",
+                    )
+                    # The model passed preflight and load, then its context or
+                    # authenticated policy changed during warmup revalidation.
+                    provider.load.return_value = {"status": "resident_verified", "mode": "preloaded_manual"}
+                    provider.warmup.side_effect = failure
+                    run_dir = run_benchmark(
+                        config, profile="smoke", requested_models=[model.name], requested_cases=["targeted_patch"],
+                        repetitions=1, timeout_seconds=30, thinking_level="off", use_warmup=True,
+                        output_dir=Path(directory) / "run", order_seed=1,
+                    )
+                pi_mock.assert_not_called()
+                provider.load.assert_called_once_with(model.name, timeout=30)
+                manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+                self.assertEqual([model.name], manifest["thinking_control"]["disqualified_models"])
+                self.assertEqual("failed", manifest["thinking_control"]["status"])
+                event = manifest["warmup_events"][0]
+                self.assertEqual("failed", event["status"])
+                self.assertEqual("provider_warmup_failed", event["error_code"])
+                self.assertEqual(type(failure).__name__, event["error_type"])
+                self.assertNotIn("error", event)
+                self.assertEqual("provider_warmup_failed", manifest["integrity"]["violations"][0]["kind"])
+                self.assertNotIn(sensitive, errors.getvalue())
+                for path in run_dir.rglob("*.json"):
+                    self.assertNotIn(sensitive, path.read_text(encoding="utf-8"), str(path))
+
+    def test_unsloth_warmup_failure_excludes_only_the_affected_model(self):
+        broken = OllamaModel("local/broken", 1, "broken-digest", None, {"context_length": 32768})
+        healthy = OllamaModel("local/healthy", 1, "healthy-digest", None, {"context_length": 32768})
+        config = replace(load_config(ROOT / "benchmark.json"), provider_kind="unsloth",
+                         ollama_url="http://127.0.0.1:8000", provider_version="synthetic")
+        result = PiRun("ok", 0, .01, "", "", {"usage": {"output": 1}, "tool_calls": 0, "tool_errors": 0}, "done", ["pi"])
+        with tempfile.TemporaryDirectory() as directory:
+            with (patch("localagent_bench.runner.require_clean_inputs"),
+                  patch("localagent_bench.runner._command_version", return_value="synthetic"),
+                  patch("localagent_bench.runner.provider_session", return_value=nullcontext(config)),
+                  patch("localagent_bench.runner.create_provider") as factory,
+                  patch("localagent_bench.runner.run_pi", return_value=result) as pi_mock,
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                provider = _mock_provider(
+                    factory, broken, ThinkingPreflight("passed", "off", "none", None, False, 0, None, 1),
+                    kind="unsloth",
+                )
+                provider.list_models.return_value = [broken, healthy]
+                provider.inspect_model.side_effect = lambda model, **_kwargs: model
+                def warmup(model, *_args, **_kwargs):
+                    if model == broken.name:
+                        raise ProviderError("synthetic policy failure")
+                    return {}
+                provider.warmup.side_effect = warmup
+                run_dir = run_benchmark(
+                    config, profile="smoke", requested_models=[broken.name, healthy.name], requested_cases=["targeted_patch"],
+                    repetitions=2, timeout_seconds=30, thinking_level="off", use_warmup=True,
+                    output_dir=Path(directory) / "run", order_seed=1,
+                )
+            self.assertEqual(2, pi_mock.call_count)
+            self.assertTrue(all(call.args[1] == healthy.name for call in pi_mock.call_args_list))
+            manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual([broken.name], manifest["thinking_control"]["disqualified_models"])
+            self.assertEqual("partial", manifest["thinking_control"]["status"])
+            report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual([broken.name], report["integrity"]["disqualified_models"])
+
+    def test_legacy_provider_warmup_warning_still_allows_task(self):
+        model = OllamaModel("local/coder", 1, "gguf-digest", None, {})
+        config = replace(load_config(ROOT / "benchmark.json"), provider_kind="lmstudio",
+                         ollama_url="http://127.0.0.1:1234", provider_version="synthetic")
+        result = PiRun("ok", 0, .01, "", "", {"usage": {"output": 1}, "tool_calls": 0, "tool_errors": 0}, "done", ["pi"])
+        with tempfile.TemporaryDirectory() as directory:
+            with (patch("localagent_bench.runner.require_clean_inputs"),
+                  patch("localagent_bench.runner._command_version", return_value="synthetic"),
+                  patch("localagent_bench.runner.create_provider") as factory,
+                  patch("localagent_bench.runner.run_pi", return_value=result) as pi_mock,
+                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO())):
+                provider = _mock_provider(
+                    factory, model, ThinkingPreflight("passed", "off", "none", None, False, 0, None, 1),
+                    kind="lmstudio",
+                )
+                provider.warmup.side_effect = ProviderError("legacy warning")
+                run_dir = run_benchmark(
+                    config, profile="smoke", requested_models=[model.name], requested_cases=["targeted_patch"],
+                    repetitions=1, timeout_seconds=30, thinking_level="off", use_warmup=True,
+                    output_dir=Path(directory) / "run", order_seed=1,
+                )
+            pi_mock.assert_called_once()
+            manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual([], manifest["thinking_control"]["disqualified_models"])
+            self.assertEqual("legacy warning", manifest["warmup_events"][0]["error"])
+
+    def test_provider_context_error_code_is_read_only_from_terminal_pi_error_fields(self):
+        code = "provider_gateway_context_window_mismatch"
+        body = json.dumps({"error": {"code": code}})
+        def event(error, *, role="assistant", reason="error", content=None):
+            return {"type": "message_end", "message": {
+                "role": role, "stopReason": reason, "errorMessage": error,
+                "content": content or [],
+            }}
+        cases = [
+            ([event("503 " + body)], code),
+            ([event(body)], code),
+            ([event("unrelated error", content=[{"type": "text", "text": body}])], None),
+            ([event(body, role="user")], None),
+            ([{"type": "message_update", "assistantMessageEvent": {"type": "text_delta", "delta": body}}], None),
+            ([event("quoted diagnostic: " + body)], None),
+            ([event(json.dumps({"error": {"message": code}}))], None),
+            ([event(body), event("", reason="stop")], None),
+            ([{"type": "auto_retry_end", "success": False, "finalError": "503 " + body}], code),
+            ([event(body), {"type": "auto_retry_end", "success": False, "finalError": "unrelated terminal error"}], None),
+            ([event(body), {"type": "auto_retry_end", "success": True}], None),
+        ]
+        for events, expected in cases:
+            with self.subTest(events=events):
+                self.assertEqual(expected, _terminal_provider_error_code("\n".join(json.dumps(row) for row in events)))
+
+    def test_unsloth_terminal_context_error_excludes_entire_model_and_continues_others(self):
+        broken = OllamaModel("local/broken", 1, "broken-digest", None, {"context_length": 32768})
+        healthy = OllamaModel("local/healthy", 1, "healthy-digest", None, {"context_length": 32768})
+        config = replace(load_config(ROOT / "benchmark.json"), provider_kind="unsloth",
+                         ollama_url="http://127.0.0.1:8000", provider_version="synthetic")
+        marker = "provider_gateway_context_window_mismatch"
+        body = json.dumps({"error": {"code": marker}})
+        error_events = json.dumps({"type": "message_end", "message": {
+            "role": "assistant", "stopReason": "error", "errorMessage": "503 " + body,
+            "content": [], "usage": {},
+        }})
+        good_events = json.dumps({"type": "message_end", "message": {
+            "role": "assistant", "stopReason": "stop", "content": [{"type": "text", "text": body}], "usage": {},
+        }})
+        def pi_run(_command, model, *_args, **_kwargs):
+            events = error_events if model == broken.name else good_events
+            metrics, answer = parse_json_events(events)
+            return PiRun("pi_error" if model == broken.name else "ok", 0, .01, events, "", metrics, answer, ["pi"])
+        with tempfile.TemporaryDirectory() as directory:
+            with (patch("localagent_bench.runner.require_clean_inputs"),
+                  patch("localagent_bench.runner._command_version", return_value="synthetic"),
+                  patch("localagent_bench.runner.provider_session", return_value=nullcontext(config)),
+                  patch("localagent_bench.runner.create_provider") as factory,
+                  patch("localagent_bench.runner.run_pi", side_effect=pi_run) as pi_mock,
+                  redirect_stdout(io.StringIO()) as output, redirect_stderr(io.StringIO()) as errors):
+                provider = _mock_provider(
+                    factory, broken, ThinkingPreflight("passed", "off", "none", None, False, 0, None, 1),
+                    kind="unsloth",
+                )
+                provider.list_models.return_value = [broken, healthy]
+                provider.inspect_model.side_effect = lambda model, **_kwargs: model
+                run_dir = run_benchmark(
+                    config, profile="smoke", requested_models=[broken.name, healthy.name], requested_cases=["targeted_patch"],
+                    repetitions=2, timeout_seconds=30, thinking_level="off", use_warmup=False,
+                    output_dir=Path(directory) / "run", order_seed=1,
+                )
+            self.assertEqual(1, sum(call.args[1] == broken.name for call in pi_mock.call_args_list))
+            self.assertEqual(2, sum(call.args[1] == healthy.name for call in pi_mock.call_args_list))
+            manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual([broken.name], manifest["thinking_control"]["disqualified_models"])
+            self.assertEqual("partial", manifest["thinking_control"]["status"])
+            self.assertEqual("provider_context_mismatch", manifest["integrity"]["violations"][0]["kind"])
+            self.assertEqual([{"code": marker}], manifest["integrity"]["violations"][0]["details"])
+            report = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
+            self.assertEqual([broken.name], report["integrity"]["disqualified_models"])
+            self.assertNotIn(body, output.getvalue() + errors.getvalue())
+            broken_results = [json.loads(path.read_text(encoding="utf-8"))
+                              for path in run_dir.glob("models/*/cases/*/result.json")
+                              if json.loads(path.read_text(encoding="utf-8"))["model"] == broken.name]
+            self.assertEqual(1, len(broken_results))
+            self.assertFalse(broken_results[0]["integrity"]["valid_for_ranking"])
 
     @patch("localagent_bench.runner._command_version", return_value="0.85.1")
     @patch("localagent_bench.runner.require_clean_inputs")

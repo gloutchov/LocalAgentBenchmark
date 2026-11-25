@@ -342,6 +342,9 @@ def _sanitize_exclusions(
             "external_workspace_access": "workspace_boundary",
             "repository_mutation": "repository_mutation",
             "snapshot_mutation": "snapshot_mutation",
+            "provider_context_mismatch": "provider_context_mismatch",
+            "provider_load_failed": "provider_incompatible",
+            "provider_warmup_failed": "provider_incompatible",
         }
         for item in violations:
             if not isinstance(item, dict):
@@ -370,7 +373,7 @@ def _sanitize_exclusions(
             by_model[model].insert(0, ("provider_incompatible", None))
         elif requested == "off" and preflight.get("status") == "unexpected_thinking":
             by_model[model].insert(0, ("thinking_observed_off", None))
-        elif model in _string_list(thinking.get("disqualified_models")):
+        elif model in _string_list(thinking.get("disqualified_models")) and not by_model[model]:
             by_model[model].insert(0, ("thinking_unverified", None))
         seen: set[tuple[str, str | None]] = set()
         for reason, case_id in by_model[model] or [("integrity_other", None)]:

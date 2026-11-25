@@ -92,6 +92,24 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
                 provider_details = details.get("details")
                 context = provider_details.get("context_length") if isinstance(provider_details, dict) else None
                 resident_contexts.append((str(model), context if type(context) is int and context > 0 else None))
+    provider_transport = configuration.get("provider_transport", {})
+    if not isinstance(provider_transport, dict) or any(
+        not isinstance(key, str) or type(value) is not int or value <= 0
+        for key, value in provider_transport.items()
+    ):
+        raise ComparisonError("provider_transport non valido / Invalid provider transport metadata")
+    provider_controls = manifest.get("provider_controls", {})
+    if not isinstance(provider_controls, dict):
+        raise ComparisonError("provider_controls non valido / Invalid provider control metadata")
+    try:
+        controls_signature = json.dumps(provider_controls, sort_keys=True, allow_nan=False)
+    except (TypeError, ValueError, RecursionError):
+        raise ComparisonError("provider_controls non valido / Invalid provider control metadata") from None
+    backend_version = environment.get("provider_backend_version")
+    if backend_version is not None and (
+        not isinstance(backend_version, str) or not backend_version.strip() or len(backend_version) > 128
+    ):
+        raise ComparisonError("provider_backend_version non valido / Invalid provider backend version")
     cases = manifest.get("cases")
     if not isinstance(cases, list):
         cases = sorted({str(item.get("case_id")) for item in report.get("results", []) if isinstance(item, dict)})
@@ -128,10 +146,10 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         "provider_kind": configuration.get("provider_kind", environment.get("provider_kind", "ollama")),
         "provider_url": configuration.get("provider_url", configuration.get("ollama_url")),
         "provider_version": environment.get("provider_version", environment.get("ollama")),
-        "provider_backend_version": environment.get("provider_backend_version"),
+        "provider_backend_version": backend_version,
         "provider_resident_contexts": tuple(resident_contexts),
-        "provider_transport": tuple(sorted((configuration.get("provider_transport") or {}).items())),
-        "provider_controls": json.dumps(manifest.get("provider_controls", {}), sort_keys=True),
+        "provider_transport": tuple(sorted(provider_transport.items())),
+        "provider_controls": controls_signature,
         "model_capabilities": tuple(capability_signature),
         "warmup": configuration.get("warmup", manifest.get("warmup")),
         "context_window": configuration.get("context_window"),

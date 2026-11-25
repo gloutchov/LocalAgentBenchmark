@@ -20,6 +20,7 @@ def provider_session(config: BenchmarkConfig) -> Iterator[BenchmarkConfig]:
     secret = resolve_credential(config.provider_auth_ref or "", prompt=config.provider_auth_prompt)
     gguf_ids = tuple(name for name, path in (config.model_files or {}).items() if path.suffix.lower() == ".gguf")
     with ProviderGateway(config.ollama_url, secret, gguf_model_ids=gguf_ids,
+                         expected_context_window=config.defaults.context_window,
                          **asdict(config.provider_transport)) as gateway:
         yield replace(config, ollama_url=gateway.url, provider_origin_url=config.ollama_url)
 
