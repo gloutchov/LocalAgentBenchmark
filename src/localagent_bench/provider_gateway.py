@@ -279,8 +279,12 @@ class _Handler(BaseHTTPRequestHandler):
         allowed = {"model", "messages", "tools", "tool_choice", "stream", "stream_options",
                    "max_tokens", "max_completion_tokens", "temperature", "reasoning_effort",
                    "top_p", "seed", "parallel_tool_calls", "stop", "frequency_penalty",
-                   "presence_penalty"}
+                   "presence_penalty", "store"}
         if not isinstance(payload, dict) or set(payload) - allowed:
+            raise GatewayError("provider_gateway_request_protocol")
+        # Pi's OpenAI SDK explicitly disables response storage. Permit only
+        # that boolean; no caller can enable server-side persistence here.
+        if payload.get("store", False) is not False:
             raise GatewayError("provider_gateway_request_protocol")
         messages = payload.get("messages")
         if not isinstance(messages, list) or not messages:
@@ -312,7 +316,7 @@ class _Handler(BaseHTTPRequestHandler):
         if not admitted:
             raise GatewayError("provider_gateway_model_not_resident_gguf")
         payload = dict(payload)
-        payload.update(enable_tools=False, enabled_tools=[], mcp_enabled=False,
+        payload.update(store=False, enable_tools=False, enabled_tools=[], mcp_enabled=False,
                        auto_heal_tool_calls=False, nudge_tool_calls=False)
         return json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
 

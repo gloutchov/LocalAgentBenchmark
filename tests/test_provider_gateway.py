@@ -4,8 +4,10 @@ import gc
 import http.client
 import io
 import json
+import shutil
 import socket
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -18,6 +20,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.provider_gateway import GatewayError, ProviderGateway, _SecretFilter
+from localagent_bench.ollama import OllamaModel
+from localagent_bench.pi_adapter import run_pi, write_models_config
+from localagent_bench.sandbox import select_sandbox
+from localagent_bench.thinking import resolve_thinking_policy
 
 
 def _key():
@@ -211,6 +217,43 @@ class ProviderGatewayTests(unittest.TestCase):
             self.assertEqual(403, status)
             self.assertEqual({"error": {"code": "provider_gateway_inference_scope_required"}}, json.loads(raw))
             self.assertEqual(count, sum(call[0] == "POST" for call in self.server.calls))
+
+    def test_sdk_store_false_is_allowed_without_enabling_persistence(self):
+        with ProviderGateway(self.url, _key()) as gateway:
+            status, _raw = self._call(gateway, "/v1/chat/completions", self._payload(store=False))
+            self.assertEqual(200, status)
+            self.assertIs(self.server.calls[-1][3]["store"], False)
+            count = sum(call[0] == "POST" for call in self.server.calls)
+            for value in (True, None, 0, "false", {}):
+                with self.subTest(value_type=type(value).__name__):
+                    status, _raw = self._call(gateway, "/v1/chat/completions", self._payload(store=value))
+                    self.assertEqual(503, status)
+            self.assertEqual(count, sum(call[0] == "POST" for call in self.server.calls))
+
+    @unittest.skipUnless(shutil.which("pi"), "requires installed Pi for the real gateway contract")
+    def test_real_pi_sdk_payload_passes_gateway_to_synthetic_stream(self):
+        self.server.mode = "sse"
+        with tempfile.TemporaryDirectory(prefix="lab-pi-gateway-") as name:
+            root = Path(name)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            agent_dir = root / "agent"
+            policy = resolve_thinking_policy("off")
+            model = OllamaModel("local-coder", None, None, None, {}, ("completion",), False, None)
+            with ProviderGateway(self.url, _key()) as gateway:
+                write_models_config(agent_dir, gateway.url, [model], 32768, 256, 0, policy,
+                                    http_idle_timeout_ms=0, agent_max_retries=0,
+                                    provider_max_retries=0, provider_kind="unsloth")
+                result = run_pi((shutil.which("pi"),), "local-coder", "off", "Reply with exactly OK.",
+                                workspace, agent_dir, 30, select_sandbox("audit"), gateway.url,
+                                provider_kind="unsloth")
+            self.assertEqual("ok", result.status)
+            self.assertNotIn(_key(), result.stdout)
+            posted = [call[3] for call in self.server.calls if call[0] == "POST"]
+            self.assertEqual(1, len(posted))
+            self.assertEqual("none", posted[0]["reasoning_effort"])
+            self.assertIs(posted[0]["store"], False)
+            self.assertIs(posted[0]["enable_tools"], False)
 
     def test_remote_selectors_images_sessions_and_unloaded_models_are_rejected(self):
         with ProviderGateway(self.url, _key()) as gateway:
