@@ -54,6 +54,10 @@ Le cronologie assistant possono ripetere i campi standard di reasoning del clien
 
 **Residual limits:** the gateway is a trusted host process, not provider isolation. Key-policy verification depends on the installed Unsloth version; a malicious service can forge policy responses. Use trusted runtimes and synthetic validation inputs. The key remains in Python memory during a session without guaranteed physical zeroization; literal-value redaction cannot certify absence of arbitrary transformations emitted by a hostile server. Other local processes with the user's permissions remain outside the trust boundary. Unsloth model loading, unloading and cache reset are manual, so models stay resident after completion, failure or cancellation; cold starts are not certified. Native macOS/Windows/Linux lookups and real smoke coverage require verification on an available host. Synthetic credential tests never read real OS stores and alone do not certify a provider installation.
 
+Il rilevamento multiprovider interroga soltanto gli endpoint HTTP loopback esplicitamente configurati in `provider` e `additional_providers`, con la medesima validazione e i controlli `doctor` per ciascuno. La GUI avvia tutte le fasi su un solo provider. Il gateway Unsloth conserva l’unica destinazione autorizzata e legge la credenziale solo dopo il gate Pi e la verifica degli input protetti.
+
+Multi-provider discovery queries only the HTTP loopback endpoints explicitly configured in `provider` and `additional_providers`, applying the same validation and `doctor` checks to each. The GUI runs all stages against one provider. The Unsloth gateway retains its single authorized destination and reads the credential only after the Pi gate and protected-input check succeed.
+
 ## Asset e confini / Assets and boundaries
 
 - Il repository del benchmark, `AGENTS.md` e i grader sono input fidati.

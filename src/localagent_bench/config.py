@@ -6,7 +6,7 @@ import json
 import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -95,6 +95,7 @@ class BenchmarkConfig:
     provider_origin_url: str | None = None  # In-memory gateway origin; never a credential.
     provider_auth_prompt: bool = False  # CLI-only opt-in; not a persisted preference.
     provider_backend_version: str | None = None
+    additional_providers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -116,26 +117,7 @@ def _repository_path(root: Path, value: Any, *, key: str) -> Path:
     return resolved
 
 
-def load_config(path: Path) -> BenchmarkConfig:
-    path = path.resolve()
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ConfigError(f"Impossibile leggere {path}: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise ConfigError("La radice di benchmark.json deve essere un oggetto")
-    if raw.get("version") != 1:
-        raise ConfigError("Versione configurazione non supportata (attesa: 1)")
-
-    root = path.parent
-    provider = raw.get("provider")
-    if provider is None:
-        provider = _require(raw, "ollama", dict)
-        provider_kind = "ollama"
-    elif isinstance(provider, dict):
-        provider_kind = _require(provider, "kind", str)
-    else:
-        raise ConfigError("'provider' deve essere un oggetto")
+def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, Any]:
     if provider_kind not in {"ollama", "lmstudio", "llama_cpp", "unsloth"}:
         raise ConfigError("provider.kind non supportato")
     if any(key in provider for key in ("api_key", "apiKey", "token", "password", "secret")):
@@ -183,6 +165,61 @@ def load_config(path: Path) -> BenchmarkConfig:
     if backend_version is not None and (provider_kind != "unsloth" or not isinstance(backend_version, str)
             or not backend_version.strip() or len(backend_version) > 128):
         raise ConfigError("provider.backend_version deve essere una stringa breve per Unsloth / Invalid Unsloth backend version")
+    return {
+        "provider_kind": provider_kind,
+        "ollama_url": ollama_url,
+        "model_files": model_files,
+        "provider_version": provider_version,
+        "provider_auth_ref": auth_ref,
+        "provider_transport": transport,
+        "provider_backend_version": backend_version,
+    }
+
+
+def _additional_providers(value: Any, primary_kind: str) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 3:
+        raise ConfigError("additional_providers richiede fino a tre provider / expected up to three providers")
+    providers: dict[str, dict[str, Any]] = {}
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise ConfigError("Elemento additional_providers non valido / Invalid additional provider")
+        kind = _require(entry, "kind", str)
+        if kind == primary_kind or kind in providers:
+            raise ConfigError(f"Provider duplicato / Duplicate provider: {kind}")
+        providers[kind] = _provider_fields(entry, kind)
+    return providers
+
+
+def select_provider(config: BenchmarkConfig, kind: str | None) -> BenchmarkConfig:
+    if kind is None or kind == config.provider_kind:
+        return config
+    if kind not in config.additional_providers:
+        raise ConfigError(f"Provider non configurato / Provider not configured: {kind}")
+    return replace(config, **config.additional_providers[kind])
+
+
+def load_config(path: Path) -> BenchmarkConfig:
+    path = path.resolve()
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"Impossibile leggere {path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ConfigError("La radice di benchmark.json deve essere un oggetto")
+    if raw.get("version") != 1:
+        raise ConfigError("Versione configurazione non supportata (attesa: 1)")
+
+    root = path.parent
+    provider = raw.get("provider")
+    if provider is None:
+        provider = _require(raw, "ollama", dict)
+        provider_kind = "ollama"
+    elif isinstance(provider, dict):
+        provider_kind = _require(provider, "kind", str)
+    else:
+        raise ConfigError("'provider' deve essere un oggetto")
+    provider_fields = _provider_fields(provider, provider_kind)
+    additional_providers = _additional_providers(raw.get("additional_providers", []), provider_kind)
 
     pi = _require(raw, "pi", dict)
     pi_command_raw = _require(pi, "command", list)
@@ -413,7 +450,6 @@ def load_config(path: Path) -> BenchmarkConfig:
     return BenchmarkConfig(
         preliminary=preliminary,
         root=root,
-        ollama_url=ollama_url,
         pi_command=tuple(pi_command_raw),
         models=models,
         defaults=defaults,
@@ -422,10 +458,6 @@ def load_config(path: Path) -> BenchmarkConfig:
         cases_directory=cases_directory,
         dashboard=dashboard,
         guided=guided,
-        provider_kind=provider_kind,
-        model_files=model_files,
-        provider_version=provider_version,
-        provider_auth_ref=auth_ref,
-        provider_transport=transport,
-        provider_backend_version=backend_version,
+        additional_providers=additional_providers,
+        **provider_fields,
     )

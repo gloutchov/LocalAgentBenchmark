@@ -1,8 +1,8 @@
 # Percorso rapido guidato / Guided quick path
 
-Questa procedura confronta i modelli del provider locale configurato in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp e Unsloth; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
+Questa procedura confronta i modelli di un provider locale scelto tra quelli configurati in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp e Unsloth; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
 
-This workflow compares models from the local provider configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, or Unsloth. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
+This workflow compares models from one of the local providers configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, or Unsloth. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
 
 ## Requisiti / Requirements
 
@@ -15,11 +15,17 @@ This workflow compares models from the local provider configured in `benchmark.j
 
 The source checkout, Python 3.10+ with Tkinter, Git, a configured loopback model server, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
 
+## Elenco dei provider / Provider list
+
+La colonna **Provider** indica l'origine di ogni modello. La GUI rileva `provider` e le voci opzionali di `additional_providers` in `benchmark.json`. Un server spento compare tra i provider non disponibili, mentre gli altri restano utilizzabili. Selezionare i modelli di un solo provider per volta. **Tutti del provider** seleziona i modelli del provider della prima riga selezionata, oppure del primo provider disponibile se la selezione è vuota. La finestra di conferma indica quale provider useranno tutte le fasi.
+
+The **Provider** column identifies each model's source. The GUI discovers `provider` and the optional entries in `additional_providers` in `benchmark.json`. A stopped server appears under unavailable providers while the others remain usable. Select models from one provider per run. **All from provider** selects the provider of the first selected row, or the first available provider when the selection is empty. The confirmation dialog identifies the provider used in all stages.
+
 ## Unsloth nel percorso guidato / Unsloth in guided mode
 
-Configurare `provider.kind: "unsloth"`, un URL HTTP loopback e `provider.credential_ref` come descritto nella [guida provider](QUICK-START_LocalProviders.md#unsloth). Prima del rilevamento caricare manualmente un GGUF locale e predisporre nel portachiavi una chiave Unsloth con accesso `inference`. La GUI legge soltanto la credenziale esistente: non chiede la chiave in una finestra, non eredita `--credential-prompt` e non salva segreti nelle preferenze. Se il portachiavi manca o l'accesso è negato, correggere la configurazione prima di riprovare oppure usare la CLI con prompt esplicito. I modelli devono rimanere caricati durante le fasi; caricamento/scaricamento e reset della cache sono manuali. Nessun warmup viene descritto come avvio a freddo.
+Configurare una voce con `kind: "unsloth"`, un URL HTTP loopback e `credential_ref` come descritto nella [guida provider](QUICK-START_LocalProviders.md#unsloth). Prima del rilevamento caricare manualmente un GGUF locale e predisporre nel portachiavi una chiave Unsloth con accesso `inference`. La GUI legge soltanto la credenziale esistente: non chiede la chiave in una finestra, non eredita `--credential-prompt` e non salva segreti nelle preferenze. Se il portachiavi manca o l'accesso è negato, correggere la configurazione prima di riprovare oppure usare la CLI con prompt esplicito. I modelli devono rimanere caricati durante le fasi; caricamento/scaricamento e reset della cache sono manuali. Nessun warmup viene descritto come avvio a freddo.
 
-Set `provider.kind: "unsloth"`, an HTTP loopback URL and `provider.credential_ref` as described in the [provider guide](QUICK-START_LocalProviders.md#unsloth). Before discovery, manually load a local GGUF and place an Unsloth key with `inference` access in the OS credential store. The GUI only reads an existing credential: it has no key-entry dialog, does not inherit `--credential-prompt`, and never stores secrets in preferences. Resolve missing/denied credential-store access before retrying, or use the explicit CLI prompt. Keep models loaded throughout the phases; loading, unloading and cache reset are manual. Warmup does not certify a cold start.
+Configure an entry with `kind: "unsloth"`, an HTTP loopback URL and `credential_ref` as described in the [provider guide](QUICK-START_LocalProviders.md#unsloth). Before discovery, manually load a local GGUF and place an Unsloth key with `inference` access in the OS credential store. The GUI only reads an existing credential: it has no key-entry dialog, does not inherit `--credential-prompt`, and never stores secrets in preferences. Resolve missing/denied credential-store access before retrying, or use the explicit CLI prompt. Keep models loaded throughout the phases; loading, unloading and cache reset are manual. Warmup does not certify a cold start.
 
 ## Avvio con doppio clic / Double-click launch
 
@@ -129,7 +135,7 @@ The quick path never runs `showcase`, never selects `results_dashboard`, never a
 
 ## Privacy e distribuzione / Privacy and distribution
 
-La GUI non introduce telemetria, CDN o chiamate Internet. I soli endpoint applicativi sono il provider locale e la dashboard su loopback. I processi ricevono argomenti strutturati, non comandi shell interpolati. Non vengono cancellati automaticamente run precedenti.
+La GUI non introduce telemetria, CDN o chiamate Internet. Gli endpoint applicativi sono i provider configurati e la dashboard su loopback. I processi ricevono argomenti strutturati, non comandi shell interpolati. Non vengono cancellati automaticamente run precedenti.
 
 The GUI adds no telemetry, CDN, or Internet call. Its application endpoints are the local model provider and the loopback dashboard. Child processes receive structured arguments rather than interpolated shell commands, and prior runs are never deleted automatically.
 
@@ -143,4 +149,4 @@ Prima di smoke, il toggle Preliminary esegue sui modelli selezionati misure desc
 
 Before smoke, optionally run descriptive responsiveness and synthetic-source grounding probes on all selected models. The new configuration enables this toggle; disable it before starting to skip it. Promotions remain smoke → standard → full. The dashboard may receive four distinct directories; Preliminary stays outside rankings and funnel. Descriptive errors do not exclude models; mandatory control failures do. See [Preliminary](QUICK-START_Preliminary.md).
 
-Le dimensioni GUI sono centralizzate in `guided.window_size` (900×720) e `guided.minimum_size` (760×720). Il minimo mantiene visibili i pulsanti anche con Preliminary; i file legacy senza queste opzioni usano gli stessi valori. / GUI dimensions are configured by `guided.window_size` (900×720) and `guided.minimum_size` (760×720), keeping actions visible with Preliminary; legacy configurations use these defaults.
+Le dimensioni GUI sono centralizzate in `guided.window_size` (900×720) e `guided.minimum_size` (760×720). La tabella scorrevole si adatta all’altezza disponibile e lascia spazio ai pulsanti in fondo. I file legacy senza queste opzioni usano gli stessi valori. / GUI dimensions are configured by `guided.window_size` (900×720) and `guided.minimum_size` (760×720). The scrollable table adapts to the available height and leaves room for the action buttons. Legacy configurations use the same defaults.

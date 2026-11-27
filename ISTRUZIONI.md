@@ -213,6 +213,8 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 
 ## 5. Configurazione
 
+La GUI indica il provider nella tabella modelli. Configurare eventuali provider aggiuntivi in `additional_providers`. Il percorso accetta una selezione di modelli dello stesso provider. Da CLI, `python3 benchmark.py --provider unsloth list` seleziona Unsloth. Omettendo l’argomento si usa `provider`.
+
 `benchmark.json` contiene tutti i parametri modificabili:
 
 - `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`, `unsloth`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;

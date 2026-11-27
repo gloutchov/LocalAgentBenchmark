@@ -4,11 +4,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.guided_ui import (
+    GuidedWindow,
     TEXT,
     THEME_PALETTES,
     _completed_task_progress,
@@ -72,6 +75,50 @@ class GuidedUiTests(unittest.TestCase):
         self.assertEqual(["Alpha", "zeta", "middle"], names("thinking", True))
         with self.assertRaises(ValueError):
             _sorted_model_indices(models, "unsupported", False)
+
+    def test_provider_column_preserves_model_identity_for_duplicate_names(self):
+        models = [
+            {"name": "shared:model", "provider": "unsloth"},
+            {"name": "shared:model", "provider": "ollama"},
+        ]
+        self.assertEqual((1, 0), _sorted_model_indices(models, "provider", False))
+
+    def test_start_rejects_mixed_providers_and_uses_selected_provider_for_run(self):
+        window = GuidedWindow.__new__(GuidedWindow)
+        payload = {"ok": True, "models": [{"name": "shared:model"}]}
+        window.discoveries = {"ollama": payload.copy(), "unsloth": payload.copy()}
+        window.models = [{"name": "shared:model", "provider": kind} for kind in window.discoveries]
+        window.root = None
+        window.running = False
+        window._selected_model_indices = Mock(return_value=[0, 1])
+        window.thinking_enabled = Mock(**{"get.return_value": False})
+        window.sandbox_enabled = Mock(**{"get.return_value": True})
+        window.preliminary_enabled = Mock(**{"get.return_value": True})
+        window._set_busy = Mock()
+        window.progress_var = Mock()
+        window.detail_var = Mock()
+        window.progress = Mock()
+        window.language_choice = Mock(**{"get.return_value": "it"})
+        window.events = Mock()
+        window.orchestrators = {kind: Mock() for kind in window.discoveries}
+
+        def inline_thread(*, target, daemon):
+            return SimpleNamespace(start=target)
+
+        dialog = SimpleNamespace(showwarning=Mock(), askyesno=Mock(return_value=True))
+        with patch.dict(sys.modules, {"tkinter": SimpleNamespace(messagebox=dialog)}), patch(
+            "localagent_bench.guided_ui.threading.Thread", side_effect=inline_thread,
+        ):
+            window.start()
+            dialog.showwarning.assert_called_once()
+            dialog.askyesno.assert_not_called()
+            window._selected_model_indices.return_value = [1]
+            window.start()
+        window.orchestrators["ollama"].run.assert_not_called()
+        window.orchestrators["unsloth"].run.assert_called_once_with(
+            ["shared:model"], window.discoveries["unsloth"], thinking="off", sandbox="required",
+            preliminary=True, callback=window.events.put,
+        )
 
     def test_preferences_round_trip_and_reject_unknown_values(self):
         with tempfile.TemporaryDirectory() as directory:

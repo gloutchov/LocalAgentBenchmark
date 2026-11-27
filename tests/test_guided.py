@@ -18,6 +18,7 @@ from localagent_bench.guided import (
     GuidedCancelled,
     GuidedError,
     GuidedOrchestrator,
+    discover_provider_catalog,
     evaluate_phase,
     find_latest_manifest,
     select_promoted,
@@ -279,6 +280,34 @@ class GuidedTests(unittest.TestCase):
         with self.assertRaises(GuidedError) as raised:
             orchestrator.discover()
         self.assertEqual("remote_ollama", raised.exception.code)
+
+    def test_catalog_keeps_active_providers_when_another_is_unavailable(self):
+        config_path = ROOT / "benchmark.json"
+        config = load_config(config_path)
+        payload = {"ok": True, "models": [{"name": "shared:model"}]}
+        offline = {"ok": False, "checks": [{"name": "lmstudio", "ok": False}], "models": []}
+        orchestrators = {
+            kind: GuidedOrchestrator(
+                replace(config, provider_kind=kind), config_path,
+                doctor_function=lambda current: offline if current.provider_kind == "lmstudio" else payload,
+                provider_override=True,
+            )
+            for kind in ("ollama", "lmstudio", "unsloth")
+        }
+        cancel_event = threading.Event()
+        discoveries, errors = discover_provider_catalog(orchestrators, cancel_event)
+        self.assertEqual({"ollama", "unsloth"}, set(discoveries))
+        self.assertEqual({"lmstudio"}, set(errors))
+        self.assertEqual("shared:model", discoveries["unsloth"]["models"][0]["name"])
+        with tempfile.TemporaryDirectory() as directory:
+            for profile in ("preliminary", "smoke", "standard", "full"):
+                command = orchestrators["unsloth"]._benchmark_command(
+                    profile, ["shared:model"], 1, Path(directory) / profile,
+                )
+                self.assertEqual(["--provider", "unsloth", "run"], command[4:7])
+        cancel_event.set()
+        with self.assertRaises(GuidedCancelled):
+            discover_provider_catalog(orchestrators, cancel_event)
 
     def test_output_and_phase_paths_must_be_new_and_confined(self):
         base = load_config(ROOT / "benchmark.json")

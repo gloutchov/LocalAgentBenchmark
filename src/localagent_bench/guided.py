@@ -312,6 +312,7 @@ class GuidedOrchestrator:
         config_path: Path,
         *,
         process_runner: ManagedProcessRunner | None = None,
+        provider_override: bool = False,
         doctor_function: Callable[[BenchmarkConfig], dict[str, Any]] = doctor,
         dashboard_builder: Callable[[list[Path]], dict[str, Any]] = build_dashboard_data,
         dashboard_starter: Callable[..., Any] = start_detached,
@@ -324,6 +325,7 @@ class GuidedOrchestrator:
             )
         self.guided = config.guided
         self.config_path = config_path.resolve()
+        self.provider_override = provider_override
         self.process_runner = process_runner or ManagedProcessRunner()
         self.doctor_function = doctor_function
         self.dashboard_builder = dashboard_builder
@@ -331,16 +333,20 @@ class GuidedOrchestrator:
         self.cancel_event = threading.Event()
         self.manifest_path: Path | None = None
 
-    def discover(self) -> dict[str, Any]:
+    def discover(self, *, cancel_event: threading.Event | None = None) -> dict[str, Any]:
+        if cancel_event is None:
+            cancel_event = self.cancel_event
+            cancel_event.clear()
+        if cancel_event.is_set():
+            raise GuidedCancelled()
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto provider locali")
-        self.cancel_event.clear()
         payload = (
-            self.doctor_function(self.config, cancel_event=self.cancel_event)
+            self.doctor_function(self.config, cancel_event=cancel_event)
             if self.doctor_function is doctor else self.doctor_function(self.config)
         )
-        if self.cancel_event.is_set():
+        if cancel_event.is_set():
             raise GuidedError("cancelled", "Controllo prerequisiti annullato")
         if not isinstance(payload, dict):
             raise GuidedError("prerequisites", "Risposta doctor non valida")
@@ -413,11 +419,13 @@ class GuidedOrchestrator:
             raise GuidedError("no_candidates", "Nessun modello disponibile per la fase")
         if output.exists():
             raise GuidedError("output_exists", f"La directory {output.name} esiste già")
+        provider_args = ["--provider", self.config.provider_kind] if self.provider_override else []
         return [
             python_executable(),
             str(self.config.root / "benchmark.py"),
             "--config",
             str(self.config_path),
+            *provider_args,
             "run",
             "--profile",
             profile,
@@ -801,12 +809,30 @@ def find_latest_manifest(config: BenchmarkConfig) -> Path | None:
     return max(candidates, key=lambda path: path.stat().st_mtime, default=None)
 
 
+def discover_provider_catalog(
+    orchestrators: dict[str, GuidedOrchestrator], cancel_event: threading.Event,
+) -> tuple[dict[str, dict[str, Any]], dict[str, GuidedError]]:
+    discoveries: dict[str, dict[str, Any]] = {}
+    errors: dict[str, GuidedError] = {}
+    for kind, orchestrator in orchestrators.items():
+        try:
+            discoveries[kind] = orchestrator.discover(cancel_event=cancel_event)
+        except GuidedError as exc:
+            if cancel_event.is_set():
+                raise GuidedCancelled() from None
+            errors[kind] = exc
+    if cancel_event.is_set():
+        raise GuidedCancelled()
+    return discoveries, errors
+
+
 __all__ = [
     "GuidedCancelled",
     "GuidedError",
     "GuidedOrchestrator",
     "MANIFEST_NAME",
     "PhaseOutcome",
+    "discover_provider_catalog",
     "evaluate_phase",
     "find_latest_manifest",
     "select_promoted",

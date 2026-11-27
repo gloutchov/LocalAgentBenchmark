@@ -14,7 +14,7 @@ from .case_sdk import (
     create_case_template,
     validate_case_selection,
 )
-from .config import ConfigError, load_config
+from .config import ConfigError, load_config, select_provider
 from .comparison import ComparisonError, write_comparison
 from .dashboard_data import DashboardDataError, write_dashboard_data
 from .ollama import OllamaError
@@ -43,6 +43,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--credential-prompt", action="store_true",
                         help="Chiedi la chiave Unsloth soltanto in memoria / Prompt for an in-memory Unsloth key")
+    parser.add_argument(
+        "--provider", choices=("ollama", "lmstudio", "llama_cpp", "unsloth"),
+        help="Provider configurato / Configured provider",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("doctor", help="Verifica Pi, Git, provider, modelli e casi")
@@ -128,7 +132,7 @@ def _print_doctor(payload: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        config = load_config(args.config)
+        config = select_provider(load_config(args.config), args.provider)
         if args.credential_prompt:
             if config.provider_kind != "unsloth" or args.command not in {"doctor", "list", "run"}:
                 raise ConfigError("--credential-prompt richiede doctor/list/run con Unsloth / requires Unsloth doctor/list/run")

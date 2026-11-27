@@ -2,9 +2,22 @@
 
 ## Italiano
 
-Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo**, al **router `llama-server` di llama.cpp** oppure a **Unsloth** con un GGUF locale già caricato e una chiave di sola inferenza. Configurare un solo provider alla volta in `benchmark.json`; lo stesso provider viene usato da CLI, percorso guidato, preflight, warmup e task. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi o download automatici; Unsloth richiede una chiave locale protetta, mentre gli altri tre adapter mantengono la modalità senza autenticazione.
+Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo**, al **router `llama-server` di llama.cpp** oppure a **Unsloth** con un GGUF locale già caricato e una chiave di sola inferenza. Ogni run usa un solo provider per tutte le fasi. La GUI può rilevare i modelli di più provider configurati in `benchmark.json`. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi o download automatici; Unsloth richiede una chiave locale protetta, mentre gli altri tre adapter mantengono la modalità senza autenticazione.
 
 I quattro provider sono gestiti da adattatori interni separati. La selezione resta `provider.kind` in `benchmark.json`: non servono file ricetta aggiuntivi e il formato dei run non cambia.
+
+### Selezionare più provider locali
+
+`provider` resta il default. Aggiungere in `additional_providers` gli altri provider da rilevare. Per esempio, con Ollama come default:
+
+```json
+"additional_providers": [
+  {"kind": "lmstudio", "url": "http://127.0.0.1:1234"},
+  {"kind": "unsloth", "url": "http://127.0.0.1:8888", "credential_ref": "unsloth-local"}
+]
+```
+
+Usare le porte mostrate dai server locali. Ogni `kind` compare una volta. Da CLI, anteporre `--provider` al sottocomando per selezionare un provider configurato, per esempio `python3 benchmark.py --provider lmstudio list` o `python3 benchmark.py --provider unsloth doctor`. `--config` continua a consentire la scelta di un altro file di configurazione nella root del progetto.
 
 ### Installazione e verifica su Windows
 
@@ -115,9 +128,13 @@ Il preflight usa `reasoning_effort: "none"` per `off` e verifica che non emerga 
 
 ## English
 
-Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, the **llama.cpp `llama-server` router**, or **Unsloth** with an already-loaded local GGUF and an inference-only key. Select one provider at a time in `benchmark.json`; CLI, guided mode, preflight, warmup, and tasks share it. The server must use HTTP loopback. No extra Python packages or automatic model downloads are needed. Unsloth requires a protected local key; the original three adapters retain their unauthenticated mode.
+Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, the **llama.cpp `llama-server` router**, or **Unsloth** with an already-loaded local GGUF and an inference-only key. Each run uses a single provider for all phases. The GUI can discover models from multiple providers configured in `benchmark.json`. The server must use HTTP loopback. No extra Python packages or automatic model downloads are needed. Unsloth requires a protected local key; the original three adapters retain their unauthenticated mode.
 
 The four providers use separate built-in adapters. Select one with `provider.kind` in `benchmark.json`; no extra recipe files are required, and run formats do not change.
+
+### Configure multiple local providers
+
+`provider` remains the default. Add the other providers to `additional_providers` as shown in the Italian example. Use the ports reported by your local servers and configure each `kind` once. Put `--provider` before a CLI subcommand to select a configured provider, for example `python3 benchmark.py --provider lmstudio list` or `python3 benchmark.py --provider unsloth doctor`. `--config` still selects an alternative configuration file in the project root.
 
 ### Install and verify on Windows
 

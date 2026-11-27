@@ -14,11 +14,12 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .config import ConfigError, load_config
-from .guided import GuidedError, GuidedOrchestrator, find_latest_manifest
+from .config import ConfigError, load_config, select_provider
+from .guided import GuidedError, GuidedOrchestrator, discover_provider_catalog, find_latest_manifest
 
 
 ROOT = Path(__file__).resolve().parents[2]
+PROVIDER_NAMES = {"ollama": "Ollama", "lmstudio": "LM Studio", "llama_cpp": "llama.cpp", "unsloth": "Unsloth"}
 
 THEME_PALETTES = {
     "dark": {
@@ -60,6 +61,7 @@ TEXT = {
         "dark": "Scuro",
         "models": "Modelli locali",
         "model": "Modello",
+        "provider": "Provider",
         "size": "Dimensione",
         "thinking": "Thinking",
         "yes": "sì",
@@ -73,6 +75,7 @@ TEXT = {
         "sandbox_note_on": "Sandbox OS obbligatoria: l'avvio fallisce se il backend non è disponibile.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promozione: {first} → {second}",
         "select_all": "Seleziona tutti",
+        "select_provider_models": "Tutti del provider",
         "select_none": "Deseleziona tutti",
         "refresh": "Rileva di nuovo",
         "start": "Avvia percorso",
@@ -87,9 +90,11 @@ TEXT = {
         "pi_compatibility": "Compatibilità Pi verificata",
         "warmup": "Warmup: {model}",
         "confirm_title": "Conferma avvio",
-        "confirm": "Il benchmark può richiedere molto tempo e userà i modelli selezionati in tre fasi. Avviare ora?",
+        "confirm": "Avviare il benchmark con {provider}? Il percorso può richiedere molto tempo.",
         "confirm_cancel": "Interrompere il processo corrente? Gli artefatti già prodotti saranno conservati.",
         "choose_model": "Seleziona almeno un modello.",
+        "choose_provider": "Seleziona modelli di un solo provider per avviare il percorso.",
+        "provider_unavailable": "Provider non disponibili: {providers}",
         "cancelled": "Percorso annullato; gli artefatti diagnosticabili sono stati conservati.",
         "failed": "Percorso interrotto ({code}): {message}",
         "completed": "Percorso completato. La dashboard ufficiale è stata aperta.",
@@ -109,6 +114,7 @@ TEXT = {
         "dark": "Dark",
         "models": "Local models",
         "model": "Model",
+        "provider": "Provider",
         "size": "Size",
         "thinking": "Thinking",
         "yes": "yes",
@@ -122,6 +128,7 @@ TEXT = {
         "sandbox_note_on": "OS sandbox required: startup fails if the backend is unavailable.",
         "settings_line": "thinking: {thinking} · sandbox: {sandbox} · timeout: {timeout}s · warmup: {warmup} · promotion: {first} → {second}",
         "select_all": "Select all",
+        "select_provider_models": "All from provider",
         "select_none": "Select none",
         "refresh": "Detect again",
         "start": "Start quick path",
@@ -136,9 +143,11 @@ TEXT = {
         "pi_compatibility": "Pi compatibility verified",
         "warmup": "Warmup: {model}",
         "confirm_title": "Confirm start",
-        "confirm": "The benchmark can take a long time and will use the selected models in three stages. Start now?",
+        "confirm": "Start the benchmark with {provider}? The benchmark may take a long time.",
         "confirm_cancel": "Stop the current process? Existing diagnostic artifacts will be preserved.",
         "choose_model": "Select at least one model.",
+        "choose_provider": "Select models from a single provider to start the benchmark.",
+        "provider_unavailable": "Unavailable providers: {providers}",
         "cancelled": "Quick path cancelled; diagnostic artifacts have been preserved.",
         "failed": "Quick path stopped ({code}): {message}",
         "completed": "Quick path completed. The official dashboard was opened.",
@@ -270,6 +279,15 @@ def _sorted_model_indices(
             reverse=descending,
         )
         return tuple(index for index, _model in indexed)
+    if column == "provider":
+        indexed.sort(
+            key=lambda item: (
+                PROVIDER_NAMES[item[1]["provider"]].casefold(),
+                item[1]["name"].casefold(),
+            ),
+            reverse=descending,
+        )
+        return tuple(index for index, _model in indexed)
     if column == "size":
         known = [
             item
@@ -365,9 +383,20 @@ class GuidedWindow:
         self.root = tk_root
         self.config_path = config_path.resolve()
         self.config = load_config(self.config_path)
-        self.orchestrator = GuidedOrchestrator(self.config, self.config_path)
+        provider_kinds = (self.config.provider_kind, *self.config.additional_providers)
+        self.orchestrators = {
+            kind: GuidedOrchestrator(
+                select_provider(self.config, kind), self.config_path,
+                provider_override=len(provider_kinds) > 1,
+            )
+            for kind in provider_kinds
+        }
+        self.orchestrator = self.orchestrators[self.config.provider_kind]
+        self.run_orchestrator: GuidedOrchestrator | None = None
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
-        self.discovery: dict[str, Any] | None = None
+        self.discoveries: dict[str, dict[str, Any]] = {}
+        self.unavailable_providers: tuple[str, ...] = ()
+        self.discovery_cancel = threading.Event()
         self.models: list[dict[str, Any]] = []
         self.running = False
         self.detecting = False
@@ -418,9 +447,11 @@ class GuidedWindow:
         self.root.geometry(f"{width}x{height}")
         outer = ttk.Frame(self.root, padding=20)
         outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
 
         header = ttk.Frame(outer)
-        header.pack(fill="x")
+        header.grid(row=0, column=0, sticky="ew")
         title_group = ttk.Frame(header)
         title_group.pack(side="left", fill="x", expand=True)
         ttk.Label(title_group, textvariable=self.title_var, style="Title.TLabel").pack(anchor="w")
@@ -451,8 +482,8 @@ class GuidedWindow:
         self.theme_box.bind("<<ComboboxSelected>>", self._preference_changed)
 
         self.models_frame = ttk.LabelFrame(outer, padding=12)
-        self.models_frame.pack(fill="both", expand=True, pady=(18, 10))
-        columns = ("name", "size", "thinking")
+        self.models_frame.grid(row=1, column=0, sticky="nsew", pady=(18, 10))
+        columns = ("name", "provider", "size", "thinking")
         self.model_tree = ttk.Treeview(
             self.models_frame,
             columns=columns,
@@ -460,7 +491,8 @@ class GuidedWindow:
             selectmode="extended",
             height=5,
         )
-        self.model_tree.column("name", width=430, minwidth=180)
+        self.model_tree.column("name", width=370, minwidth=180)
+        self.model_tree.column("provider", width=115, minwidth=90)
         self.model_tree.column("size", width=110, minwidth=80, anchor="e")
         self.model_tree.column("thinking", width=100, minwidth=80, anchor="center")
         scrollbar = ttk.Scrollbar(self.models_frame, orient="vertical", command=self.model_tree.yview)
@@ -469,7 +501,7 @@ class GuidedWindow:
         scrollbar.pack(side="right", fill="y")
 
         selection = ttk.Frame(outer)
-        selection.pack(fill="x")
+        selection.grid(row=2, column=0, sticky="ew")
         self.all_button = ttk.Button(selection, command=self._select_all)
         self.all_button.pack(side="left")
         self.none_button = ttk.Button(selection, command=self._select_none)
@@ -478,7 +510,7 @@ class GuidedWindow:
         self.refresh_button.pack(side="left")
 
         self.settings_frame = ttk.LabelFrame(outer, padding=12)
-        self.settings_frame.pack(fill="x", pady=10)
+        self.settings_frame.grid(row=3, column=0, sticky="ew", pady=10)
         toggles = ttk.Frame(self.settings_frame)
         toggles.pack(fill="x")
         self.preliminary_toggle = ttk.Checkbutton(toggles, variable=self.preliminary_enabled)
@@ -498,7 +530,7 @@ class GuidedWindow:
         self.note_label.pack(anchor="w", pady=(6, 0))
 
         self.status_frame = ttk.LabelFrame(outer, padding=12)
-        self.status_frame.pack(fill="x")
+        self.status_frame.grid(row=4, column=0, sticky="ew")
         ttk.Label(self.status_frame, textvariable=self.status_var).pack(anchor="w")
         self.progress = ttk.Progressbar(
             self.status_frame,
@@ -511,7 +543,7 @@ class GuidedWindow:
         ttk.Label(self.status_frame, textvariable=self.results_var, style="Note.TLabel", wraplength=820).pack(anchor="w", pady=(4, 0))
 
         actions = ttk.Frame(outer)
-        actions.pack(fill="x", pady=(14, 0))
+        actions.grid(row=5, column=0, sticky="ew", pady=(14, 0))
         self.start_button = ttk.Button(actions, command=self.start)
         self.start_button.pack(side="left")
         self.cancel_button = ttk.Button(actions, command=self.cancel, state="disabled")
@@ -639,8 +671,9 @@ class GuidedWindow:
         self.models_frame.configure(text=self.text("models"))
         self._configure_model_headings()
         if self.models:
-            self._render_model_rows(set(self._selected_models()))
-        self.all_button.configure(text=self.text("select_all"))
+            self._render_model_rows(set(self._selected_model_indices()))
+        select_all_key = "select_provider_models" if len(self.orchestrators) > 1 else "select_all"
+        self.all_button.configure(text=self.text(select_all_key))
         self.none_button.configure(text=self.text("select_none"))
         self.refresh_button.configure(text=self.text("refresh"))
         self.settings_frame.configure(text=self.text("settings"))
@@ -653,8 +686,8 @@ class GuidedWindow:
         self.start_button.configure(text=self.text("start"))
         self.cancel_button.configure(text=self.text("cancel"))
         self.reopen_button.configure(text=self.text("reopen"))
-        if not self.running and self.discovery:
-            self.status_var.set(self.text("ready"))
+        if not self.running and self.discoveries:
+            self._render_ready_status()
         self.reopen_button.configure(
             state="normal" if self.latest_manifest and not self.running else "disabled"
         )
@@ -671,7 +704,7 @@ class GuidedWindow:
     def _set_busy(self, busy: bool) -> None:
         self.running = busy
         normal = "disabled" if busy else "normal"
-        self.start_button.configure(state=normal if self.discovery else "disabled")
+        self.start_button.configure(state=normal if self.discoveries else "disabled")
         self.refresh_button.configure(state="disabled" if self.detecting else normal)
         self.all_button.configure(state=normal)
         self.none_button.configure(state=normal)
@@ -687,7 +720,9 @@ class GuidedWindow:
         if self.running or self.detecting:
             return
         self.detecting = True
-        self.discovery = None
+        self.discoveries = {}
+        self.unavailable_providers = ()
+        self.discovery_cancel.clear()
         self.models = []
         self.active_phase = 0
         self.progress_var.set(0)
@@ -701,7 +736,7 @@ class GuidedWindow:
 
         def work() -> None:
             try:
-                payload = self.orchestrator.discover()
+                discoveries, errors = discover_provider_catalog(self.orchestrators, self.discovery_cancel)
             except GuidedError as exc:
                 self.events.put(
                     {
@@ -714,7 +749,7 @@ class GuidedWindow:
             except Exception as exc:
                 self.events.put({"type": "error", "code": "prerequisites", "message": str(exc)})
             else:
-                self.events.put({"type": "discovery", "payload": payload})
+                self.events.put({"type": "discovery", "discoveries": discoveries, "errors": errors})
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -738,19 +773,32 @@ class GuidedWindow:
             )
         )
 
-    def _populate_models(self, payload: dict[str, Any], *, can_start: bool = True) -> None:
-        self.detecting = False
-        self.discovery = payload if can_start else None
-        self.models = list(payload["models"])
-        self._render_model_rows({model["name"] for model in self.models})
-        self._render_settings()
+    def _render_ready_status(self) -> None:
         self.status_var.set(self.text("ready"))
-        self.detail_var.set(self.text("pi_compatibility") if can_start else "")
+        if self.unavailable_providers:
+            providers = ", ".join(PROVIDER_NAMES[kind] for kind in self.unavailable_providers)
+            self.detail_var.set(self.text("provider_unavailable", providers=providers))
+        else:
+            self.detail_var.set(self.text("pi_compatibility"))
+
+    def _populate_models(self, discoveries: dict[str, dict[str, Any]], *, can_start: bool = True) -> None:
+        self.detecting = False
+        self.discoveries = discoveries if can_start else {}
+        self.models = [
+            {**model, "provider": kind}
+            for kind, payload in discoveries.items()
+            for model in payload["models"]
+        ]
+        first_kind = next(iter(discoveries), None)
+        self._render_model_rows({index for index, model in enumerate(self.models) if model["provider"] == first_kind})
+        self._render_settings()
+        self._render_ready_status()
         self._set_busy(False)
 
     def _configure_model_headings(self) -> None:
         labels = {
             "name": self.text("model"),
+            "provider": self.text("provider"),
             "size": self.text("size"),
             "thinking": self.text("thinking"),
         }
@@ -764,7 +812,7 @@ class GuidedWindow:
             )
 
     def _sort_models(self, column: str) -> None:
-        selected = set(self._selected_models())
+        selected = set(self._selected_model_indices())
         if column == self.sort_column:
             self.sort_descending = not self.sort_descending
         else:
@@ -772,7 +820,7 @@ class GuidedWindow:
             self.sort_descending = False
         self._render_model_rows(selected)
 
-    def _render_model_rows(self, selected_names: set[str]) -> None:
+    def _render_model_rows(self, selected_indices: set[int]) -> None:
         self.model_tree.delete(*self.model_tree.get_children())
         selected_items: list[str] = []
         for index in _sorted_model_indices(
@@ -789,41 +837,55 @@ class GuidedWindow:
                 "",
                 "end",
                 iid=str(index),
-                values=(model["name"], _size_text(model.get("size")), thinking_text),
+                values=(model["name"], PROVIDER_NAMES[model["provider"]], _size_text(model.get("size")), thinking_text),
             )
-            if model["name"] in selected_names:
+            if index in selected_indices:
                 selected_items.append(str(index))
         self.model_tree.selection_set(selected_items)
         self._configure_model_headings()
 
     def _select_all(self) -> None:
-        children = self.model_tree.get_children()
-        self.model_tree.selection_set(children)
+        selected = self._selected_model_indices()
+        if not self.models:
+            return
+        kind = self.models[selected[0] if selected else 0]["provider"]
+        self.model_tree.selection_set([
+            str(index) for index, model in enumerate(self.models) if model["provider"] == kind
+        ])
 
     def _select_none(self) -> None:
         self.model_tree.selection_remove(self.model_tree.selection())
 
-    def _selected_models(self) -> list[str]:
-        return [self.models[int(item)]["name"] for item in self.model_tree.selection()]
+    def _selected_model_indices(self) -> list[int]:
+        return [int(item) for item in self.model_tree.selection()]
 
     def start(self) -> None:
         from tkinter import messagebox
 
-        if not self.discovery or self.running:
+        if not self.discoveries or self.running:
             return
-        selected = self._selected_models()
-        if not selected:
+        models = [self.models[index] for index in self._selected_model_indices()]
+        if not models:
             messagebox.showwarning(self.text("confirm_title"), self.text("choose_model"), parent=self.root)
             return
+        kinds = {model["provider"] for model in models}
+        if len(kinds) != 1:
+            messagebox.showwarning(self.text("confirm_title"), self.text("choose_provider"), parent=self.root)
+            return
+        kind = kinds.pop()
         if not messagebox.askyesno(
-            self.text("confirm_title"), self.text("confirm"), parent=self.root
+            self.text("confirm_title"), self.text("confirm", provider=PROVIDER_NAMES[kind]), parent=self.root
         ):
             return
+        orchestrator = self.orchestrators[kind]
+        orchestrator.manifest_path = None
+        self.run_orchestrator = orchestrator
         self._set_busy(True)
         self.active_phase = 0
         self.progress_var.set(0)
         self.detail_var.set("")
-        discovery = self.discovery
+        discovery = self.discoveries[kind]
+        selected = [model["name"] for model in models]
         thinking_mode = "medium" if self.thinking_enabled.get() else "off"
         sandbox_mode = "required" if self.sandbox_enabled.get() else "audit"
 
@@ -833,7 +895,7 @@ class GuidedWindow:
 
         def work() -> None:
             try:
-                manifest = self.orchestrator.run(
+                manifest = orchestrator.run(
                     selected, discovery, thinking=thinking_mode, sandbox=sandbox_mode,
                     preliminary=include_preliminary, callback=self.events.put,
                 )
@@ -852,7 +914,10 @@ class GuidedWindow:
         if (self.running or self.detecting) and messagebox.askyesno(
             self.text("confirm_title"), self.text("confirm_cancel"), parent=self.root
         ):
-            self.orchestrator.cancel()
+            if self.detecting:
+                self.discovery_cancel.set()
+            elif self.run_orchestrator is not None:
+                self.run_orchestrator.cancel()
             self.cancel_button.configure(state="disabled")
 
     def reopen(self) -> None:
@@ -891,7 +956,15 @@ class GuidedWindow:
     def _handle(self, event: dict[str, Any]) -> None:
         kind = event.get("type")
         if kind == "discovery":
-            self._populate_models(event["payload"])
+            discoveries = event["discoveries"]
+            errors = event["errors"]
+            self.unavailable_providers = tuple(errors)
+            if discoveries:
+                self._populate_models(discoveries)
+            else:
+                provider, error = next(iter(errors.items()))
+                self._handle({"type": "error", "code": error.code, "message": str(error),
+                              "payload": error.context, "provider": provider})
         elif kind == "phase":
             self.active_phase = int(event["index"])
             self.progress_var.set(self.active_phase - 1)
@@ -933,7 +1006,8 @@ class GuidedWindow:
             message = str(event.get("message", ""))
             payload = event.get("payload")
             if isinstance(payload, dict) and isinstance(payload.get("models"), list):
-                self._populate_models(payload, can_start=False)
+                provider = event.get("provider", self.config.provider_kind)
+                self._populate_models({provider: payload}, can_start=False)
             if code == "cancelled":
                 self.status_var.set(self.text("cancelled"))
             else:
@@ -941,9 +1015,12 @@ class GuidedWindow:
                 messagebox.showerror(self.text("title"), self.status_var.get(), parent=self.root)
             if not event.get("reopen"):
                 self._set_busy(False)
-            self.latest_manifest = self.orchestrator.manifest_path or self.latest_manifest
+            if self.run_orchestrator is not None:
+                self.latest_manifest = self.run_orchestrator.manifest_path or self.latest_manifest
+                self.run_orchestrator = None
             self._apply_preferences(save=False)
         elif kind == "run_done":
+            self.run_orchestrator = None
             self.progress_var.set(self.phase_total)
             self.status_var.set(self.text("completed"))
             self.detail_var.set("")
@@ -962,7 +1039,7 @@ class GuidedWindow:
                 self._handle(self.events.get_nowait())
         except queue.Empty:
             pass
-        if self.close_requested and not self.running:
+        if self.close_requested and not (self.running or self.detecting):
             self.root.destroy()
             return
         self.root.after(100, self._poll)
@@ -970,13 +1047,16 @@ class GuidedWindow:
     def _close(self) -> None:
         from tkinter import messagebox
 
-        if self.running:
+        if self.running or self.detecting:
             if not messagebox.askyesno(
                 self.text("confirm_title"), self.text("confirm_cancel"), parent=self.root
             ):
                 return
             self.close_requested = True
-            self.orchestrator.cancel()
+            if self.detecting:
+                self.discovery_cancel.set()
+            elif self.run_orchestrator is not None:
+                self.run_orchestrator.cancel()
             return
         self.root.destroy()
 

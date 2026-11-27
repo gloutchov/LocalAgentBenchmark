@@ -208,6 +208,7 @@ class UnslothRuntimeIntegrationTests(unittest.TestCase):
         (self.root / ".gitignore").write_text("results/\n__pycache__/\n*.pyc\n", encoding="utf-8")
         self.config_path = self.root / "benchmark.json"
         raw = json.loads((ROOT / "benchmark.json").read_text(encoding="utf-8"))
+        raw.pop("additional_providers", None)
         raw["provider"].update(kind="unsloth", url=self.url, credential_ref="integration-reference",
                                runtime_version="synthetic-studio", backend_version="synthetic-llama")
         raw["preliminary"].update(repetitions=2, timeout_seconds=10)
