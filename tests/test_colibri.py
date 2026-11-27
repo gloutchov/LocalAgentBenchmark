@@ -5,6 +5,8 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
+import urllib.request
 from dataclasses import replace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -92,6 +94,9 @@ class _ColibriEndpoint(BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.server.posts.append(body)
         self.server.paths.append(self.path)
+        if self.server.reject_context:
+            self._respond({"error": {"code": "context_length_exceeded", "message": "private provider detail"}}, 400)
+            return
         if body.get("stream"):
             frames = [
                 {"choices": [{"delta": {"content": "OK"}, "finish_reason": "stop"}],
@@ -130,6 +135,7 @@ class ColibriTests(unittest.TestCase):
         upstream.model = {"object": "model", "id": "resident", "capabilities": ["chat"],
                           "context_length": 32768, "max_model_len": 32768}
         upstream.reasoning = False
+        upstream.reject_context = False
         upstream.tool_calling = True
         self.upstream = upstream
         self.thread = threading.Thread(target=upstream.serve_forever, daemon=True)
@@ -193,3 +199,19 @@ class ColibriTests(unittest.TestCase):
                 _request(active.ollama_url, "/v1/chat/completions",
                          {"model": model.name, "messages": [{"role": "user", "content": "probe"}],
                           "reasoning_effort": "none"}, timeout=2)
+
+
+    def test_context_budget_error_is_allowlisted_without_upstream_details(self):
+        self.upstream.reject_context = True
+        with provider_session(self.config) as active:
+            request = urllib.request.Request(
+                active.ollama_url + "/v1/chat/completions",
+                json.dumps({"model": "resident", "reasoning_effort": "none",
+                            "messages": [{"role": "user", "content": "synthetic"}]}).encode(),
+                {"Content-Type": "application/json"},
+            )
+            with self.assertRaises(urllib.error.HTTPError) as failed:
+                urllib.request.build_opener(urllib.request.ProxyHandler({})).open(request, timeout=5)
+            with failed.exception as response:
+                self.assertEqual(409, response.code)
+                self.assertEqual({"error": {"code": "provider_gateway_context_budget_exceeded"}}, json.load(response))

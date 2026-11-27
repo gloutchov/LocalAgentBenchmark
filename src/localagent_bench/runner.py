@@ -61,7 +61,8 @@ class BenchmarkError(RuntimeError):
 
 def _terminal_provider_error_code(stdout: str) -> str | None:
     """Read an allowlisted code only from Pi's terminal provider-error fields."""
-    allowed = {"provider_gateway_context_window_mismatch", "provider_gateway_model_not_resident"}
+    allowed = {"provider_gateway_context_window_mismatch", "provider_gateway_context_budget_exceeded",
+               "provider_gateway_model_not_resident"}
 
     def code(value: Any) -> str | None:
         if not isinstance(value, str):
@@ -813,7 +814,7 @@ def _run_provider_session(
             manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
             _record_integrity_violation(
                 manifest, model=model, case_id=case.id, repetition=repetition,
-                kind=("provider_context_mismatch" if provider_context_error.endswith("context_window_mismatch")
+                kind=("provider_context_mismatch" if provider_context_error.startswith("provider_gateway_context_")
                       else "provider_load_failed"),
                 details=[{"code": provider_context_error}],
             )

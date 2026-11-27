@@ -26,6 +26,7 @@ class _PolicyRejection(GatewayError):
         "credential_403": (403, "provider_gateway_credential_rejected"),
         "inference_scope": (403, "provider_gateway_inference_scope_required"),
         "context_window": (409, "provider_gateway_context_window_mismatch"),
+        "context_budget": (409, "provider_gateway_context_budget_exceeded"),
         "model_not_resident": (409, "provider_gateway_model_not_resident"),
     }
 
@@ -434,6 +435,13 @@ class _Handler(BaseHTTPRequestHandler):
             return
         response = self._open(self.command, self.path, body)
         if response.status != 200:
+            if gateway.kind == "colibri" and self.command == "POST" and response.status == 400:
+                try:
+                    error = self._small_json(response).get("error")
+                except (GatewayError, OSError, ValueError):
+                    error = None
+                if isinstance(error, dict) and error.get("code") == "context_length_exceeded":
+                    raise _PolicyRejection("context_budget")
             status = response.status if response.status in {400, 401, 403, 404, 408, 413, 429, 500, 502, 503, 504} else 502
             self._reply(status, {"error": {"code": "provider_gateway_upstream_failed"}})
             return
