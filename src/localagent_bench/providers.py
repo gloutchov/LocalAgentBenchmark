@@ -45,7 +45,25 @@ def _request(url: str, path: str, payload: dict[str, Any] | None = None, *, time
                 raise ProviderError(f"Risposta troppo grande da {path}")
             result = json.loads(raw)
     except urllib.error.HTTPError as exc:
-        raise ProviderError(f"Endpoint locale {path}: HTTP {exc.code}") from exc
+        status = exc.code
+        safe_error = None
+        try:
+            if path == "/benchmark/unsloth-policy" and status in {401, 403}:
+                payload = json.loads(exc.read(1025))
+                error = payload.get("error") if isinstance(payload, dict) else None
+                code = error.get("code") if isinstance(error, dict) else None
+                safe_error = {
+                    (401, "provider_gateway_credential_rejected"): "Unsloth: chiave API rifiutata / API key rejected",
+                    (403, "provider_gateway_credential_rejected"): "Unsloth: chiave API rifiutata / API key rejected",
+                    (403, "provider_gateway_inference_scope_required"): "Unsloth: richiesta una chiave di sola inferenza / inference-only key required",
+                }.get((status, code)) if isinstance(code, str) else None
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        finally:
+            exc.close()
+        if safe_error:
+            raise ProviderError(safe_error) from None
+        raise ProviderError(f"Endpoint locale {path}: HTTP {status}") from None
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise ProviderError(f"Endpoint locale {path} non disponibile: {type(exc).__name__}") from exc
     if not isinstance(result, dict):
@@ -78,13 +96,17 @@ class LocalProvider:
                 from .llama_cpp import LlamaCppProvider
 
                 cls = LlamaCppProvider
+            elif kind == "unsloth":
+                from .unsloth import UnslothProvider
+
+                cls = UnslothProvider
             else:
                 raise ProviderError(f"Provider non supportato: {kind}")
         return super().__new__(cls)
 
     def __init__(self, kind: str, url: str, model_files: dict[str, Path] | None = None,
                  runtime_version: str | None = None, context_window: int = 32768):
-        if kind not in {"lmstudio", "llama_cpp"}:
+        if kind not in {"lmstudio", "llama_cpp", "unsloth"}:
             raise ProviderError(f"Provider non supportato: {kind}")
         self.kind = kind
         self.url = url.rstrip("/")

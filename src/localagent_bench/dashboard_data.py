@@ -41,7 +41,7 @@ SCHEMA_2_RUN_FIELDS = SCHEMA_3_RUN_FIELDS - {"exclusions"}
 LEGACY_RUN_FIELDS = SCHEMA_2_RUN_FIELDS - {"thinking_control"}
 EXCLUSION_FIELDS = {"model", "reason", "case_id"}
 EXCLUSION_REASONS = {
-    "thinking_observed_off", "thinking_unverified", "workspace_boundary",
+    "thinking_observed_off", "thinking_unverified", "provider_incompatible", "provider_context_mismatch", "workspace_boundary",
     "repository_mutation", "snapshot_mutation", "integrity_other",
 }
 PUBLIC_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
@@ -342,6 +342,9 @@ def _sanitize_exclusions(
             "external_workspace_access": "workspace_boundary",
             "repository_mutation": "repository_mutation",
             "snapshot_mutation": "snapshot_mutation",
+            "provider_context_mismatch": "provider_context_mismatch",
+            "provider_load_failed": "integrity_other",
+            "provider_warmup_failed": "integrity_other",
         }
         for item in violations:
             if not isinstance(item, dict):
@@ -364,9 +367,13 @@ def _sanitize_exclusions(
     output: list[dict[str, str | None]] = []
     for model in disqualified:
         preflight = preflights.get(model) if isinstance(preflights.get(model), dict) else {}
-        if requested == "off" and preflight.get("status") == "unexpected_thinking":
+        if preflight.get("status") == "context_window_mismatch":
+            by_model[model].insert(0, ("provider_context_mismatch", None))
+        elif preflight.get("status") == "tool_calling_not_verified":
+            by_model[model].insert(0, ("provider_incompatible", None))
+        elif requested == "off" and preflight.get("status") == "unexpected_thinking":
             by_model[model].insert(0, ("thinking_observed_off", None))
-        elif model in _string_list(thinking.get("disqualified_models")):
+        elif model in _string_list(thinking.get("disqualified_models")) and not by_model[model]:
             by_model[model].insert(0, ("thinking_unverified", None))
         seen: set[tuple[str, str | None]] = set()
         for reason, case_id in by_model[model] or [("integrity_other", None)]:

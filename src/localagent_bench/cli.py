@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -13,10 +14,13 @@ from .case_sdk import (
     create_case_template,
     validate_case_selection,
 )
-from .config import ConfigError, load_config
+from .config import ConfigError, load_config, select_provider
 from .comparison import ComparisonError, write_comparison
 from .dashboard_data import DashboardDataError, write_dashboard_data
 from .ollama import OllamaError
+from .provider_auth import CredentialError
+from .provider_gateway import GatewayError
+from .providers import ProviderError
 from .report import write_report
 from .runner import BenchmarkError, doctor, run_benchmark
 from .sandbox import SANDBOX_MODES
@@ -36,6 +40,12 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=ROOT / "benchmark.json",
         help="Percorso della configurazione (default: benchmark.json)",
+    )
+    parser.add_argument("--credential-prompt", action="store_true",
+                        help="Chiedi la chiave Unsloth soltanto in memoria / Prompt for an in-memory Unsloth key")
+    parser.add_argument(
+        "--provider", choices=("ollama", "lmstudio", "llama_cpp", "unsloth"),
+        help="Provider configurato / Configured provider",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -122,7 +132,11 @@ def _print_doctor(payload: dict) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        config = load_config(args.config)
+        config = select_provider(load_config(args.config), args.provider)
+        if args.credential_prompt:
+            if config.provider_kind != "unsloth" or args.command not in {"doctor", "list", "run"}:
+                raise ConfigError("--credential-prompt richiede doctor/list/run con Unsloth / requires Unsloth doctor/list/run")
+            config = replace(config, provider_auth_prompt=True)
         if args.command == "doctor":
             payload = doctor(config)
             _print_doctor(payload)
@@ -225,6 +239,9 @@ def main(argv: list[str] | None = None) -> int:
         ComparisonError,
         DashboardDataError,
         OllamaError,
+        CredentialError,
+        GatewayError,
+        ProviderError,
         OSError,
     ) as exc:
         print(f"Errore: {exc}", file=sys.stderr)

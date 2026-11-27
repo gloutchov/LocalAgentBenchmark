@@ -212,7 +212,7 @@
       "required": ["model", "reason", "case_id"],
       "properties": {
         "model": {"type": "string", "minLength": 1, "maxLength": 256},
-        "reason": {"enum": ["thinking_observed_off", "thinking_unverified", "workspace_boundary", "repository_mutation", "snapshot_mutation", "integrity_other"]},
+        "reason": {"enum": ["thinking_observed_off", "thinking_unverified", "provider_incompatible", "provider_context_mismatch", "workspace_boundary", "repository_mutation", "snapshot_mutation", "integrity_other"]},
         "case_id": {"type": ["string", "null"], "maxLength": 64, "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"}
       }
     },

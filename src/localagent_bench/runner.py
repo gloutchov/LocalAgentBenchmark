@@ -41,6 +41,8 @@ from .pi_adapter import (
 )
 from .pi_compatibility import PiCompatibility, REFERENCE_PI_VERSION, check_pi_compatibility
 from .provider_adapter import create_provider
+from .providers import ProviderError
+from .provider_session import provider_origin, provider_session
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
 from .system_metrics import hardware_snapshot
@@ -54,6 +56,46 @@ from .thinking import (
 
 class BenchmarkError(RuntimeError):
     """Raised for failures that prevent a benchmark run from starting."""
+
+
+def _terminal_provider_error_code(stdout: str) -> str | None:
+    """Read an allowlisted code only from Pi's terminal provider-error fields."""
+    allowed = "provider_gateway_context_window_mismatch"
+
+    def code(value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        # OpenAI's client prefixes its JSON error body with the HTTP status.
+        # Prose containing a code, assistant content and prompts are not errors.
+        body = re.sub(r"^[45][0-9]{2}\s+", "", value.strip(), count=1)
+        try:
+            payload = json.loads(body)
+        except (ValueError, TypeError):
+            return None
+        error = payload.get("error") if isinstance(payload, dict) else None
+        return allowed if isinstance(error, dict) and error.get("code") == allowed else None
+
+    terminal = None
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get("type") == "message_end":
+            message = event.get("message")
+            if not isinstance(message, dict) or message.get("role") != "assistant":
+                continue
+            reason = message.get("stopReason")
+            if isinstance(reason, str):
+                terminal = code(message.get("errorMessage")) if reason == "error" else None
+        elif event.get("type") == "auto_retry_end" and type(event.get("success")) is bool:
+            if event["success"]:
+                terminal = None
+            elif "finalError" in event:
+                terminal = code(event["finalError"])
+    return terminal
 
 
 EXECUTION_POLICY = f"""# Confine di esecuzione del benchmark / Benchmark execution boundary
@@ -238,16 +280,25 @@ def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None)
     git_path = shutil.which("git")
     checks.append({"name": "git", "ok": git_path is not None, "detail": git_path or "comando non trovato"})
     try:
-        provider = create_provider(config)
-        models = provider.list_models()
-        inspected: list[OllamaModel] = []
-        for model in models:
+        if config.provider_kind == "unsloth" and not pi_compatibility.passed:
+            raise ProviderError("Unsloth: credenziale non letta, contratto Pi fallito / credential not read, Pi contract failed")
+        if config.provider_kind == "unsloth":
             try:
-                inspected.append(provider.inspect_model(model))
-            except Exception:
-                inspected.append(model)
-        models = inspected
-        provider_version = provider.version()
+                require_clean_inputs(config.root, config.cases.values(),
+                                     (config.preliminary.suite,) if config.preliminary else ())
+            except InputIntegrityError:
+                raise ProviderError("Unsloth: credenziale non letta, input protetti modificati / credential not read, protected inputs are dirty") from None
+        with provider_session(config) as provider_config:
+            provider = create_provider(provider_config)
+            models = provider.list_models()
+            inspected: list[OllamaModel] = []
+            for model in models:
+                try:
+                    inspected.append(provider.inspect_model(model))
+                except Exception:
+                    inspected.append(model)
+            models = inspected
+            provider_version = provider.version()
         checks.append(
             {
                 "name": config.provider_kind,
@@ -339,6 +390,24 @@ def run_benchmark(
             f"Pi {REFERENCE_PI_VERSION} è la versione di riferimento verificata / "
             f"Pi {REFERENCE_PI_VERSION} is the verified reference version"
         )
+    with provider_session(config) as active_config:
+        return _run_provider_session(
+            active_config, profile=profile, requested_models=requested_models,
+            cases=cases, extra_paths=extra_paths, preliminary=preliminary,
+            repetitions=repetitions, timeout_seconds=timeout_seconds,
+            thinking_level=thinking_level, use_warmup=use_warmup,
+            output_dir=output_dir, order_seed=order_seed, sandbox=sandbox,
+            pi_version=pi_version, pi_compatibility=pi_compatibility,
+        )
+
+
+def _run_provider_session(
+    config: BenchmarkConfig, *, profile: str, requested_models: list[str] | None,
+    cases: list[CaseSpec], extra_paths: tuple[Path, ...], preliminary: bool,
+    repetitions: int | None, timeout_seconds: int | None, thinking_level: str | None,
+    use_warmup: bool | None, output_dir: Path | None, order_seed: int | None,
+    sandbox: Any, pi_version: str | None, pi_compatibility: PiCompatibility,
+) -> Path:
     provider = create_provider(config)
     installed = provider.list_models()
     models = _resolve_models(config, requested_models, installed)
@@ -419,9 +488,9 @@ def run_benchmark(
         "sandbox": sandbox.to_dict(),
         "configuration": {
             "provider_kind": config.provider_kind,
-            "provider_url": config.ollama_url,
+            "provider_url": provider_origin(config),
             "pi_command": list(config.pi_command),
-            "ollama_url": config.ollama_url,
+            "ollama_url": provider_origin(config),
             "timeout_seconds": timeout,
             "repetitions": repeat_count,
             "thinking": thinking_policy.requested,
@@ -462,6 +531,15 @@ def run_benchmark(
         },
         "model_metadata": {name: asdict(installed_by_name[name]) for name in models},
     }
+    if config.provider_kind == "unsloth":
+        manifest["provider_controls"] = {
+            "authentication": "memory_prompt" if config.provider_auth_prompt else "protected_reference",
+            "server_tools": "disabled_by_inference_only_key",
+            "lifecycle": "preloaded_manual",
+            "cold_start_verified": False,
+        }
+        manifest["configuration"]["provider_transport"] = asdict(config.provider_transport)
+        manifest["environment"]["provider_backend_version"] = config.provider_backend_version
     _write_manifest(run_dir, manifest)
 
     preflight_by_model: dict[str, ThinkingPreflight] = {}
@@ -574,7 +652,8 @@ def run_benchmark(
                     active_model = None
                     continue
                 manifest["load_events"].append({
-                    "sequence": current, "model": model, "status": "loaded",
+                    "sequence": current, "model": model,
+                    "status": "preloaded" if provider.kind == "unsloth" else "loaded",
                     "duration_ms": max(0, round((time.monotonic() - load_started) * 1000)),
                 })
             if should_warmup:
@@ -591,10 +670,26 @@ def run_benchmark(
                         if key in warmup_result
                     }
                 except Exception as exc:
-                    event["error"] = str(exc)
-                    print(f"[avviso] warmup fallito per {model}: {exc}", file=sys.stderr, flush=True)
+                    if provider.kind == "unsloth":
+                        event.update(status="failed", error_code="provider_warmup_failed",
+                                     error_type=type(exc).__name__)
+                        disqualified_thinking.add(model)
+                        manifest["thinking_control"]["disqualified_models"] = sorted(disqualified_thinking)
+                        manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
+                        _record_integrity_violation(
+                            manifest, model=model, case_id="__warmup__", repetition=0,
+                            kind="provider_warmup_failed", details=[{"error_type": type(exc).__name__}],
+                        )
+                        print(f"[avviso] warmup fallito per {model}: provider_warmup_failed",
+                              file=sys.stderr, flush=True)
+                    else:
+                        event["error"] = str(exc)
+                        print(f"[avviso] warmup fallito per {model}: {exc}", file=sys.stderr, flush=True)
                 manifest["warmup_events"].append(event)
                 _write_manifest(run_dir, manifest)
+                if model in disqualified_thinking:
+                    active_model = None
+                    continue
             active_model = model
 
         case_dir = run_dir / "models" / _slug(model) / "cases" / f"{case.id}-r{repetition}"
@@ -678,9 +773,23 @@ def run_benchmark(
             thinking_violations.append(
                 {"reason": "unexpected_retry", "retry_events": int(retry_events)}
             )
+        provider_context_error = (
+            _terminal_provider_error_code(pi_run.stdout)
+            if config.provider_kind == "unsloth" and pi_run.metrics.get("terminal_agent_error") is True
+            else None
+        )
         valid_for_ranking = not (
             source_mutations or snapshot_mutations or external_accesses or thinking_violations
+            or provider_context_error
         )
+        if provider_context_error:
+            disqualified_thinking.add(model)
+            manifest["thinking_control"]["disqualified_models"] = sorted(disqualified_thinking)
+            manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
+            _record_integrity_violation(
+                manifest, model=model, case_id=case.id, repetition=repetition,
+                kind="provider_context_mismatch", details=[{"code": provider_context_error}],
+            )
         if source_mutations:
             _record_integrity_violation(
                 manifest,

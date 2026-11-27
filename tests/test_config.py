@@ -5,11 +5,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from localagent_bench.config import ConfigError, load_config
+from localagent_bench.config import ConfigError, load_config, select_provider
 from localagent_bench.cli import _parser
 
 
@@ -51,6 +52,39 @@ class ConfigTests(unittest.TestCase):
             (ROOT / ".localagent-benchmark" / "guided-preferences.json").resolve(),
             config.guided.preferences_file,
         )
+
+    def test_select_provider_uses_shared_run_settings_and_validates_alternatives(self):
+        config_path = ROOT / "benchmark.json"
+        raw = json.loads(config_path.read_text())
+        raw["additional_providers"] = [
+            {"kind": "lmstudio", "url": "http://127.0.0.1:1234"},
+            {"kind": "unsloth", "url": "http://127.0.0.1:8888", "credential_ref": "test-reference"},
+        ]
+        read_text = Path.read_text
+
+        def read_test_config(path, *args, **kwargs):
+            if path == config_path:
+                return json.dumps(raw)
+            return read_text(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", read_test_config):
+            config = load_config(config_path)
+            args = _parser().parse_args(["--provider", "unsloth", "list"])
+            unsloth = select_provider(config, args.provider)
+            self.assertEqual("ollama", config.provider_kind)
+            self.assertEqual("unsloth", unsloth.provider_kind)
+            self.assertEqual("test-reference", unsloth.provider_auth_ref)
+            self.assertIs(config.defaults, unsloth.defaults)
+            self.assertIs(config.profiles, unsloth.profiles)
+            self.assertIsNone(select_provider(config, "lmstudio").provider_auth_ref)
+            with self.assertRaisesRegex(ConfigError, "not configured"):
+                select_provider(config, "llama_cpp")
+            raw["additional_providers"][0]["url"] = "http://example.invalid:1234"
+            with self.assertRaisesRegex(ConfigError, "loopback"):
+                load_config(config_path)
+            raw["additional_providers"][0] = raw["provider"]
+            with self.assertRaisesRegex(ConfigError, "Duplicate provider"):
+                load_config(config_path)
 
     def test_cli_thinking_override_is_parsed_without_changing_default(self):
         args = _parser().parse_args(["run", "--thinking", "medium"])

@@ -14,7 +14,7 @@ dist/
 build/
 *.egg-info/
 results/
-output/playwright/
+output/
 .playwright-cli/
 dashboard/data/snapshot.js
 assets/Dashboard.mov

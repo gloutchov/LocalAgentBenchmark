@@ -1,17 +1,17 @@
 # User Manual – LocalAgent Benchmark
 
-Current version: **0.14.0**. This patch updates the GitHub action that prepares Python in the CI and Pages workflows; benchmark installation, commands, and configuration are unchanged.
+Current version: **0.15.0**. Adds Unsloth as a local provider with protected authentication, disabled provider-hosted tools and already-loaded GGUF models; Pi remains the task agent.
 
 ## 1. Purpose
 
-LocalAgent Benchmark compares local Ollama, LM Studio, or llama.cpp models acting as coding agents through Pi. Every model receives inputs copied from the same frozen snapshot of `AGENTS.md`, the case manifest, prompt, and Git fixture. Independent checks score the resulting workspace, while raw artifacts remain available for human review. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md) to configure the alternative providers.
+LocalAgent Benchmark compares local Ollama, LM Studio, llama.cpp, or Unsloth models acting as coding agents through Pi. Every model receives inputs copied from the same frozen snapshot of `AGENTS.md`, the case manifest, prompt, and Git fixture. Independent checks score the resulting workspace, while raw artifacts remain available for human review. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md) to configure the alternative providers.
 
 Each provider uses a dedicated internal adapter selected by `provider.kind` in `benchmark.json`. Commands, configuration, and result formats stay the same; Pi remains the task agent.
 
 ## 2. Requirements
 
 - Python 3.10+ and Git on `PATH`;
-- a configured loopback model server: Ollama, LM Studio 0.4+, or the `llama-server` router;
+- a configured loopback model server: Ollama, LM Studio 0.4+, the `llama-server` router, or Unsloth with an inference-only key;
 - Pi available as the `pi` command (every version must pass the local compatibility test);
 - one or more downloaded local models suitable for tool calling;
 - enough disk space for one fixture workspace per attempt.
@@ -203,9 +203,17 @@ When maintaining the page, update both dictionaries in `site/js/i18n.js`, keep p
 
 ## 5. Configuration
 
-`benchmark.json` is the central configuration file. `provider.kind` selects `ollama`, `lmstudio`, or `llama_cpp`; `provider.url` selects an HTTP loopback endpoint. The legacy `ollama.url` form remains readable. It also defines the Pi command, model selection, task/preflight timeouts, repetitions, thinking level, HTTP idle timeout, agent/provider retries, warmup, context and output limits, temperature, sandbox mode, profiles, case discovery directory, and dashboard settings. Its `guided` section fixes the `smoke`, `standard`, `full` progression, promotion limits, and local GUI preference file. Official defaults remain thinking `off`, HTTP idle timeout `0`, and zero retries.
+The GUI identifies the provider in the model table. Add optional providers to `additional_providers`. A guided run accepts models from one provider. The CLI command `python3 benchmark.py --provider unsloth list` selects Unsloth. By default it uses `provider`.
 
-Configuration is validated at startup and must not contain secrets. Pi receives a dummy key equal to the provider ID; local servers without authentication are supported. `provider.runtime_version` is user-declared, and `provider.model_files` maps exact model IDs to local GGUF files. The host hashes these files without copying them into results. Their association with the served model is the user's declaration, not an automatic server verification. Single runs work without these fields, but `compare` requires version and GGUF digests for LM Studio/llama.cpp. CLI and guided mode use the same provider configured before a run.
+`benchmark.json` is the central configuration file. `provider.kind` selects `ollama`, `lmstudio`, `llama_cpp`, or `unsloth`; `provider.url` selects an HTTP loopback endpoint. The legacy `ollama.url` form remains readable. It also defines the Pi command, model selection, task/preflight timeouts, repetitions, thinking level, HTTP idle timeout, agent/provider retries, warmup, context and output limits, temperature, sandbox mode, profiles, case discovery directory, and dashboard settings. Its `guided` section fixes the `smoke`, `standard`, `full` progression, promotion limits, and local GUI preference file. Official defaults remain thinking `off`, HTTP idle timeout `0`, and zero retries. For Unsloth, `provider.credential_ref` is a non-secret protected-store reference such as `unsloth-local`; `provider.backend_version` is the user-declared backend version required with runtime version and GGUF digests for `compare`; `provider.transport` defaults to `timeout_seconds: 1200`, `max_request_bytes: 8388608`, `max_response_bytes: 33554432`, `max_header_bytes: 16384`, and `max_connections: 16`.
+
+Configuration is validated at startup and must not contain secrets. Pi receives a dummy key equal to the provider ID. For Unsloth, only the host gateway reads the real key from the OS credential store or an explicit memory-only terminal prompt. `provider.runtime_version` is user-declared, and `provider.model_files` maps exact model IDs to local GGUF files. The host hashes these files without copying them into results. Their association with the served model is the user's declaration, not an automatic server verification. Single runs work without these fields, but `compare` requires version and GGUF digests for LM Studio/llama.cpp/Unsloth. CLI and guided mode use the same provider configured before a run.
+
+### Unsloth: credentials and resident models
+
+Follow the [provider guide](QUICK-START_LocalProviders.md#unsloth) to create an `inference` access key and a matching OS credential-store entry. The GUI only reads that existing entry. Alternatively, the CLI can request the key for that process alone with `python3 benchmark.py --credential-prompt doctor` or `python3 benchmark.py --credential-prompt run --profile smoke --models GGUF_ID --thinking off --sandbox required`. The option precedes the subcommand and requires an interactive terminal; never put the key in the command or environment.
+
+Manually load a local GGUF in Unsloth before `doctor` and `list`, and keep it loaded for the full run. Full keys, remote/MLX models, automatic loading and Unsloth-hosted tools are rejected. No unload or cache reset is certified for this provider. Each generation POST includes two host policy/model checks; their overhead counts toward first-answer and Pi/Preliminary E2E timings, separately from preflight/warmup excluded from task metrics.
 
 ### Creating and validating personal cases
 
@@ -248,7 +256,7 @@ The overall winner is not necessarily best for every activity. A security-heavy 
 
 ## 7. Reproducibility
 
-Use the same configuration, profile, thinking mode, repetitions, seed, hardware, and similar system load. The runner unloads each model around its separate preflight; at each task-model switch it may then record an optional warmup before starting the task. Preflight and warmup never contribute to task time or tokens. Selected manifests, prompts, fixtures, graders, and rubrics must be clean at startup; only tracked files and the execution policy are copied once into `benchmark-context/`, excluding ignored caches and outputs. Input hashes include the manifest and optional rubric. Every workspace contains a Git-ignored `.benchmark-scratch/` directory also used for `TMPDIR`, `TMP`, and `TEMP`; models must use it for smoke tests and temporary files instead of `/tmp`. Do not modify source inputs or the snapshot during a run. Temperature zero reduces but does not eliminate variance.
+Use the same configuration, profile, thinking mode, repetitions, seed, hardware, and similar system load. For automatic-lifecycle providers, the runner unloads each model around its separate preflight; Unsloth keeps preloaded GGUF models resident and records manual lifecycle; at each task-model switch it may then record an optional warmup before starting the task. Preflight and warmup never contribute to task time or tokens. Selected manifests, prompts, fixtures, graders, and rubrics must be clean at startup; only tracked files and the execution policy are copied once into `benchmark-context/`, excluding ignored caches and outputs. Input hashes include the manifest and optional rubric. Every workspace contains a Git-ignored `.benchmark-scratch/` directory also used for `TMPDIR`, `TMP`, and `TEMP`; models must use it for smoke tests and temporary files instead of `/tmp`. Do not modify source inputs or the snapshot during a run. Temperature zero reduces but does not eliminate variance.
 
 ## 8. Troubleshooting
 
@@ -307,7 +315,7 @@ Do not add private data, real repositories, or credentials to cases. Manifests a
 
 ## Preliminary: describe models before coding tasks
 
-Run `python3 benchmark.py run --profile preliminary --models MODEL --thinking off --sandbox required`. This stage measures first answer text, E2E tokens/s, duration and streaming gaps, and checks 16 questions against synthetic sources. The new quick-path configuration enables the Preliminary toggle; disable it before starting to skip this stage. Scores, promotions and the smoke/standard/full funnel are unchanged. The model is unloaded afterwards; smoke repeats its own gates and warmup.
+Run `python3 benchmark.py run --profile preliminary --models MODEL --thinking off --sandbox required`. This stage measures first answer text, E2E tokens/s, duration and streaming gaps, and checks 16 questions against synthetic sources. The new quick-path configuration enables the Preliminary toggle; disable it before starting to skip this stage. Scores, promotions and the smoke/standard/full funnel are unchanged. Unload is requested afterwards when supported; Unsloth remains resident with manual lifecycle. Smoke repeats its own gates and warmup.
 
 The dashboard provides separate descriptive medians/ranges and counts for known answers, missing information, false premises, unsupported answers and unnecessary abstentions. N/A values, truncation and technical failures remain explicit. This is neither a universal hallucination rate nor a verified cold-start measurement. HTTP probes have no tools; recorded sandbox enforcement covers the Pi contract gate. [Complete configuration, privacy and troubleshooting](QUICK-START_Preliminary.md).
 

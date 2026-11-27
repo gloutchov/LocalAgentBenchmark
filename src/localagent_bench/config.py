@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -65,6 +66,15 @@ class GuidedSettings:
 
 
 @dataclass(frozen=True)
+class ProviderTransportSettings:
+    timeout_seconds: int = 1200
+    max_request_bytes: int = 8 * 1024 * 1024
+    max_response_bytes: int = 32 * 1024 * 1024
+    max_header_bytes: int = 16384
+    max_connections: int = 16
+
+
+@dataclass(frozen=True)
 class BenchmarkConfig:
     root: Path
     ollama_url: str
@@ -80,6 +90,12 @@ class BenchmarkConfig:
     model_files: dict[str, Path] | None = None
     provider_version: str | None = None
     preliminary: PreliminarySettings | None = None
+    provider_auth_ref: str | None = None
+    provider_transport: ProviderTransportSettings = ProviderTransportSettings()
+    provider_origin_url: str | None = None  # In-memory gateway origin; never a credential.
+    provider_auth_prompt: bool = False  # CLI-only opt-in; not a persisted preference.
+    provider_backend_version: str | None = None
+    additional_providers: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -99,6 +115,87 @@ def _repository_path(root: Path, value: Any, *, key: str) -> Path:
     if resolved != root and root not in resolved.parents:
         raise ConfigError(f"'{key}' deve restare dentro il repository")
     return resolved
+
+
+def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, Any]:
+    if provider_kind not in {"ollama", "lmstudio", "llama_cpp", "unsloth"}:
+        raise ConfigError("provider.kind non supportato")
+    if any(key in provider for key in ("api_key", "apiKey", "token", "password", "secret")):
+        raise ConfigError("Credenziali in configurazione vietate / Credentials must not be stored in configuration")
+    auth_ref = provider.get("credential_ref")
+    if auth_ref is not None and (not isinstance(auth_ref, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", auth_ref) or auth_ref.startswith("sk-")):
+        raise ConfigError("provider.credential_ref non valido / Invalid credential reference")
+    if provider_kind == "unsloth" and not auth_ref:
+        raise ConfigError("Unsloth richiede provider.credential_ref / Unsloth requires a protected credential reference")
+    if auth_ref and provider_kind != "unsloth":
+        raise ConfigError("provider.credential_ref è supportato solo per Unsloth / Credential references currently require Unsloth")
+    transport_raw = provider.get("transport", {})
+    if not isinstance(transport_raw, dict) or set(transport_raw) - set(ProviderTransportSettings.__dataclass_fields__):
+        raise ConfigError("provider.transport non valido / Invalid transport settings")
+    transport_values = {**ProviderTransportSettings().__dict__, **transport_raw}
+    bounds = {"timeout_seconds": (10, 7200), "max_request_bytes": (1024, 32 * 1024 * 1024),
+              "max_response_bytes": (1024, 128 * 1024 * 1024), "max_header_bytes": (1024, 65536),
+              "max_connections": (1, 64)}
+    if any(type(value) is not int or not bounds[key][0] <= value <= bounds[key][1]
+           for key, value in transport_values.items()):
+        raise ConfigError("provider.transport fuori limite / Transport settings outside supported limits")
+    transport = ProviderTransportSettings(**transport_values)
+    ollama_url = _require(provider, "url", str).rstrip("/")
+    parsed_url = urlparse(ollama_url)
+    try:
+        parsed_url.port
+    except ValueError as exc:
+        raise ConfigError("provider.url deve avere una porta valida") from exc
+    if (parsed_url.scheme != "http" or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed_url.username or parsed_url.password or parsed_url.path or parsed_url.query or parsed_url.fragment):
+        raise ConfigError("provider.url deve essere un URL HTTP locale su loopback, senza path o credenziali")
+    if provider_kind == "unsloth" and (parsed_url.port is None or not 1 <= parsed_url.port <= 65535):
+        raise ConfigError("Unsloth richiede una porta esplicita valida / Unsloth requires an explicit valid port")
+    raw_files = provider.get("model_files", {})
+    if not isinstance(raw_files, dict) or any(
+        not isinstance(name, str) or not isinstance(value, str) or not value
+        for name, value in raw_files.items()
+    ):
+        raise ConfigError("provider.model_files deve associare nomi modello a path GGUF")
+    model_files = {name: Path(value).expanduser().resolve() for name, value in raw_files.items()}
+    provider_version = provider.get("runtime_version")
+    if provider_version is not None and (not isinstance(provider_version, str) or not provider_version.strip() or len(provider_version) > 128):
+        raise ConfigError("provider.runtime_version deve essere una stringa breve non vuota")
+    backend_version = provider.get("backend_version")
+    if backend_version is not None and (provider_kind != "unsloth" or not isinstance(backend_version, str)
+            or not backend_version.strip() or len(backend_version) > 128):
+        raise ConfigError("provider.backend_version deve essere una stringa breve per Unsloth / Invalid Unsloth backend version")
+    return {
+        "provider_kind": provider_kind,
+        "ollama_url": ollama_url,
+        "model_files": model_files,
+        "provider_version": provider_version,
+        "provider_auth_ref": auth_ref,
+        "provider_transport": transport,
+        "provider_backend_version": backend_version,
+    }
+
+
+def _additional_providers(value: Any, primary_kind: str) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, list) or len(value) > 3:
+        raise ConfigError("additional_providers richiede fino a tre provider / expected up to three providers")
+    providers: dict[str, dict[str, Any]] = {}
+    for entry in value:
+        if not isinstance(entry, dict):
+            raise ConfigError("Elemento additional_providers non valido / Invalid additional provider")
+        kind = _require(entry, "kind", str)
+        if kind == primary_kind or kind in providers:
+            raise ConfigError(f"Provider duplicato / Duplicate provider: {kind}")
+        providers[kind] = _provider_fields(entry, kind)
+    return providers
+
+
+def select_provider(config: BenchmarkConfig, kind: str | None) -> BenchmarkConfig:
+    if kind is None or kind == config.provider_kind:
+        return config
+    if kind not in config.additional_providers:
+        raise ConfigError(f"Provider non configurato / Provider not configured: {kind}")
+    return replace(config, **config.additional_providers[kind])
 
 
 def load_config(path: Path) -> BenchmarkConfig:
@@ -121,27 +218,8 @@ def load_config(path: Path) -> BenchmarkConfig:
         provider_kind = _require(provider, "kind", str)
     else:
         raise ConfigError("'provider' deve essere un oggetto")
-    if provider_kind not in {"ollama", "lmstudio", "llama_cpp"}:
-        raise ConfigError("provider.kind non supportato")
-    ollama_url = _require(provider, "url", str).rstrip("/")
-    parsed_url = urlparse(ollama_url)
-    try:
-        parsed_url.port
-    except ValueError as exc:
-        raise ConfigError("provider.url deve avere una porta valida") from exc
-    if (parsed_url.scheme != "http" or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
-            or parsed_url.username or parsed_url.password or parsed_url.path or parsed_url.query or parsed_url.fragment):
-        raise ConfigError("provider.url deve essere un URL HTTP locale su loopback, senza path o credenziali")
-    raw_files = provider.get("model_files", {})
-    if not isinstance(raw_files, dict) or any(
-        not isinstance(name, str) or not isinstance(value, str) or not value
-        for name, value in raw_files.items()
-    ):
-        raise ConfigError("provider.model_files deve associare nomi modello a path GGUF")
-    model_files = {name: Path(value).expanduser().resolve() for name, value in raw_files.items()}
-    provider_version = provider.get("runtime_version")
-    if provider_version is not None and (not isinstance(provider_version, str) or not provider_version.strip() or len(provider_version) > 128):
-        raise ConfigError("provider.runtime_version deve essere una stringa breve non vuota")
+    provider_fields = _provider_fields(provider, provider_kind)
+    additional_providers = _additional_providers(raw.get("additional_providers", []), provider_kind)
 
     pi = _require(raw, "pi", dict)
     pi_command_raw = _require(pi, "command", list)
@@ -372,7 +450,6 @@ def load_config(path: Path) -> BenchmarkConfig:
     return BenchmarkConfig(
         preliminary=preliminary,
         root=root,
-        ollama_url=ollama_url,
         pi_command=tuple(pi_command_raw),
         models=models,
         defaults=defaults,
@@ -381,7 +458,6 @@ def load_config(path: Path) -> BenchmarkConfig:
         cases_directory=cases_directory,
         dashboard=dashboard,
         guided=guided,
-        provider_kind=provider_kind,
-        model_files=model_files,
-        provider_version=provider_version,
+        additional_providers=additional_providers,
+        **provider_fields,
     )

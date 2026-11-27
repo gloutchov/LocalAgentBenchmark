@@ -12,7 +12,7 @@
   const SCHEMA_VERSION = 4;
   const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3, 4]);
   const EXCLUSION_REASONS = new Set([
-    "thinking_observed_off", "thinking_unverified", "workspace_boundary",
+    "thinking_observed_off", "thinking_unverified", "provider_incompatible", "provider_context_mismatch", "workspace_boundary",
     "repository_mutation", "snapshot_mutation", "integrity_other",
   ]);
   const PROFILE_ORDER = ["preliminary", "smoke", "standard", "full", "thinking", "showcase"];
