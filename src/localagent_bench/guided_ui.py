@@ -19,7 +19,7 @@ from .guided import GuidedError, GuidedOrchestrator, discover_provider_catalog, 
 
 
 ROOT = Path(__file__).resolve().parents[2]
-PROVIDER_NAMES = {"ollama": "Ollama", "lmstudio": "LM Studio", "llama_cpp": "llama.cpp", "unsloth": "Unsloth"}
+PROVIDER_NAMES = {"ollama": "Ollama", "lmstudio": "LM Studio", "llama_cpp": "llama.cpp", "unsloth": "Unsloth", "colibri": "Colibrì"}
 
 THEME_PALETTES = {
     "dark": {

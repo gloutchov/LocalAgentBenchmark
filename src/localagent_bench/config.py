@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from .colibri_protocol import ColibriSettings
 from .case_sdk import (
     CaseSpec,
     CaseValidationError,
@@ -96,6 +97,7 @@ class BenchmarkConfig:
     provider_auth_prompt: bool = False  # CLI-only opt-in; not a persisted preference.
     provider_backend_version: str | None = None
     additional_providers: dict[str, dict[str, Any]] = field(default_factory=dict)
+    colibri: ColibriSettings | None = None
 
 
 def _require(mapping: dict[str, Any], key: str, expected: type) -> Any:
@@ -118,7 +120,7 @@ def _repository_path(root: Path, value: Any, *, key: str) -> Path:
 
 
 def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, Any]:
-    if provider_kind not in {"ollama", "lmstudio", "llama_cpp", "unsloth"}:
+    if provider_kind not in {"ollama", "lmstudio", "llama_cpp", "unsloth", "colibri"}:
         raise ConfigError("provider.kind non supportato")
     if any(key in provider for key in ("api_key", "apiKey", "token", "password", "secret")):
         raise ConfigError("Credenziali in configurazione vietate / Credentials must not be stored in configuration")
@@ -127,8 +129,8 @@ def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, 
         raise ConfigError("provider.credential_ref non valido / Invalid credential reference")
     if provider_kind == "unsloth" and not auth_ref:
         raise ConfigError("Unsloth richiede provider.credential_ref / Unsloth requires a protected credential reference")
-    if auth_ref and provider_kind != "unsloth":
-        raise ConfigError("provider.credential_ref è supportato solo per Unsloth / Credential references currently require Unsloth")
+    if auth_ref and provider_kind not in {"unsloth", "colibri"}:
+        raise ConfigError("provider.credential_ref richiede Unsloth o Colibrì / Credential references require Unsloth or Colibrì")
     transport_raw = provider.get("transport", {})
     if not isinstance(transport_raw, dict) or set(transport_raw) - set(ProviderTransportSettings.__dataclass_fields__):
         raise ConfigError("provider.transport non valido / Invalid transport settings")
@@ -149,8 +151,8 @@ def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, 
     if (parsed_url.scheme != "http" or parsed_url.hostname not in {"127.0.0.1", "localhost", "::1"}
             or parsed_url.username or parsed_url.password or parsed_url.path or parsed_url.query or parsed_url.fragment):
         raise ConfigError("provider.url deve essere un URL HTTP locale su loopback, senza path o credenziali")
-    if provider_kind == "unsloth" and (parsed_url.port is None or not 1 <= parsed_url.port <= 65535):
-        raise ConfigError("Unsloth richiede una porta esplicita valida / Unsloth requires an explicit valid port")
+    if provider_kind in {"unsloth", "colibri"} and (parsed_url.port is None or not 1 <= parsed_url.port <= 65535):
+        raise ConfigError("Unsloth e Colibrì richiedono una porta esplicita valida / Explicit valid port required")
     raw_files = provider.get("model_files", {})
     if not isinstance(raw_files, dict) or any(
         not isinstance(name, str) or not isinstance(value, str) or not value
@@ -162,11 +164,22 @@ def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, 
     if provider_version is not None and (not isinstance(provider_version, str) or not provider_version.strip() or len(provider_version) > 128):
         raise ConfigError("provider.runtime_version deve essere una stringa breve non vuota")
     backend_version = provider.get("backend_version")
-    if backend_version is not None and (provider_kind != "unsloth" or not isinstance(backend_version, str)
+    if backend_version is not None and (provider_kind not in {"unsloth", "colibri"} or not isinstance(backend_version, str)
             or not backend_version.strip() or len(backend_version) > 128):
-        raise ConfigError("provider.backend_version deve essere una stringa breve per Unsloth / Invalid Unsloth backend version")
+        raise ConfigError("provider.backend_version richiede Unsloth o Colibrì / Invalid provider backend version")
+    colibri = None
+    if provider_kind == "colibri":
+        if model_files:
+            raise ConfigError("Colibrì usa provider.colibri.model_bundles / Colibrì uses model_bundles")
+        try:
+            colibri = ColibriSettings.parse(provider.get("colibri", {}))
+        except ValueError as exc:
+            raise ConfigError(str(exc)) from None
+    elif "colibri" in provider:
+        raise ConfigError("provider.colibri richiede kind=colibri / requires kind=colibri")
     return {
         "provider_kind": provider_kind,
+        "colibri": colibri,
         "ollama_url": ollama_url,
         "model_files": model_files,
         "provider_version": provider_version,
@@ -177,8 +190,8 @@ def _provider_fields(provider: dict[str, Any], provider_kind: str) -> dict[str, 
 
 
 def _additional_providers(value: Any, primary_kind: str) -> dict[str, dict[str, Any]]:
-    if not isinstance(value, list) or len(value) > 3:
-        raise ConfigError("additional_providers richiede fino a tre provider / expected up to three providers")
+    if not isinstance(value, list) or len(value) > 4:
+        raise ConfigError("additional_providers richiede fino a quattro provider / expected up to four providers")
     providers: dict[str, dict[str, Any]] = {}
     for entry in value:
         if not isinstance(entry, dict):

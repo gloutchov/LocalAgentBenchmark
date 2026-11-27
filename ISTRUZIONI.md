@@ -1,10 +1,10 @@
 # Manuale utente – LocalAgent Benchmark
 
-Versione corrente: **0.15.0**. Aggiunge Unsloth come provider locale con autenticazione protetta, strumenti host disabilitati e GGUF già caricati; Pi resta l'agente delle task.
+Versione **0.16.0**. Aggiunge Colibrì come provider locale per Preliminary e task Pi. Vedere la [configurazione di Colibrì](QUICK-START_LocalProviders.md#colibrì) e la [guida al confronto con Unsloth](QUICK-START_Colibri-Unsloth.md).
 
 ## 1. Scopo
 
-LocalAgent Benchmark confronta modelli locali Ollama, LM Studio, llama.cpp o Unsloth quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
+LocalAgent Benchmark confronta modelli locali Ollama, LM Studio, llama.cpp, Unsloth o Colibrì quando lavorano come coding agent attraverso Pi. Ogni modello riceve input copiati dallo stesso snapshot congelato di `AGENTS.md`, manifesto, prompt e fixture Git. Il risultato viene misurato con controlli automatici e conservato per revisione manuale. La configurazione dei provider alternativi è descritta in [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md).
 
 Ogni provider usa un adattatore interno dedicato, selezionato da `provider.kind` in `benchmark.json`. Comandi, configurazione e formato dei risultati restano uguali; Pi rimane l'agente utilizzato per le task.
 
@@ -217,7 +217,7 @@ La GUI indica il provider nella tabella modelli. Configurare eventuali provider 
 
 `benchmark.json` contiene tutti i parametri modificabili:
 
-- `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`, `unsloth`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;
+- `provider.kind` (`ollama`, `lmstudio`, `llama_cpp`, `unsloth`, `colibri`) e `provider.url`: runtime e endpoint HTTP su loopback; la vecchia sezione `ollama.url` resta leggibile;
 - `provider.runtime_version` e `provider.model_files`: versione dichiarata e path GGUF opzionali per il singolo run, obbligatori per aggregare run dei provider alternativi;
 - `provider.credential_ref`: solo per Unsloth, riferimento non segreto a una chiave protetta, per esempio `unsloth-local`;
 - `provider.backend_version`: versione backend Unsloth dichiarata dall'utente, necessaria insieme a runtime e digest GGUF per `compare`;

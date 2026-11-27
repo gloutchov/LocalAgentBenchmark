@@ -42,6 +42,7 @@ from .pi_adapter import (
 from .pi_compatibility import PiCompatibility, REFERENCE_PI_VERSION, check_pi_compatibility
 from .provider_adapter import create_provider
 from .providers import ProviderError
+from .model_bundle import ModelBundleError
 from .provider_session import provider_origin, provider_session
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
@@ -60,7 +61,8 @@ class BenchmarkError(RuntimeError):
 
 def _terminal_provider_error_code(stdout: str) -> str | None:
     """Read an allowlisted code only from Pi's terminal provider-error fields."""
-    allowed = "provider_gateway_context_window_mismatch"
+    allowed = {"provider_gateway_context_window_mismatch", "provider_gateway_context_budget_exceeded",
+               "provider_gateway_model_not_resident"}
 
     def code(value: Any) -> str | None:
         if not isinstance(value, str):
@@ -73,7 +75,8 @@ def _terminal_provider_error_code(stdout: str) -> str | None:
         except (ValueError, TypeError):
             return None
         error = payload.get("error") if isinstance(payload, dict) else None
-        return allowed if isinstance(error, dict) and error.get("code") == allowed else None
+        candidate = error.get("code") if isinstance(error, dict) else None
+        return candidate if isinstance(candidate, str) and candidate in allowed else None
 
     terminal = None
     for line in stdout.splitlines():
@@ -280,14 +283,14 @@ def doctor(config: BenchmarkConfig, cancel_event: threading.Event | None = None)
     git_path = shutil.which("git")
     checks.append({"name": "git", "ok": git_path is not None, "detail": git_path or "comando non trovato"})
     try:
-        if config.provider_kind == "unsloth" and not pi_compatibility.passed:
-            raise ProviderError("Unsloth: credenziale non letta, contratto Pi fallito / credential not read, Pi contract failed")
-        if config.provider_kind == "unsloth":
+        if config.provider_kind in {"unsloth", "colibri"} and not pi_compatibility.passed:
+            raise ProviderError("Provider locale: credenziale non letta, contratto Pi fallito / credential not read, Pi contract failed")
+        if config.provider_kind in {"unsloth", "colibri"}:
             try:
                 require_clean_inputs(config.root, config.cases.values(),
                                      (config.preliminary.suite,) if config.preliminary else ())
             except InputIntegrityError:
-                raise ProviderError("Unsloth: credenziale non letta, input protetti modificati / credential not read, protected inputs are dirty") from None
+                raise ProviderError("Provider locale: credenziale non letta, input protetti modificati / credential not read, protected inputs are dirty") from None
         with provider_session(config) as provider_config:
             provider = create_provider(provider_config)
             models = provider.list_models()
@@ -531,15 +534,20 @@ def _run_provider_session(
         },
         "model_metadata": {name: asdict(installed_by_name[name]) for name in models},
     }
-    if config.provider_kind == "unsloth":
+    if config.provider_kind in {"unsloth", "colibri"}:
         manifest["provider_controls"] = {
-            "authentication": "memory_prompt" if config.provider_auth_prompt else "protected_reference",
-            "server_tools": "disabled_by_inference_only_key",
+            "authentication": ("memory_prompt" if config.provider_auth_prompt else
+                               "protected_reference" if config.provider_auth_ref else "none"),
+            "server_tools": ("disabled_by_inference_only_key" if config.provider_kind == "unsloth"
+                             else "fixed_chat_function_tools_only"),
             "lifecycle": "preloaded_manual",
             "cold_start_verified": False,
         }
         manifest["configuration"]["provider_transport"] = asdict(config.provider_transport)
         manifest["environment"]["provider_backend_version"] = config.provider_backend_version
+    if config.colibri is not None:
+        manifest["environment"]["colibri"] = config.colibri.to_manifest()
+        manifest["provider_controls"]["unload"] = "not_supported"
     _write_manifest(run_dir, manifest)
 
     preflight_by_model: dict[str, ThinkingPreflight] = {}
@@ -609,6 +617,21 @@ def _run_provider_session(
         return run_dir
 
     active_model: str | None = None
+    failed_provenance: set[str] = set()
+
+    def verify_model_bundle(model: str, case: str, repetition: int) -> bool:
+        if config.provider_kind == "colibri":
+            try:
+                provider.verify_model_bundle(model)
+            except ModelBundleError:
+                failed_provenance.add(model)
+                _record_integrity_violation(
+                    manifest, model=model, case_id=case, repetition=repetition,
+                    kind="provider_model_bundle_changed", details=[],
+                )
+                return False
+        return True
+
     protected_paths = (config.root,)
     for current, task in enumerate(tasks, 1):
         model = str(task["model"])
@@ -625,6 +648,8 @@ def _run_provider_session(
                 {"kind": "snapshot_changed_before_task", "details": snapshot_before}
             )
             break
+        if model in failed_provenance or not verify_model_bundle(model, case_id, repetition):
+            continue
         if active_model != model:
             if active_model is not None:
                 try:
@@ -653,7 +678,7 @@ def _run_provider_session(
                     continue
                 manifest["load_events"].append({
                     "sequence": current, "model": model,
-                    "status": "preloaded" if provider.kind == "unsloth" else "loaded",
+                    "status": "preloaded" if provider.kind in {"unsloth", "colibri"} else "loaded",
                     "duration_ms": max(0, round((time.monotonic() - load_started) * 1000)),
                 })
             if should_warmup:
@@ -670,7 +695,7 @@ def _run_provider_session(
                         if key in warmup_result
                     }
                 except Exception as exc:
-                    if provider.kind == "unsloth":
+                    if provider.kind in {"unsloth", "colibri"}:
                         event.update(status="failed", error_code="provider_warmup_failed",
                                      error_type=type(exc).__name__)
                         disqualified_thinking.add(model)
@@ -775,11 +800,12 @@ def _run_provider_session(
             )
         provider_context_error = (
             _terminal_provider_error_code(pi_run.stdout)
-            if config.provider_kind == "unsloth" and pi_run.metrics.get("terminal_agent_error") is True
+            if config.provider_kind in {"unsloth", "colibri"} and pi_run.metrics.get("terminal_agent_error") is True
             else None
         )
+        provenance_intact = verify_model_bundle(model, case.id, repetition)
         valid_for_ranking = not (
-            source_mutations or snapshot_mutations or external_accesses or thinking_violations
+            not provenance_intact or source_mutations or snapshot_mutations or external_accesses or thinking_violations
             or provider_context_error
         )
         if provider_context_error:
@@ -788,7 +814,9 @@ def _run_provider_session(
             manifest["thinking_control"]["status"] = "failed" if len(disqualified_thinking) == len(models) else "partial"
             _record_integrity_violation(
                 manifest, model=model, case_id=case.id, repetition=repetition,
-                kind="provider_context_mismatch", details=[{"code": provider_context_error}],
+                kind=("provider_context_mismatch" if provider_context_error.startswith("provider_gateway_context_")
+                      else "provider_load_failed"),
+                details=[{"code": provider_context_error}],
             )
         if source_mutations:
             _record_integrity_violation(

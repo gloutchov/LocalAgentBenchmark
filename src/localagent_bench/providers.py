@@ -20,6 +20,10 @@ class ProviderError(RuntimeError):
     """A local provider did not satisfy the benchmark protocol."""
 
 
+class ContextWindowMismatch(ValueError):
+    """The resident model cannot honor the requested context budget."""
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request: Any, fp: Any, code: int, msg: str,
                          headers: Any, newurl: str) -> None:
@@ -81,6 +85,21 @@ def _reasoning_length(value: Any) -> int:
     return 0
 
 
+def observed_reasoning(message: dict[str, Any], usage: Any) -> tuple[bool, int, int | None]:
+    chars = sum(_reasoning_length(message.get(key)) for key in ("reasoning", "reasoning_content", "reasoning_details", "thinking"))
+    content = message.get("content")
+    if isinstance(content, str):
+        chars += sum(len(match.group(1)) for match in re.finditer(r"<think>(.*?)(?:</think>|$)", content, re.DOTALL | re.IGNORECASE))
+        if re.search(r"<think>", content, re.IGNORECASE):
+            chars = max(1, chars)
+    usage = usage if isinstance(usage, dict) else {}
+    token_details = usage.get("completion_tokens_details") if isinstance(usage.get("completion_tokens_details"), dict) else {}
+    raw_tokens = token_details.get("reasoning_tokens", usage.get("reasoning_tokens"))
+    tokens = raw_tokens if isinstance(raw_tokens, int) and not isinstance(raw_tokens, bool) and raw_tokens >= 0 else None
+    observed = chars > 0 or (tokens is not None and tokens > 0)
+    return observed, chars, tokens
+
+
 class LocalProvider:
     explicit_load = True
     infer_capability_from_preflight = True
@@ -106,7 +125,7 @@ class LocalProvider:
 
     def __init__(self, kind: str, url: str, model_files: dict[str, Path] | None = None,
                  runtime_version: str | None = None, context_window: int = 32768):
-        if kind not in {"lmstudio", "llama_cpp", "unsloth"}:
+        if kind not in {"lmstudio", "llama_cpp", "unsloth", "colibri"}:
             raise ProviderError(f"Provider non supportato: {kind}")
         self.kind = kind
         self.url = url.rstrip("/")
@@ -173,6 +192,9 @@ class LocalProvider:
             return outcome("unsupported_capability")
         try:
             self.load(model.name, timeout=timeout)
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                return outcome("provider_error")
             raw = _request(self.url, "/v1/chat/completions", {
                 "model": model.name,
                 "messages": [{"role": "user", "content": (
@@ -182,22 +204,14 @@ class LocalProvider:
                 )}],
                 "stream": False, "temperature": 0, "max_tokens": 96,
                 "reasoning_effort": policy.reasoning_effort,
-            }, timeout=timeout)
+            }, timeout=remaining)
         except ProviderError:
             return outcome("provider_error")
         choices = raw.get("choices")
         message = choices[0].get("message") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
         if not isinstance(message, dict):
             return outcome("invalid_response")
-        chars = sum(_reasoning_length(message.get(key)) for key in ("reasoning", "reasoning_content", "reasoning_details", "thinking"))
-        content = message.get("content")
-        if isinstance(content, str):
-            chars += sum(len(match.group(1)) for match in re.finditer(r"<think>(.*?)</think>", content, re.DOTALL | re.IGNORECASE))
-        usage = raw.get("usage") if isinstance(raw.get("usage"), dict) else {}
-        token_details = usage.get("completion_tokens_details") if isinstance(usage.get("completion_tokens_details"), dict) else {}
-        raw_tokens = token_details.get("reasoning_tokens", usage.get("reasoning_tokens"))
-        tokens = raw_tokens if isinstance(raw_tokens, int) and not isinstance(raw_tokens, bool) and raw_tokens >= 0 else None
-        observed = chars > 0 or (tokens is not None and tokens > 0)
+        observed, chars, tokens = observed_reasoning(message, raw.get("usage"))
         if not policy.active and observed:
             return outcome("unexpected_thinking", True, chars, tokens)
         if policy.active and not observed:

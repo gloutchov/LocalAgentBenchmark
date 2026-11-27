@@ -1,12 +1,12 @@
 # Percorso rapido guidato / Guided quick path
 
-Questa procedura confronta i modelli di un provider locale scelto tra quelli configurati in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp e Unsloth; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
+Questa procedura confronta i modelli di un provider locale scelto tra quelli configurati in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp, Unsloth e Colibrì. Vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
 
-This workflow compares models from one of the local providers configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, or Unsloth. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
+This workflow compares models from one of the local providers configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, Unsloth, and Colibrì. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.15.0;
+- checkout sorgente completo di LocalAgent Benchmark 0.16.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - provider locale configurato su loopback con almeno un modello tool-capable;
@@ -26,6 +26,12 @@ The **Provider** column identifies each model's source. The GUI discovers `provi
 Configurare una voce con `kind: "unsloth"`, un URL HTTP loopback e `credential_ref` come descritto nella [guida provider](QUICK-START_LocalProviders.md#unsloth). Prima del rilevamento caricare manualmente un GGUF locale e predisporre nel portachiavi una chiave Unsloth con accesso `inference`. La GUI legge soltanto la credenziale esistente: non chiede la chiave in una finestra, non eredita `--credential-prompt` e non salva segreti nelle preferenze. Se il portachiavi manca o l'accesso è negato, correggere la configurazione prima di riprovare oppure usare la CLI con prompt esplicito. I modelli devono rimanere caricati durante le fasi; caricamento/scaricamento e reset della cache sono manuali. Nessun warmup viene descritto come avvio a freddo.
 
 Configure an entry with `kind: "unsloth"`, an HTTP loopback URL and `credential_ref` as described in the [provider guide](QUICK-START_LocalProviders.md#unsloth). Before discovery, manually load a local GGUF and place an Unsloth key with `inference` access in the OS credential store. The GUI only reads an existing credential: it has no key-entry dialog, does not inherit `--credential-prompt`, and never stores secrets in preferences. Resolve missing/denied credential-store access before retrying, or use the explicit CLI prompt. Keep models loaded throughout the phases; loading, unloading and cache reset are manual. Warmup does not certify a cold start.
+
+Nel catalogo Colibrì usa il server `coli serve` con un solo modello chat residente. Imposta la finestra dichiarata, seleziona **Thinking off** e **Sandbox required** e verifica il modello con la [guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
+
+For Colibrì discovery, use `coli serve` with one resident chat model. Use the advertised context window, select **Thinking off** and **Sandbox required**, and follow the [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
+
+[Confronta i modelli Colibrì e Unsloth uno alla volta / Compare Colibrì and Unsloth models one at a time](QUICK-START_Colibri-Unsloth.md).
 
 ## Avvio con doppio clic / Double-click launch
 

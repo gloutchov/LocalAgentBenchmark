@@ -121,7 +121,7 @@ class LandingPageTests(unittest.TestCase):
         self.assertNotIn('href="#docs"',nav)
         self.assertNotIn('href="#preliminary"',nav)
         providers = index.split('id="providers"',1)[1].split('</section>',1)[0]
-        for provider in ("Ollama","LM Studio","llama.cpp","Unsloth"):
+        for provider in ("Ollama","LM Studio","llama.cpp","Unsloth","Colibrì"):
             self.assertIn(f'<h3>{provider}</h3>',providers)
         self.assertNotIn('provider_new',providers)
         self.assertIn('href="#docs"',index.split('id="start"',1)[1].split('</section>',1)[0])
@@ -141,6 +141,7 @@ class LandingPageTests(unittest.TestCase):
             "INSTRUCTIONS.md",
             "QUICK-START_Guided.md",
             "QUICK-START_LocalProviders.md",
+            "QUICK-START_Colibri-Unsloth.md",
             "QUICK-START_Dashboard.md",
             "QUICK-START_Showcase.md",
             "QUICK-START_Case-Author.md",

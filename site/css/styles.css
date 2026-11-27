@@ -395,7 +395,7 @@ h1 {
 .news-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.75fr); align-items: end; gap: clamp(2rem, 5vw, 5rem); margin-bottom: 3rem; }
 .news-heading h2 { max-width: 15ch; margin: 0; font-size: clamp(2.6rem, 5.5vw, 5.5rem); line-height: 0.98; letter-spacing: -0.055em; }
 .news-summary p { max-width: 38rem; margin: 0 0 1rem; color: var(--muted); font-size: 1.1rem; }
-.provider-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; padding: 0; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); list-style: none; }
+.provider-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: 0; border-top: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); list-style: none; }
 .provider-grid li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; align-items: center; gap: 0.75rem; min-width: 0; padding: 1.75rem; }
 .provider-grid li + li { border-left: 1px solid var(--line-strong); }
 .provider-grid h3 { margin: 0; font-size: clamp(1.5rem, 2.3vw, 2.2rem); line-height: 1.15; letter-spacing: -0.03em; }

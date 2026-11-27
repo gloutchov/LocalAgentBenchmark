@@ -12,7 +12,7 @@ import threading
 import time
 import unittest
 import warnings
-from contextlib import redirect_stderr
+from contextlib import closing, redirect_stderr
 from dataclasses import replace
 from types import SimpleNamespace
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -372,9 +372,6 @@ class ProviderGatewayTests(unittest.TestCase):
                 payload = self._payload(messages=[{"role": role, "content": "synthetic", "reasoning_content": "synthetic"}])
                 self.assertEqual(503, self._call(gateway, "/v1/chat/completions", payload)[0])
             self.assertEqual(count, sum(call[0] == "POST" for call in self.server.calls))
-        with ProviderGateway(self.url, _key(), max_request_bytes=1024) as gateway:
-            payload = self._payload(messages=[{"role": "assistant", "content": None, "reasoning_content": "x" * 1025}])
-            self.assertEqual(413, self._call(gateway, "/v1/chat/completions", payload)[0])
 
     def test_remote_selectors_images_sessions_and_unloaded_models_are_rejected(self):
         with ProviderGateway(self.url, _key()) as gateway:
@@ -485,8 +482,14 @@ class ProviderGatewayTests(unittest.TestCase):
     def test_payload_response_and_header_limits(self):
         with ProviderGateway(self.url, _key(), max_request_bytes=256, max_response_bytes=2048,
                              max_header_bytes=512) as gateway:
-            status, _raw = self._call(gateway, "/v1/chat/completions", self._payload(extra="x" * 512))
-            self.assertEqual(413, status)
+            port = int(gateway.url.rsplit(":", 1)[1])
+            with closing(http.client.HTTPConnection("127.0.0.1", port, timeout=3)) as connection:
+                # The gateway rejects the declared size before reading a body.
+                connection.request("POST", "/v1/chat/completions", headers={"Content-Length": "257"})
+                with connection.getresponse() as response:
+                    self.assertEqual(413, response.status)
+                    self.assertEqual("provider_gateway_request_limit", json.load(response)["error"]["code"])
+            self.assertEqual([], self.server.calls)
             status, _raw = self._call(gateway, headers={"X-Oversized": "x" * 1024})
             self.assertEqual(431, status)
             self.server.mode = "oversize"

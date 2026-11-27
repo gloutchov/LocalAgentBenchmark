@@ -58,6 +58,16 @@ Il rilevamento multiprovider interroga soltanto gli endpoint HTTP loopback espli
 
 Multi-provider discovery queries only the HTTP loopback endpoints explicitly configured in `provider` and `additional_providers`, applying the same validation and `doctor` checks to each. The GUI runs all stages against one provider. The Unsloth gateway retains its single authorized destination and reads the credential only after the Pi gate and protected-input check succeed.
 
+### Colibrì: gateway e provenienza / gateway and provenance
+
+Colibrì riusa il gateway host su destinazione HTTP loopback fissa. Il riferimento alla credenziale è opzionale. Il gateway inoltra discovery e chat, ammette soltanto funzioni client, verifica ID e finestra residente prima della generazione e impone `reasoning_effort: "none"` come requisito e `context_compaction: "off"`. Le modalità attive prive di attestazione del livello effettivo non possono entrare in classifica. Il gateway non è un isolamento del processo server. Il server controlla la cache KV e le eventuali scritture o log del proprio runtime.
+
+Colibrì reuses the fixed loopback host gateway with optional credentials. Only discovery and chat are forwarded. The gateway admits client function tools, checks the resident model and context, requires `reasoning_effort: "none"` and sets `context_compaction: "off"`. Active effort without evidence of its effective level is ineligible. The server manages its own process, KV cache and logging.
+
+Il manifesto bundle dichiara una root locale assoluta e un elenco di file relativi. Il benchmark rifiuta duplicati, traversal e symlink. Verifica identità e metadati dei file durante hashing e misure, registra hash per file e fingerprint aggregato e non copia i pesi. L'API non attesta l'associazione tra i pesi e il modello residente. La dashboard non esporta root, nomi file del bundle o telemetria raw.
+
+The bundle declares an absolute local root and explicit relative files. Duplicate files, traversal and symlinks are rejected. File identity and metadata are checked during hashing and measurement. Per-file and bundle hashes are recorded without copying weights. The API does not attest the weight-to-model association. The dashboard excludes roots, bundle file names and raw telemetry.
+
 ## Asset e confini / Assets and boundaries
 
 - Il repository del benchmark, `AGENTS.md` e i grader sono input fidati.
