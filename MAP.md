@@ -129,6 +129,7 @@
 ├── QUICK-START_Dashboard.md         # launcher, import, snapshot locale e troubleshooting
 ├── QUICK-START_Guided.md            # funnel senza terminale, piattaforme, privacy e limiti
 ├── QUICK-START_LocalProviders.md    # installazione Pi/provider, Unsloth, credenziali e provenienza
+├── QUICK-START_Colibri-Unsloth.md    # modelli residenti, smoke separati e lettura in una dashboard
 ├── SECURITY_MODEL.md               # controlli, rischi e limiti bilingui
 ├── SECURITY.md                     # canale privato e ambito delle segnalazioni
 ├── CONTRIBUTING.md                 # regole e verifiche per contribuire

@@ -1,6 +1,6 @@
 # Manuale utente – LocalAgent Benchmark
 
-Versione in preparazione **0.16.0**. Aggiunge Colibrì come provider locale per Preliminary e task Pi. Vedere la [guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
+Versione **0.16.0**. Aggiunge Colibrì come provider locale per Preliminary e task Pi. Vedere la [configurazione di Colibrì](QUICK-START_LocalProviders.md#colibrì) e la [guida al confronto con Unsloth](QUICK-START_Colibri-Unsloth.md).
 
 ## 1. Scopo
 

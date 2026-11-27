@@ -21,6 +21,8 @@ Usare le porte mostrate dai server locali. Ogni `kind` compare una volta. Da CLI
 
 ### Colibrì
 
+Per provare più modelli residenti uno alla volta e vedere i risultati nella stessa dashboard, usa la [guida Colibrì e Unsloth](QUICK-START_Colibri-Unsloth.md).
+
 Predisponi manualmente [Colibrì](https://github.com/JustVugg/colibri/blob/main/docs/api.md) e avvia `coli serve` su loopback con un modello chat caricato, tool calling funzionante, contesto sufficiente e riparazione automatica delle chiamate disabilitata. Usa in `benchmark.json`:
 
 ```json
@@ -158,6 +160,8 @@ The four providers use separate built-in adapters. Select one with `provider.kin
 ### Colibrì setup
 
 Prepare [Colibrì](https://github.com/JustVugg/colibri/blob/main/docs/api.md) manually and start `coli serve` on HTTP loopback with a resident chat model, working tool calling, enough context and automatic tool-call repairs disabled. Use `provider.kind: "colibri"`, the server origin such as `http://127.0.0.1:8000` and a `defaults.context_window` no larger than the window reported by `/v1/models`. Set a protected `credential_ref` when authentication is required, or use the CLI's explicit `--credential-prompt` before the subcommand. Guided mode uses the credential store.
+
+To test several resident models one at a time and view the results in one dashboard, see the [Colibrì and Unsloth guide](QUICK-START_Colibri-Unsloth.md).
 
 Use `python3 benchmark.py --provider colibri doctor`, followed by a one-model smoke and Preliminary with `--thinking off --sandbox required`. The probe tests `none` and a synthetic structured tool call. Active effort stays unavailable until the runtime can demonstrate the effective level. The gateway sets `context_compaction: "off"`. The resident model and its KV cache remain under server control.
 

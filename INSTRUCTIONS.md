@@ -1,6 +1,6 @@
 # User Manual – LocalAgent Benchmark
 
-Version **0.16.0** in preparation. Adds Colibrì as a local provider for Preliminary and Pi tasks. See the [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
+Version **0.16.0**. Adds Colibrì as a local provider for Preliminary and Pi tasks. See the [Colibrì setup](QUICK-START_LocalProviders.md#colibrì) and the [guide to comparing models with Unsloth](QUICK-START_Colibri-Unsloth.md).
 
 ## 1. Purpose
 

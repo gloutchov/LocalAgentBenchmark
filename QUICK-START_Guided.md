@@ -1,8 +1,8 @@
 # Percorso rapido guidato / Guided quick path
 
-Questa procedura confronta i modelli di un provider locale scelto tra quelli configurati in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp e Unsloth; vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
+Questa procedura confronta i modelli di un provider locale scelto tra quelli configurati in `benchmark.json` senza richiedere di comporre comandi. Sono supportati Ollama, LM Studio, il router llama.cpp, Unsloth e Colibrì. Vedere [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). Dopo una conferma esplicita propone Preliminary opzionale, poi esegue `smoke` su tutti i modelli selezionati, promuove al massimo i primi quattro classificabili a `standard`, promuove al massimo i primi due a `full` e apre la dashboard ufficiale sui tre run del funnel e sull'eventuale Preliminary.
 
-This workflow compares models from one of the local providers configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, or Unsloth. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
+This workflow compares models from one of the local providers configured in `benchmark.json`: Ollama, LM Studio, the llama.cpp router, Unsloth, and Colibrì. See [QUICK-START_LocalProviders.md](QUICK-START_LocalProviders.md). After explicit confirmation it optionally runs Preliminary, then runs `smoke` on every selected model, promotes up to four rankable models to `standard`, up to two to `full`, and opens the official dashboard on the three funnel runs plus optional Preliminary.
 
 ## Requisiti / Requirements
 
@@ -30,6 +30,8 @@ Configure an entry with `kind: "unsloth"`, an HTTP loopback URL and `credential_
 Nel catalogo Colibrì usa il server `coli serve` con un solo modello chat residente. Imposta la finestra dichiarata, seleziona **Thinking off** e **Sandbox required** e verifica il modello con la [guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
 
 For Colibrì discovery, use `coli serve` with one resident chat model. Use the advertised context window, select **Thinking off** and **Sandbox required**, and follow the [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
+
+[Confronta i modelli Colibrì e Unsloth uno alla volta / Compare Colibrì and Unsloth models one at a time](QUICK-START_Colibri-Unsloth.md).
 
 ## Avvio con doppio clic / Double-click launch
 

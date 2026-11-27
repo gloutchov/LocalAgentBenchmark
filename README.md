@@ -1,10 +1,10 @@
 # LocalAgent Benchmark
 
-Benchmark personale, ripetibile e offline per confrontare modelli locali usati come coding agent tramite [Pi](https://pi.dev). Supporta Ollama, LM Studio, il router `llama-server` di llama.cpp e Unsloth con chiave locale di sola inferenza. Gli scenari derivano dalle regole operative di questo repository: patch piccole, architettura modulare, test, sicurezza, configurazione, i18n, documentazione e disciplina Git.
+Benchmark personale, ripetibile e offline per confrontare modelli locali usati come coding agent tramite [Pi](https://pi.dev). Supporta Ollama, LM Studio, il router `llama-server` di llama.cpp, Unsloth con chiave di sola inferenza e Colibrì. Gli scenari derivano dalle regole operative di questo repository: patch piccole, architettura modulare, test, sicurezza, configurazione, i18n, documentazione e disciplina Git.
 
-Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, the llama.cpp `llama-server` router, and Unsloth with a local inference-only key. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
+Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, the llama.cpp `llama-server` router, Unsloth with an inference-only key, and Colibrì. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.16.0 in preparazione / in preparation – Colibrì come provider locale / Colibrì local provider**
+Versione / Version: **0.16.0 – Colibrì come provider locale / Colibrì local provider**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
@@ -356,6 +356,7 @@ The project runs directly from its checkout. Version 0.11.0 adds thin macOS, Win
 - [English manual](INSTRUCTIONS.md)
 - [Percorso rapido guidato / Guided quick path](QUICK-START_Guided.md)
 - [Provider locali / Local providers](QUICK-START_LocalProviders.md)
+- [Confrontare i modelli Colibrì e Unsloth / Compare Colibrì and Unsloth models](QUICK-START_Colibri-Unsloth.md)
 - [Avvio rapido Linux / Linux quick start](QUICK-START_Linux.md)
 - [Avvio rapido Windows / Windows quick start](QUICK-START_Windows.md)
 - [Guida autore casi / Case author quick start](QUICK-START_Case-Author.md)

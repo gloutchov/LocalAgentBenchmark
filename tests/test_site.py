@@ -141,6 +141,7 @@ class LandingPageTests(unittest.TestCase):
             "INSTRUCTIONS.md",
             "QUICK-START_Guided.md",
             "QUICK-START_LocalProviders.md",
+            "QUICK-START_Colibri-Unsloth.md",
             "QUICK-START_Dashboard.md",
             "QUICK-START_Showcase.md",
             "QUICK-START_Case-Author.md",

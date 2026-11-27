@@ -1,10 +1,10 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.16.0 in preparazione / in preparation**
+Versione candidata / Release candidate: **0.16.0**
 
 ## Piano esecutivo corrente / Current execution plan
 
-**M17** è in sviluppo sul branch `milestone/17-colibri-provider`, creato dopo aver verificato `main` e il checkpoint remoto `milestone/C16`. La versione obiettivo va riallineata se intervengono altre release, conservando l’incremento minore previsto.
+**M17** è in revisione per il rilascio sul branch `milestone/17-colibri-provider`. **M18** è la prossima milestone programmata e parte dopo la verifica remota del checkpoint C17.
 
 ### M17 – Colibrì come provider locale / Colibrì local provider
 
@@ -24,17 +24,20 @@ Versione corrente / Current version: **0.16.0 in preparazione / in preparation**
 - Test richiesti: unit e HTTP/SSE sintetici per discovery, autenticazione presente/assente, tool calling, errori terminali, thinking supportato/non verificabile e `none` che non disabilita reasoning; modello residente, cambi non supportati, cache dichiarata, timeout, cancellazione e cleanup; manifesti multifile con ordine stabile, file mancanti/duplicati, path non autorizzati, symlink e mutazioni, compatibilità GGUF e rifiuti `compare`; integrazioni CLI/GUI/Preliminary e privacy export. Suite Python completa, `compileall`, suite JavaScript e validazione dei casi; smoke reale con revisione Colibrì, motore, modello, hardware, parametri e limiti registrati. Verifiche visuali delle superfici modificate come per M16; piattaforme non disponibili restano dichiarate non testate.
 - Documentazione da aggiornare: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_LocalProviders.md`, guide Guided/Preliminary e piattaforme interessate, `SECURITY_MODEL.md` per letture dei pesi, cache/persistenza e autenticazione, `MAP.md`, `AGENTS.md`, `PLAN.md` e testi provider della landing. Sincronizzare la versione e descrivere prerequisiti hardware, preparazione manuale, motori verificati, provenienza multifile e limiti di prestazioni/compatibilità.
 - Release: funzionalità rilasciabile `v0.16.0`, con GitHub Release sorgente e checksum SHA-256 degli archivi, dopo revisione del commit esatto e approvazione esplicita. Nessun motore compilato, peso o dataset privato distribuito dal benchmark.
-- Stato: **in sviluppo**, base `3829fa7` e checkpoint `milestone/C16` verificati. Versione obiettivo `0.16.0`.
+- Stato: **candidata al rilascio**, base `3829fa7` e checkpoint `milestone/C16` verificati. Versione `0.16.0`.
 - Verifiche locali: 264 test Python, 259 superati e 5 skip nativi Windows/Linux. I 20 test JavaScript, `compileall`, validazione dei sei casi e `git diff --check` sono riusciti. Playwright verifica landing con prefisso Pages e dashboard con fixture revisionata a 1440×900 e 390×844, IT/EN e automatico/chiaro/scuro, senza overflow, errori console o richieste esterne.
+- Revisione della landing: Colibrì compare nella sezione provider, nei metadati e nei requisiti. Il link alla guida Colibrì e Unsloth è visibile in entrambe le lingue. La verifica browser copre 12 combinazioni di risoluzione, lingua e tema, oltre a tastiera, ritorno del focus e persistenza. Zero errori di console, overflow orizzontale e richieste runtime esterne.
 - Server Colibrì macOS rilevato su loopback, modello `qwen3-coder-30b-a3b-colibri` e contesto dichiarato 8.192. Contratto Pi 1.6.0 con Node 24 e Seatbelt `required` passato. Prima sonda reale off senza reasoning; tool calling non verificato nella sonda JSON con funzione forzata. Per il preflight Colibrì si usa ora SSE con `tool_choice: "auto"`, la modalità del client Pi. Lo smoke reale ha superato il preflight SSE in 111,375 s e il warmup, poi la task Pi è stata rifiutata dal server con `context_length_exceeded` nella richiesta iniziale. La finestra locale di 8.192 token non contiene il prompt sintetico completo con strumenti e istruzioni. Il gateway classifica esplicitamente il rifiuto senza riportare il corpo upstream. Smoke Pi e percorso guidato reale restano da verificare con una finestra più ampia.
 - Preliminary CLI reale su macOS arm64, commit `26e1703`, con Colibrì registrato come `local-checkout-0a5504a`, lo stesso modello residente, seed 17, thinking `off` e Seatbelt `required`. Entrambe le sonde brevi sono state misurate e tutti i 16 quesiti sintetici sono stati risolti. Le due sonde lunghe hanno raggiunto il timeout di 240 s e la relativa misura risulta non disponibile. Controllo thinking, integrità e warmup superati. Il run registra caricamento preesistente e nessun unload supportato; manca un manifesto bundle per il confronto statistico. L'export ridotto per la dashboard contiene gli aggregati e i file sorgente del run conservano gli SHA-256 originali.
 - Secondo smoke CLI reale, commit `3d67113`, su Apple M4 Pro con 24 GiB. Stesso modello `qwen3-coder-30b-a3b-colibri`, motore `qwen36`, contesto dichiarato 32.768, seed 17, thinking `off` e Seatbelt `required`. Contratto Pi, preflight SSE e warmup superati. Colibrì ha accettato il prompt iniziale di 13.232 token, che era ancora in prefill senza output al timeout di `targeted_patch` dopo 1.200 s. Zero chiamate tool durante la task, nessuna patch e integrità valida. Colibrì ha registrato la cancellazione e rilasciato lo slot dopo il timeout. Smoke compatibile e percorso guidato reale restano da completare.
+- Il progettista ha verificato la prova, ha confermato che si aspettava lentezza e timeout sul proprio hardware e ha chiesto di pubblicare il supporto Colibrì. Una task Pi completata con Colibrì reale e un percorso guidato reale concluso restano verifiche da eseguire su hardware adeguato. La [guida Colibrì e Unsloth](QUICK-START_Colibri-Unsloth.md) descrive le prove sequenziali già possibili e la lettura dei risultati nella stessa dashboard.
 
 ### Checklist di chiusura M17
 
 - [x] Checkpoint remoto precedente verificato e branch dedicato creato da `main` aggiornato; modifiche utente preservate.
-- [ ] Adapter, configurazione e integrazioni funzionali completati; controlli Pi/thinking/sandbox/integrità conservati.
-- [ ] Test automatici e smoke reali applicabili eseguiti; esiti, versioni e limiti residui registrati. Un controllo di accettazione mancante richiede una decisione esplicita del progettista prima della chiusura.
+- [x] Adapter, configurazione e integrazioni implementati; controlli Pi/thinking/sandbox/integrità conservati.
+- [x] Test automatici e prove diagnostiche reali eseguiti; esiti, versioni e limiti residui registrati.
+- [ ] Conferma del rilascio con rinvio della verifica di completamento di una task Pi e del percorso guidato Colibrì reali a una prova su hardware adeguato.
 - [ ] Verifiche GUI/browser delle superfici modificate completate: lingue, temi, tastiera, responsive, console e assenza di richieste remote; dashboard anche da `file://` se viene generato uno snapshot.
 - [ ] Versione, README, manuali, quick start, SECURITY_MODEL, MAP, AGENTS e PLAN aggiornati; voce rinominata C17 con riepilogo, verifiche e checkpoint.
 - [ ] Commit locali creati soltanto sul branch dedicato, senza pubblicazione anticipata; branch congelato e hash finale, diff rispetto a `main`, test ed eventuali limiti presentati al progettista.
@@ -42,6 +45,21 @@ Versione corrente / Current version: **0.16.0 in preparazione / in preparation**
 - [ ] CI multipiattaforma usata soltanto per verifiche necessarie non sostituibili localmente; run applicabili su branch/PR e `main` verificati dopo il push autorizzato.
 - [ ] Merge completato; checkpoint annotato C17 e tag versione creati sul commit finale di `main`; `main` e tag pubblicati e verificati sul remoto.
 - [ ] Release sorgente pubblicata; archivi scaricati, contenuto e checksum SHA-256 verificati; branch obsoleto eliminato soltanto dopo tutte le verifiche e l'approvazione.
+
+### M18 – Una sessione con modelli di più provider / One session for models across providers
+
+- Obiettivo: selezionare modelli di provider locali diversi nella stessa finestra e avviare una sola volta. Una sessione li esegue in sequenza e apre la dashboard sui risultati prodotti. La CLI offre lo stesso flusso con una selezione che associa ogni modello al suo provider.
+- Dipendenza: M17 chiusa come C17, con `main` e `milestone/C17` verificati sul remoto. Riutilizzare catalogo, adapter, runner, orchestratore guidato e dashboard esistenti.
+- Branch previsto: `milestone/18-multi-provider-session`. Checkpoint previsto: `milestone/C18`. Incremento: `+0.1.0`, obiettivo `v0.17.0` se non intervengono altre release.
+- Attività principali:
+  - Identificare ogni selezione per provider e ID modello, anche quando l'ID coincide fra due provider. Mostrare quali modelli sono pronti e quali richiedono un caricamento. Per Unsloth e Colibrì verificare le API di catalogo effettivamente disponibili e usare le sole librerie locali indicate dall'utente per gli inventari che richiedono accesso a disco.
+  - Avviare una coda sequenziale con snapshot verificato, seed e impostazioni condivise. Per i provider con modello residente usare i comandi di caricamento supportati oppure sospendere la sessione e indicare quale modello caricare. Riprendere soltanto dopo aver verificato l'ID, il contesto e i controlli del nuovo modello. Niente download impliciti o modifiche a server già attivi senza consenso.
+  - Conservare un manifesto di sessione con esiti, artefatti, motivi di esclusione e cancellazione. Un provider indisponibile o un timeout documentato resta visibile e lascia procedere le altre selezioni valide. Una modifica allo snapshot condiviso interrompe la sessione.
+  - Mostrare in dashboard qualità, durata, token e integrità per coppia modello e provider e trattare il tempo di caricamento a parte. Applicare le regole di promozione e confronto solo entro coorti compatibili e mantenere Preliminary fuori dalle classifiche. Le chiavi restano nel processo host e i singoli gateway restano confinati all'endpoint locale configurato.
+- Criteri di accettazione: una sola conferma avvia almeno due provider locali con gli stessi casi e impostazioni, conserva gli esiti di ciascuno anche a fronte di timeout o indisponibilità e apre una dashboard unica. Un cambio manuale riprende la stessa sessione soltanto dopo aver verificato il modello richiesto. I risultati e i comandi con un solo provider continuano a funzionare.
+- Test richiesti: GUI e CLI con almeno due provider sintetici (inclusi due ID uguali), integrazione sui gate e sull'identità dei modelli, timeout e cancellazione durante attesa ed esecuzione, protezione di credenziali e snapshot, compatibilità di export e report. Smoke reale su almeno due provider, inclusa una prova con modello residente, e verifica dell'accessibilità dei nuovi controlli.
+- Documentazione da aggiornare: README, manuali bilingui, guide Guided, LocalProviders, Colibrì–Unsloth e Dashboard, `SECURITY_MODEL.md`, `MAP.md`, `PLAN.md` e landing.
+- Stato: **programmata**, in attesa della chiusura di M17. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
 
 ## C16 – Unsloth come provider locale / Unsloth local provider
 
