@@ -12,14 +12,16 @@ from .provider_gateway import ProviderGateway
 
 @contextmanager
 def provider_session(config: BenchmarkConfig) -> Iterator[BenchmarkConfig]:
-    if config.provider_kind != "unsloth":
+    if config.provider_kind not in {"unsloth", "colibri"}:
         yield config
         return
     # The original config and manifests hold references/status only. Pi receives
     # the gateway URL and its usual dummy key, never the real credential.
-    secret = resolve_credential(config.provider_auth_ref or "", prompt=config.provider_auth_prompt)
+    secret = None
+    if config.provider_auth_ref or config.provider_auth_prompt or config.provider_kind == "unsloth":
+        secret = resolve_credential(config.provider_auth_ref or config.provider_kind, prompt=config.provider_auth_prompt)
     gguf_ids = tuple(name for name, path in (config.model_files or {}).items() if path.suffix.lower() == ".gguf")
-    with ProviderGateway(config.ollama_url, secret, gguf_model_ids=gguf_ids,
+    with ProviderGateway(config.ollama_url, secret, kind=config.provider_kind, gguf_model_ids=gguf_ids,
                          expected_context_window=config.defaults.context_window,
                          **asdict(config.provider_transport)) as gateway:
         yield replace(config, ollama_url=gateway.url, provider_origin_url=config.ollama_url)

@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlsplit
 
+from .colibri_protocol import resident_chat_model, resident_context
 from .provider_auth import validate_secret
 
 
@@ -25,6 +26,7 @@ class _PolicyRejection(GatewayError):
         "credential_403": (403, "provider_gateway_credential_rejected"),
         "inference_scope": (403, "provider_gateway_inference_scope_required"),
         "context_window": (409, "provider_gateway_context_window_mismatch"),
+        "model_not_resident": (409, "provider_gateway_model_not_resident"),
     }
 
     def __init__(self, reason: str):
@@ -218,8 +220,9 @@ class _Handler(BaseHTTPRequestHandler):
         self.upstream = http.client.HTTPConnection(*gateway.target, timeout=min(10.0, self._remaining()))
         self.upstream.connect()
         self.upstream.sock.settimeout(self._remaining())
-        headers = {"Authorization": "Bearer " + self.secret, "Accept-Encoding": "identity",
-                   "Connection": "close"}
+        headers = {"Accept-Encoding": "identity", "Connection": "close"}
+        if self.secret is not None:
+            headers["Authorization"] = "Bearer " + self.secret
         if body is not None:
             headers["Content-Type"] = "application/json"
         # No client header, redirect, proxy, or alternate destination is reused.
@@ -316,6 +319,25 @@ class _Handler(BaseHTTPRequestHandler):
             if "index" in detail and (type(detail["index"]) is not int or not 0 <= detail["index"] <= 2147483647):
                 raise GatewayError("provider_gateway_request_protocol")
 
+    def _colibri_body(self, payload: dict[str, Any], model: str) -> bytes:
+        gateway = self.server.gateway
+        if payload.get("reasoning_effort") != "none":
+            raise GatewayError("provider_gateway_request_protocol")
+        response = self._open("GET", "/v1/models")
+        if response.status in {401, 403}:
+            raise _PolicyRejection("credential_401" if response.status == 401 else "credential_403")
+        if response.status != 200:
+            raise GatewayError("provider_gateway_upstream_protocol")
+        resident = resident_chat_model(self._small_json(response).get("data"))
+        if resident is None or resident["id"] != model:
+            raise _PolicyRejection("model_not_resident")
+        context = resident_context(resident)
+        if context is None or (gateway.expected_context_window is not None
+                               and context < gateway.expected_context_window):
+            raise _PolicyRejection("context_window")
+        return json.dumps({**payload, "store": False, "context_compaction": "off"},
+                          allow_nan=False, separators=(",", ":")).encode()
+
     def _generation_body(self, payload: Any) -> bytes:
         allowed = {"model", "messages", "tools", "tool_choice", "stream", "stream_options",
                    "max_tokens", "max_completion_tokens", "temperature", "reasoning_effort",
@@ -350,6 +372,8 @@ class _Handler(BaseHTTPRequestHandler):
         model = payload.get("model")
         if not isinstance(model, str) or not 1 <= len(model) <= 256:
             raise GatewayError("provider_gateway_request_protocol")
+        if self.server.gateway.kind == "colibri":
+            return self._colibri_body(payload, model)
         models = self._verify_policy()
         admitted = [item for item in models if isinstance(item, dict) and item.get("id") == model
                     and item.get("owned_by") == "unsloth-studio" and item.get("loaded") is True
@@ -374,7 +398,8 @@ class _Handler(BaseHTTPRequestHandler):
         if self.headers.get("Origin") or self.headers.get("Transfer-Encoding"):
             self._reply(400, {"error": {"code": "provider_gateway_request_rejected"}})
             return
-        if self.command == "GET" and self.path == "/benchmark/unsloth-policy":
+        if (gateway.kind == "unsloth" and self.command == "GET"
+                and self.path == "/benchmark/unsloth-policy"):
             if self.headers.get("Content-Length") not in {None, "0"}:
                 self._reply(400, {"error": {"code": "provider_gateway_request_rejected"}})
                 return
@@ -421,7 +446,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Connection", "close")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        redactor = _SecretFilter(self.secret)
+        redactor = _SecretFilter(self.secret) if self.secret is not None else None
         total = 0
         while True:
             self._remaining()
@@ -431,11 +456,11 @@ class _Handler(BaseHTTPRequestHandler):
             total += len(block)
             if total > gateway.max_response_bytes:
                 raise GatewayError("provider_gateway_response_limit")
-            clean = redactor.feed(block)
+            clean = redactor.feed(block) if redactor is not None else block
             if clean:
                 self.wfile.write(clean)
                 self.wfile.flush()
-        tail = redactor.feed(b"", final=True)
+        tail = redactor.feed(b"", final=True) if redactor is not None else b""
         if tail:
             self.wfile.write(tail)
             self.wfile.flush()
@@ -470,12 +495,16 @@ class ProviderGateway:
     Context exit interrupts open sockets. Python cannot promise zeroing immutable
     strings; the credential is retained in host memory only for this session.
     """
-    def __init__(self, url: str, secret: str, *, timeout_seconds: float = 1200,
+    def __init__(self, url: str, secret: str | None, *, kind: str = "unsloth",
+                 timeout_seconds: float = 1200,
                  max_request_bytes: int = 8388608, max_response_bytes: int = 33554432,
                  max_header_bytes: int = 16384, max_connections: int = 16,
                  gguf_model_ids: tuple[str, ...] = (), expected_context_window: int | None = None):
         self.target = _target(url)
-        self._secret = validate_secret(secret)
+        if kind not in {"unsloth", "colibri"}:
+            raise GatewayError("provider_gateway_kind_invalid")
+        self.kind = kind
+        self._secret = None if kind == "colibri" and secret is None else validate_secret(secret)
         if (type(timeout_seconds) not in {float, int} or not math.isfinite(timeout_seconds)
                 or not 0 < timeout_seconds <= 7200):
             raise GatewayError("provider_gateway_timeout_invalid")
@@ -501,7 +530,7 @@ class ProviderGateway:
         self.url: str | None = None
 
     def __enter__(self) -> ProviderGateway:
-        if self._server is not None or not self._secret:
+        if self._server is not None or self._secret == "":
             raise GatewayError("provider_gateway_session_invalid")
         server = _Server(("127.0.0.1", 0), _Handler)
         server.gateway = self

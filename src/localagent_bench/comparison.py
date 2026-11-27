@@ -8,6 +8,9 @@ import statistics
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .colibri_protocol import ColibriSettings
+from .model_bundle import valid_bundle_manifest
 from typing import Any
 
 
@@ -88,7 +91,7 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
             capability_signature.append(
                 (str(model), capable if isinstance(capable, bool) else None, capabilities)
             )
-            if provider_kind == "unsloth":
+            if provider_kind in {"unsloth", "colibri"}:
                 provider_details = details.get("details")
                 context = provider_details.get("context_length") if isinstance(provider_details, dict) else None
                 resident_contexts.append((str(model), context if type(context) is int and context > 0 else None))
@@ -110,6 +113,21 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         not isinstance(backend_version, str) or not backend_version.strip() or len(backend_version) > 128
     ):
         raise ComparisonError("provider_backend_version non valido / Invalid provider backend version")
+    colibri_runtime = None
+    if provider_kind == "colibri":
+        metadata = environment.get("colibri")
+        if not isinstance(metadata, dict) or metadata.get("context_compaction") != "off" or metadata.get("metadata_source") != "configuration":
+            raise ComparisonError("Provenienza runtime Colibrì non verificabile / Invalid Colibrì runtime provenance")
+        try:
+            settings = ColibriSettings.parse({
+                key: metadata.get(key) for key in ("revision", "engine", "quantization", "kv_slots", "kv_persistence")
+            })
+        except ValueError as exc:
+            raise ComparisonError(str(exc)) from None
+        if (not all((settings.revision, settings.engine, settings.quantization, settings.kv_slots, backend_version))
+                or settings.kv_persistence == "unknown"):
+            raise ComparisonError("Provenienza runtime Colibrì incompleta / Incomplete Colibrì runtime provenance")
+        colibri_runtime = tuple(sorted(settings.to_manifest().items()))
     cases = manifest.get("cases")
     if not isinstance(cases, list):
         cases = sorted({str(item.get("case_id")) for item in report.get("results", []) if isinstance(item, dict)})
@@ -147,6 +165,7 @@ def _compatibility_signature(manifest: dict[str, Any], report: dict[str, Any]) -
         "provider_url": configuration.get("provider_url", configuration.get("ollama_url")),
         "provider_version": environment.get("provider_version", environment.get("ollama")),
         "provider_backend_version": backend_version,
+        "colibri_runtime": colibri_runtime,
         "provider_resident_contexts": tuple(resident_contexts),
         "provider_transport": tuple(sorted(provider_transport.items())),
         "provider_controls": controls_signature,
@@ -213,13 +232,23 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
             signature = _compatibility_signature(manifest, report)
             if reference["provider_kind"] == "unsloth" and not signature["provider_backend_version"]:
                 raise ComparisonError(f"Versione backend Unsloth non registrata in {run_dir.name}")
-            if reference["provider_kind"] == "unsloth" and (not signature["provider_resident_contexts"]
+            if signature["provider_kind"] in {"unsloth", "colibri"} and (not signature["provider_resident_contexts"]
                     or any(context is None for _, context in signature["provider_resident_contexts"])):
-                raise ComparisonError(f"Contesto residente Unsloth non verificabile in {run_dir.name}")
-            if not _compatibility_signature(manifest, report).get("provider_version"):
+                raise ComparisonError(f"Contesto residente non verificabile in {run_dir.name}")
+            if not signature.get("provider_version"):
                 raise ComparisonError(f"Versione runtime locale non registrata in {run_dir.name}")
             metadata = manifest.get("model_metadata", {})
-            if not isinstance(metadata, dict) or not metadata or any(
+            if signature["provider_kind"] == "colibri":
+                integrity = manifest.get("integrity")
+                if not isinstance(integrity, dict) or integrity.get("status") != "passed":
+                    raise ComparisonError(f"Integrità Colibrì non verificata in {run_dir.name}")
+                if not isinstance(metadata, dict) or not metadata or any(
+                    not isinstance(item, dict) or not isinstance(item.get("details"), dict)
+                    or not valid_bundle_manifest(item["details"].get("model_bundle"), item.get("digest"))
+                    for item in metadata.values()
+                ):
+                    raise ComparisonError(f"Bundle Colibrì incompleto o non valido in {run_dir.name}")
+            elif not isinstance(metadata, dict) or not metadata or any(
                 not isinstance(item, dict) or not item.get("digest") for item in metadata.values()
             ):
                 raise ComparisonError(f"Hash GGUF mancanti in {run_dir.name}")
@@ -251,7 +280,7 @@ def build_comparison(run_dirs: list[Path]) -> dict[str, Any]:
                 samples[row["model"]].append(row)
     changed_models = sorted(model for model, values in digests.items() if len(values) > 1)
     if changed_models:
-        label = "Ollama" if reference["provider_kind"] == "ollama" else "GGUF"
+        label = {"ollama": "Ollama", "colibri": "Colibrì"}.get(reference["provider_kind"], "GGUF")
         raise ComparisonError(f"Digest {label} divergente per: " + ", ".join(changed_models))
 
     metrics = (

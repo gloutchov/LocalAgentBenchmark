@@ -44,7 +44,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--credential-prompt", action="store_true",
                         help="Chiedi la chiave Unsloth soltanto in memoria / Prompt for an in-memory Unsloth key")
     parser.add_argument(
-        "--provider", choices=("ollama", "lmstudio", "llama_cpp", "unsloth"),
+        "--provider", choices=("ollama", "lmstudio", "llama_cpp", "unsloth", "colibri"),
         help="Provider configurato / Configured provider",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -134,8 +134,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = select_provider(load_config(args.config), args.provider)
         if args.credential_prompt:
-            if config.provider_kind != "unsloth" or args.command not in {"doctor", "list", "run"}:
-                raise ConfigError("--credential-prompt richiede doctor/list/run con Unsloth / requires Unsloth doctor/list/run")
+            if config.provider_kind not in {"unsloth", "colibri"} or args.command not in {"doctor", "list", "run"}:
+                raise ConfigError("--credential-prompt richiede doctor/list/run con Unsloth o Colibrì / requires Unsloth or Colibrì doctor/list/run")
             config = replace(config, provider_auth_prompt=True)
         if args.command == "doctor":
             payload = doctor(config)

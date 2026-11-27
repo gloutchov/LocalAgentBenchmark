@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, the llama.cpp `llama-server` router, and Unsloth with a local inference-only key. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Stato / Status: **0.15.0 – Unsloth come provider locale / Unsloth local provider**
+Stato / Status: **0.16.0 in preparazione / in preparation – Colibrì come provider locale / Colibrì local provider**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
@@ -16,6 +16,10 @@ Local 0.15.0 validation includes Unsloth Pi smoke and Preliminary through the CL
 La 0.14.0 aggiunge il profilo descrittivo Preliminary, con misure di reattività, quesiti su fonti sintetiche e grafici dedicati. Il percorso rapido può eseguirlo prima del funnel; score e promozioni restano separati.
 
 Version 0.14.0 adds the descriptive Preliminary profile, measuring responsiveness and grounding against synthetic sources, with dedicated charts. Optionally run it before the quick-path funnel; scores and promotions remain separate.
+
+La 0.16.0 integra Colibrì come provider locale per Preliminary e task Pi. L'adapter usa un modello chat già residente, autenticazione opzionale protetta e provenienza dei file dichiarata per il confronto. [Guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
+
+Version 0.16.0 integrates Colibrì as a local provider for Preliminary and Pi tasks. The adapter uses an already-resident chat model, optional protected authentication, and declared model-file provenance for comparison. [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
 
 ## Cosa misura / What it measures
 

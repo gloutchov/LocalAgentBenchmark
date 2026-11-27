@@ -42,6 +42,14 @@ class ProviderAdapter(Protocol):
 def create_provider(config: BenchmarkConfig) -> ProviderAdapter:
     if config.provider_kind == "ollama":
         return OllamaProvider(config.ollama_url, config.defaults.keep_alive)
+    if config.provider_kind == "colibri":
+        from .colibri import ColibriProvider
+        from .colibri_protocol import ColibriSettings
+
+        return ColibriProvider(
+            config.ollama_url, config.provider_version, config.defaults.context_window,
+            config.colibri or ColibriSettings.parse({}),
+        )
     return LocalProvider(
         config.provider_kind,
         config.ollama_url,

@@ -1,10 +1,10 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.15.0**
+Versione corrente / Current version: **0.16.0 in preparazione / in preparation**
 
 ## Piano esecutivo corrente / Current execution plan
 
-**M17** è la prossima milestone pianificata, dopo C16. Prima dell’avvio verificare `main` e il checkpoint remoto `milestone/C16`, poi creare il branch dedicato. La versione obiettivo va riallineata se intervengono altre release, conservando l’incremento minore previsto.
+**M17** è in sviluppo sul branch `milestone/17-colibri-provider`, creato dopo aver verificato `main` e il checkpoint remoto `milestone/C16`. La versione obiettivo va riallineata se intervengono altre release, conservando l’incremento minore previsto.
 
 ### M17 – Colibrì come provider locale / Colibrì local provider
 
@@ -24,11 +24,13 @@ Versione corrente / Current version: **0.15.0**
 - Test richiesti: unit e HTTP/SSE sintetici per discovery, autenticazione presente/assente, tool calling, errori terminali, thinking supportato/non verificabile e `none` che non disabilita reasoning; modello residente, cambi non supportati, cache dichiarata, timeout, cancellazione e cleanup; manifesti multifile con ordine stabile, file mancanti/duplicati, path non autorizzati, symlink e mutazioni, compatibilità GGUF e rifiuti `compare`; integrazioni CLI/GUI/Preliminary e privacy export. Suite Python completa, `compileall`, suite JavaScript e validazione dei casi; smoke reale con revisione Colibrì, motore, modello, hardware, parametri e limiti registrati. Verifiche visuali delle superfici modificate come per M16; piattaforme non disponibili restano dichiarate non testate.
 - Documentazione da aggiornare: `README.md`, `ISTRUZIONI.md`, `INSTRUCTIONS.md`, `QUICK-START_LocalProviders.md`, guide Guided/Preliminary e piattaforme interessate, `SECURITY_MODEL.md` per letture dei pesi, cache/persistenza e autenticazione, `MAP.md`, `AGENTS.md`, `PLAN.md` e testi provider della landing. Sincronizzare la versione e descrivere prerequisiti hardware, preparazione manuale, motori verificati, provenienza multifile e limiti di prestazioni/compatibilità.
 - Release: funzionalità rilasciabile `v0.16.0`, con GitHub Release sorgente e checksum SHA-256 degli archivi, dopo revisione del commit esatto e approvazione esplicita. Nessun motore compilato, peso o dataset privato distribuito dal benchmark.
-- Stato: **pianificata, non avviata**.
+- Stato: **in sviluppo**, base `3829fa7` e checkpoint `milestone/C16` verificati. Versione obiettivo `0.16.0`.
+- Verifiche locali iniziali: 263 test, 258 superati e 5 skip nativi Windows/Linux. Suite JavaScript inclusa, `compileall`, validazione dei sei casi e `git diff --check` riusciti. Playwright verifica landing con prefisso Pages e dashboard con fixture revisionata a 1440×900 e 390×844, IT/EN e automatico/chiaro/scuro, senza overflow, errori console o richieste esterne.
+- Server Colibrì macOS rilevato su loopback, modello `qwen3-coder-30b-a3b-colibri` e contesto dichiarato 8.192. Contratto Pi 1.6.0 con Node 24 e Seatbelt `required` passato. Prima sonda reale off senza reasoning; tool calling non verificato nella sonda JSON con funzione forzata. Per il preflight Colibrì si usa ora SSE con `tool_choice: "auto"`, la modalità del client Pi. L'implementazione resta in verifica, con smoke e Preliminary reali da completare.
 
 ### Checklist di chiusura M17
 
-- [ ] Checkpoint remoto precedente verificato e branch dedicato creato da `main` aggiornato; modifiche utente preservate.
+- [x] Checkpoint remoto precedente verificato e branch dedicato creato da `main` aggiornato; modifiche utente preservate.
 - [ ] Adapter, configurazione e integrazioni funzionali completati; controlli Pi/thinking/sandbox/integrità conservati.
 - [ ] Test automatici e smoke reali applicabili eseguiti; esiti, versioni e limiti residui registrati. Un controllo di accettazione mancante richiede una decisione esplicita del progettista prima della chiusura.
 - [ ] Verifiche GUI/browser delle superfici modificate completate: lingue, temi, tastiera, responsive, console e assenza di richieste remote; dashboard anche da `file://` se viene generato uno snapshot.

@@ -19,6 +19,25 @@ I quattro provider sono gestiti da adattatori interni separati. La selezione res
 
 Usare le porte mostrate dai server locali. Ogni `kind` compare una volta. Da CLI, anteporre `--provider` al sottocomando per selezionare un provider configurato, per esempio `python3 benchmark.py --provider lmstudio list` o `python3 benchmark.py --provider unsloth doctor`. `--config` continua a consentire la scelta di un altro file di configurazione nella root del progetto.
 
+### Colibrì
+
+Predisponi manualmente [Colibrì](https://github.com/JustVugg/colibri/blob/main/docs/api.md) e avvia `coli serve` su loopback con un modello chat caricato, tool calling funzionante, contesto sufficiente e riparazione automatica delle chiamate disabilitata. Usa in `benchmark.json`:
+
+```json
+"provider": {
+  "kind": "colibri",
+  "url": "http://127.0.0.1:8000"
+}
+```
+
+Usa la porta effettiva del server e configura `defaults.context_window` entro la finestra dichiarata da `/v1/models`. Se il server richiede una chiave, aggiungi `credential_ref` con il riferimento all'archivio protetto oppure usa `--credential-prompt` da CLI prima del sottocomando. Il percorso guidato usa il portachiavi. La chiave resta nel gateway host.
+
+Esegui `python3 benchmark.py --provider colibri doctor`, poi uno smoke mirato e Preliminary con `--thinking off --sandbox required`. La sonda verifica che la modalità `none` non produca reasoning e che un tool sintetico restituisca argomenti JSON validi. Per questa integrazione le modalità thinking attive sono escluse finché il livello effettivo non è verificabile. Pi mantiene la propria configurazione thinking anche quando gli esempi upstream la omettono.
+
+Colibrì mantiene il modello residente. Il benchmark registra il lifecycle manuale e imposta `context_compaction: "off"`. La cache KV può essere riutilizzata o persistita dal runtime. I risultati non attestano un avvio a freddo o un reset della cache.
+
+Per `compare` registra `provider.runtime_version`, `provider.backend_version` e, in `provider.colibri`, `revision` (hash Git completo), `engine`, `quantization`, `kv_slots` e `kv_persistence` (`enabled` o `disabled`). In `provider.colibri.model_bundles` associa l'ID del modello a un oggetto `{"root": "/percorso/assoluto", "files": ["config.json", "tokenizer.json", "weights-01.safetensors"]}`. Elenca tutti i file necessari, inclusi shard e template. Sono letti solo file regolari senza symlink, hashati senza copiarli. L'associazione bundle/ID è dichiarata. Versione, backend, impostazioni e manifesti completi sono necessari al confronto statistico.
+
 ### Installazione e verifica su Windows
 
 1. Installare Python 3.10+ e [Git for Windows](https://git-scm.com/download/win). Pi nativo usa Git Bash per i comandi shell; verificare `py -3 --version` e `git --version` in PowerShell.
@@ -135,6 +154,14 @@ The four providers use separate built-in adapters. Select one with `provider.kin
 ### Configure multiple local providers
 
 `provider` remains the default. Add the other providers to `additional_providers` as shown in the Italian example. Use the ports reported by your local servers and configure each `kind` once. Put `--provider` before a CLI subcommand to select a configured provider, for example `python3 benchmark.py --provider lmstudio list` or `python3 benchmark.py --provider unsloth doctor`. `--config` still selects an alternative configuration file in the project root.
+
+### Colibrì setup
+
+Prepare [Colibrì](https://github.com/JustVugg/colibri/blob/main/docs/api.md) manually and start `coli serve` on HTTP loopback with a resident chat model, working tool calling, enough context and automatic tool-call repairs disabled. Use `provider.kind: "colibri"`, the server origin such as `http://127.0.0.1:8000` and a `defaults.context_window` no larger than the window reported by `/v1/models`. Set a protected `credential_ref` when authentication is required, or use the CLI's explicit `--credential-prompt` before the subcommand. Guided mode uses the credential store.
+
+Use `python3 benchmark.py --provider colibri doctor`, followed by a one-model smoke and Preliminary with `--thinking off --sandbox required`. The probe tests `none` and a synthetic structured tool call. Active effort stays unavailable until the runtime can demonstrate the effective level. The gateway sets `context_compaction: "off"`. The resident model and its KV cache remain under server control.
+
+For `compare`, declare the runtime, backend, commit, engine, quantization, KV slots and persistence, and map the model ID to a complete `provider.colibri.model_bundles` entry as shown above. The benchmark hashes each explicitly listed regular file and rejects symlinks. The file association is a user declaration.
 
 ### Install and verify on Windows
 

@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from localagent_bench.comparison import ComparisonError, write_comparison
+from localagent_bench.model_bundle import bundle_digest
 
 
 class ComparisonTests(unittest.TestCase):
@@ -32,6 +33,43 @@ class ComparisonTests(unittest.TestCase):
             path.write_text(json.dumps(manifest), encoding="utf-8")
             with self.assertRaisesRegex(ComparisonError, "Hash GGUF"):
                 write_comparison([first, second], root / "missing-hash")
+
+    def test_colibri_compares_complete_bundles_and_rejects_invalid_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = [self._write_run(root, name, overall=80, verified_thinking=True)
+                    for name in ("colibri-a", "colibri-b")]
+            files = [{"path": "weights", "size_bytes": 10, "sha256": "f" * 64}]
+            fingerprint = bundle_digest(files)
+            for run in runs:
+                path = run / "run.json"
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                manifest["configuration"].update(provider_kind="colibri", provider_url="http://127.0.0.1:8000")
+                manifest["environment"].update(
+                    provider_version="test-runtime", provider_backend_version="test-metal",
+                    colibri={"revision": "a" * 40, "engine": "qwen3", "quantization": "int4",
+                             "kv_slots": 1, "kv_persistence": "disabled",
+                             "context_compaction": "off", "metadata_source": "configuration"},
+                )
+                manifest["model_metadata"]["model:a"].update(digest=fingerprint, details={
+                    "context_length": 32768, "model_bundle": {
+                        "association": "declared", "files": files, "fingerprint_sha256": fingerprint,
+                    },
+                })
+                manifest["integrity"] = {"status": "passed"}
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+            self.assertEqual("colibri", write_comparison(runs, root / "valid")["compatibility"]["provider_kind"])
+
+            manifest["environment"]["colibri"]["kv_slots"] = 2
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ComparisonError, "colibri_runtime"):
+                write_comparison(runs, root / "cache-changed")
+
+            manifest["environment"]["colibri"]["kv_slots"] = 1
+            manifest["model_metadata"]["model:a"]["details"]["model_bundle"]["files"][0]["sha256"] = "e" * 64
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaisesRegex(ComparisonError, "Bundle Colibrì"):
+                write_comparison(runs, root / "hash-changed")
 
     def _write_run(
         self,

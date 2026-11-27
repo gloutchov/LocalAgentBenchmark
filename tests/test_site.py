@@ -121,7 +121,7 @@ class LandingPageTests(unittest.TestCase):
         self.assertNotIn('href="#docs"',nav)
         self.assertNotIn('href="#preliminary"',nav)
         providers = index.split('id="providers"',1)[1].split('</section>',1)[0]
-        for provider in ("Ollama","LM Studio","llama.cpp","Unsloth"):
+        for provider in ("Ollama","LM Studio","llama.cpp","Unsloth","Colibrì"):
             self.assertIn(f'<h3>{provider}</h3>',providers)
         self.assertNotIn('provider_new',providers)
         self.assertIn('href="#docs"',index.split('id="start"',1)[1].split('</section>',1)[0])
