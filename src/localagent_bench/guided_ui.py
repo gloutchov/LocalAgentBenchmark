@@ -104,6 +104,17 @@ TEXT = {
         "model_check": "Verifica di {model} in {provider}…",
         "multi_running": "Fase {index}/{total} · {provider} · {profile}",
         "partial": "Sessione conclusa con esclusioni.",
+        "stage_completed": "Completato",
+        "stage_excluded": "Escluso",
+        "stage_cancelled": "Annullato",
+        "stage_failed": "Fallito",
+        "stage_model_unavailable": "Modello non disponibile",
+        "stage_model_wait_timeout": "Attesa di caricamento scaduta",
+        "stage_timeout": "Task scaduta",
+        "stage_task_failed": "Task fallita",
+        "stage_thinking_control": "Thinking non verificato",
+        "stage_integrity": "Integrità non verificata",
+        "stage_provider_or_preflight_failed": "Provider o controllo preliminare non disponibile",
         "provider_unavailable": "Provider non disponibili: {providers}",
         "cancelled": "Percorso annullato; gli artefatti diagnosticabili sono stati conservati.",
         "failed": "Percorso interrotto ({code}): {message}",
@@ -166,6 +177,17 @@ TEXT = {
         "model_check": "Checking {model} in {provider}…",
         "multi_running": "Stage {index}/{total} · {provider} · {profile}",
         "partial": "Session finished with exclusions.",
+        "stage_completed": "Completed",
+        "stage_excluded": "Excluded",
+        "stage_cancelled": "Cancelled",
+        "stage_failed": "Failed",
+        "stage_model_unavailable": "Model unavailable",
+        "stage_model_wait_timeout": "Loading wait timed out",
+        "stage_timeout": "Task timed out",
+        "stage_task_failed": "Task failed",
+        "stage_thinking_control": "Thinking unverified",
+        "stage_integrity": "Integrity check failed",
+        "stage_provider_or_preflight_failed": "Provider or preflight unavailable",
         "provider_unavailable": "Unavailable providers: {providers}",
         "cancelled": "Quick path cancelled; diagnostic artifacts have been preserved.",
         "failed": "Quick path stopped ({code}): {message}",
@@ -985,9 +1007,15 @@ class GuidedWindow:
         if payload.get("status") == "partial":
             self.status_var.set(self.text("partial"))
         if payload.get("mode") == "multi_provider":
-            lines = [f"{PROVIDER_NAMES.get(row['provider'], row['provider'])} · {row['profile']} · "
-                     f"{', '.join(row['models'])} · {row.get('reason') or row['status']}"
-                     for row in payload.get("phases", [])]
+            lines = []
+            for row in payload.get("phases", []):
+                provider = PROVIDER_NAMES.get(row["provider"], row["provider"])
+                exclusions = {item["model"]: item["reason"] for item in row.get("exclusions", [])}
+                for model in row["models"]:
+                    reason = exclusions.get(model) or row.get("reason") or row["status"]
+                    key = f"stage_{reason}"
+                    label = self.text(key if key in TEXT[self.language] else "stage_excluded")
+                    lines.append(f"{provider} · {row['profile']} · {model} · {label}")
             messagebox.showinfo(self.text("summary"), "\n".join(lines), parent=self.root)
         else:
             messagebox.showinfo(self.text("summary"), _summary(payload), parent=self.root)

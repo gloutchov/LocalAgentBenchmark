@@ -4,7 +4,7 @@ Versione in sviluppo / Development version: **0.17.0**. Ultima release verificat
 
 ## Piano esecutivo corrente / Current execution plan
 
-**M18** è in sviluppo sul branch dedicato. Il checkpoint remoto C17 è verificato.
+**M18** è implementata sul branch locale dedicato. L'accettazione resta aperta per la prova con un modello residente.
 
 ### M18 – Una sessione con modelli di più provider / One session for models across providers
 
@@ -19,7 +19,12 @@ Versione in sviluppo / Development version: **0.17.0**. Ultima release verificat
 - Criteri di accettazione: una sola conferma avvia almeno due provider locali con gli stessi casi e impostazioni, conserva gli esiti di ciascuno anche a fronte di timeout o indisponibilità e apre una dashboard unica. Un cambio manuale riprende la stessa sessione soltanto dopo aver verificato il modello richiesto. I risultati e i comandi con un solo provider continuano a funzionare.
 - Test richiesti: GUI e CLI con almeno due provider sintetici (inclusi due ID uguali), integrazione sui gate e sull'identità dei modelli, timeout e cancellazione durante attesa ed esecuzione, protezione di credenziali e snapshot, compatibilità di export e report. Smoke reale su almeno due provider, inclusa una prova con modello residente, e verifica dell'accessibilità dei nuovi controlli.
 - Documentazione da aggiornare: README, manuali bilingui, guide Guided, LocalProviders, Colibrì–Unsloth e Dashboard, `SECURITY_MODEL.md`, `MAP.md`, `PLAN.md` e landing.
-- Stato: **in sviluppo**, branch creato da `5433739` dopo la verifica di `main` e C17. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
+- Stato: **implementazione locale pronta, accettazione aperta**. Branch creato da `5433739` dopo la verifica di `main` e C17. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
+
+- Implementazione locale: selezione per coppia provider/modello in GUI e CLI, coda sequenziale, snapshot e seed condivisi, ripresa verificata dei modelli residenti, manifesto atomico e dashboard unica. Le promozioni restano nel singolo run.
+- Verifiche locali: 273 test Python (268 superati, 5 skip nativi Windows/Linux), 21 test JavaScript, `compileall` e validazione dei sei casi. I test sintetici coprono selezione omonima, provider e modelli indisponibili, timeout e cancellazione, cambio manuale con verifica di ID e contesto, snapshot alterato, compatibilità dashboard ed esportazioni. Dashboard e landing testate in Chromium su desktop e mobile, in IT/EN e automatico/chiaro/scuro (24 combinazioni, nessun overflow, errore di console o richiesta esterna). Launcher Tkinter verificato su macOS in otto combinazioni a 900×720 e 760×720, con due provider simulati e il controllo di ripresa.
+- Smoke CLI reale macOS: Pi 1.6.0 e Seatbelt in modalità `required`, seed 18, thinking `off` e contesto 16.384. Nella prima sessione `guided-multi-20261128-103555-b262a4` Ollama ha completato la task e il modello llama.cpp è stato escluso per reasoning osservabile. Dopo la configurazione esplicita di `--reasoning off --reasoning-budget 0` sul router temporaneo, l'intera coppia è stata ripetuta nella sessione `guided-multi-20261128-103954-9e24bd` (commit di prova `1b0569d`). `qwen3.5:9b-mlx` su Ollama e `lfm-local` su llama.cpp hanno completato `targeted_patch`, entrambi con contratto Pi, thinking e integrità validi e lo stesso hash di snapshot. La dashboard schema 5 ha caricato i due run dallo stesso manifesto.
+- Accettazione aperta: prova reale con provider a modello residente (Unsloth o Colibrì). L'attesa e la ripresa sono state verificate con server/modelli simulati. Restano le verifiche native Windows/Linux e il controllo esplicito prima della pubblicazione.
 
 ## C17 – Colibrì come provider locale / Colibrì local provider
 
