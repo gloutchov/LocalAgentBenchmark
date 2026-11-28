@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 from contextlib import nullcontext
@@ -155,9 +156,15 @@ def _run_session(config, args: argparse.Namespace) -> int:
     reader: threading.Thread | None = None
 
     def read_confirmations() -> None:
-        for line in sys.stdin:
-            if accepting_input.is_set() and not line.strip():
-                session.resume()
+        # Raw descriptor reads avoid holding Python's buffered stdin lock if an
+        # unattended terminal is still waiting when the session exits.
+        try:
+            descriptor = sys.stdin.fileno()
+            while data := os.read(descriptor, 4096):
+                if accepting_input.is_set() and any(not line.strip() for line in data.splitlines()):
+                    session.resume()
+        except OSError:
+            return
 
     def progress(event: dict) -> None:
         nonlocal reader

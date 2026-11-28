@@ -114,6 +114,28 @@ class MultiProviderTests(unittest.TestCase):
         self.assertEqual("timeout", public["phases"][-1]["reason"])
         self.assertNotIn(str(self.root), json.dumps(public))
 
+    def test_completed_session_starts_one_dashboard_for_the_manifest(self):
+        session = self.orchestrator(SessionProcess())
+        with patch.object(session.guided, "dashboard_starter") as start:
+            path = session.run([ModelSelection("ollama", "same"), ModelSelection("lmstudio", "same")],
+                               sandbox="audit", profile="smoke")
+        start.assert_called_once()
+        self.assertEqual(["--session", str(path)], start.call_args.args[0][-2:])
+        self.assertEqual("opened", json.loads(path.read_text())["dashboard"]["status"])
+
+    def test_unavailable_model_does_not_block_other_models_of_same_provider(self):
+        session = self.orchestrator(SessionProcess())
+        manifest = session.run(
+            [ModelSelection("ollama", "same"), ModelSelection("ollama", "missing"),
+             ModelSelection("lmstudio", "same")],
+            sandbox="audit", profile="smoke", open_dashboard=False,
+        )
+        payload = json.loads(manifest.read_text())
+        self.assertEqual("partial", payload["status"])
+        self.assertEqual([{"model": "missing", "reason": "model_unavailable"}],
+                         payload["phases"][0]["exclusions"])
+        self.assertEqual(2, len(payload["dashboard"]["run_directories"]))
+
     def test_unavailable_provider_and_cancelled_process(self):
         selections = [ModelSelection("lmstudio", "same"), ModelSelection("ollama", "same")]
         manifest = self.orchestrator(SessionProcess(missing="lmstudio")).run(

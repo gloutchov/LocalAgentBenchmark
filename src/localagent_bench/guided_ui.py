@@ -1026,7 +1026,9 @@ class GuidedWindow:
                                         state="normal" if self.waiting_for_model else "disabled")
             if self.waiting_for_model:
                 self.start_button.focus_set()
-            if kind != "model_wait_done":
+            if kind == "model_wait_done":
+                self.detail_var.set("")
+            else:
                 self.detail_var.set(self.text(kind, model=event["model"], seconds=event.get("seconds"),
                                               provider=PROVIDER_NAMES[event["provider"]]))
         elif kind == "task":
