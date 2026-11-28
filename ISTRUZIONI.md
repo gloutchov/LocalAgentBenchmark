@@ -213,7 +213,7 @@ Per manutenerla, aggiornare insieme i testi italiano/inglese in `site/js/i18n.js
 
 ## 5. Configurazione
 
-La GUI indica il provider nella tabella modelli. Configurare eventuali provider aggiuntivi in `additional_providers`. Il percorso accetta modelli di provider diversi nella stessa sessione. Da CLI usa `session --model PROVIDER=MODELLO` per ciascuna selezione. [Sessione multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session). Da CLI, `python3 benchmark.py --provider unsloth list` seleziona Unsloth. Omettendo l’argomento si usa `provider`.
+La GUI indica il provider nella tabella modelli. L'avvio standard controlla gli endpoint locali dei cinque provider. Per cambiare porta usa `provider` o `additional_providers`. Il percorso accetta modelli di provider diversi nella stessa sessione. Da CLI usa `session --model PROVIDER=MODELLO` per ciascuna selezione. [Sessione multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session). Da CLI, `python3 benchmark.py --provider unsloth list` seleziona Unsloth. Omettendo l’argomento si usa `provider`.
 
 `benchmark.json` contiene tutti i parametri modificabili:
 

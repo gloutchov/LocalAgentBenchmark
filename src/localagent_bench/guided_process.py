@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import queue
+import shutil
 import signal
 import subprocess
 import sys
@@ -207,6 +208,37 @@ def start_detached(args: Sequence[str], *, cwd: Path) -> subprocess.Popen[bytes]
     except subprocess.TimeoutExpired:
         return process
     raise GuidedProcessError(f"La dashboard si è chiusa subito (codice {returncode})")
+
+
+def prepare_pi_path(pi_command: tuple[str, ...], *, cwd: Path, timeout: float) -> None:
+    """Recover the macOS GUI launch when Pi needs the installed Homebrew Node."""
+    if sys.platform != "darwin" or pi_command != ("pi",):
+        return
+    brew = shutil.which("brew")
+    if not brew:
+        return
+    node_directory = Path(brew).parent.parent / "opt" / "node@24" / "bin"
+    candidate = node_directory / "node"
+    current = shutil.which("node")
+    if not os.access(candidate, os.X_OK) or (current and Path(current).resolve() == candidate.resolve()):
+        return
+
+    options = {
+        "cwd": cwd, "stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.PIPE, "text": True, "timeout": timeout, "check": False,
+    }
+    command = [*pi_command, "--version"]
+    try:
+        current_pi = subprocess.run(command, **options)
+        if current_pi.returncode == 0 or "does not provide an export named 'enableCompileCache'" not in current_pi.stderr:
+            return
+        env = dict(os.environ)
+        env["PATH"] = os.pathsep.join((str(node_directory), env.get("PATH", os.defpath)))
+        alternate_pi = subprocess.run(command, env=env, **options)
+    except (OSError, subprocess.TimeoutExpired):
+        return
+    if alternate_pi.returncode == 0:
+        os.environ["PATH"] = env["PATH"]
 
 
 def python_executable() -> str:

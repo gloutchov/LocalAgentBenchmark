@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -10,6 +14,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from localagent_bench.guided_process import prepare_pi_path
 from localagent_bench.guided_ui import (
     GuidedWindow,
     TEXT,
@@ -18,11 +23,45 @@ from localagent_bench.guided_ui import (
     _sorted_model_indices,
     _summary,
     load_preferences,
+    main,
     save_preferences,
 )
 
 
 class GuidedUiTests(unittest.TestCase):
+    def test_guided_main_reports_missing_config_before_opening_tk(self):
+        fake_tk = SimpleNamespace(Tk=Mock(), messagebox=Mock())
+        stderr = StringIO()
+        with tempfile.TemporaryDirectory() as folder:
+            missing = Path(folder) / "missing.json"
+            with patch.dict(sys.modules, {"tkinter": fake_tk}), redirect_stderr(stderr):
+                self.assertEqual(2, main(["--config", str(missing)]))
+        fake_tk.Tk.assert_not_called()
+        self.assertIn("Configuration error", stderr.getvalue())
+        self.assertIn(missing.name, stderr.getvalue())
+
+    def test_macos_gui_uses_existing_node24_after_pi_compile_cache_startup_failure(self):
+        incompatible = subprocess.CompletedProcess(
+            ["pi", "--version"], 1, stderr="does not provide an export named 'enableCompileCache'",
+        )
+        compatible = subprocess.CompletedProcess(["pi", "--version"], 0, stderr="")
+        lookup = { "brew": "/opt/homebrew/bin/brew", "node": "/usr/local/bin/node" }
+        with (
+            patch("localagent_bench.guided_process.sys.platform", "darwin"),
+            patch("localagent_bench.guided_process.shutil.which", side_effect=lookup.get),
+            patch("localagent_bench.guided_process.os.access", return_value=True),
+            patch("localagent_bench.guided_process.subprocess.run", side_effect=[incompatible, compatible, compatible]) as run,
+            patch.dict(os.environ, {"PATH": "/usr/local/bin"}),
+        ):
+            prepare_pi_path(("pi",), cwd=ROOT, timeout=30)
+            expected = os.pathsep.join((str(Path("/opt/homebrew/opt/node@24/bin")), "/usr/local/bin"))
+            self.assertEqual(expected, os.environ["PATH"])
+            self.assertEqual(expected, run.call_args.kwargs["env"]["PATH"])
+            os.environ["PATH"] = "/usr/local/bin"
+            prepare_pi_path(("pi",), cwd=ROOT, timeout=30)
+            self.assertEqual(3, run.call_count)
+            self.assertEqual("/usr/local/bin", os.environ["PATH"])
+
     def test_progress_counts_completed_tasks_within_each_stage(self):
         self.assertEqual(0.0, _completed_task_progress(1, 1, 4))
         self.assertEqual(0.5, _completed_task_progress(1, 3, 4))

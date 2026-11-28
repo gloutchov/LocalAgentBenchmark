@@ -14,8 +14,9 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from .config import ConfigError, load_config, select_provider
+from .config import BenchmarkConfig, ConfigError, load_config, select_provider
 from .guided import GuidedError, GuidedOrchestrator, discover_provider_catalog, find_latest_manifest
+from .guided_process import prepare_pi_path
 from .multi_provider import ModelSelection, MultiProviderSession, declared_models
 
 
@@ -415,7 +416,9 @@ def _summary(payload: dict[str, Any]) -> str:
 
 
 class GuidedWindow:
-    def __init__(self, tk_root: Any, config_path: Path) -> None:
+    def __init__(
+        self, tk_root: Any, config_path: Path, *, config: BenchmarkConfig | None = None,
+    ) -> None:
         import tkinter as tk
         from tkinter import ttk
 
@@ -423,7 +426,7 @@ class GuidedWindow:
         self.ttk = ttk
         self.root = tk_root
         self.config_path = config_path.resolve()
-        self.config = load_config(self.config_path)
+        self.config = config if config is not None else load_config(self.config_path)
         provider_kinds = (self.config.provider_kind, *self.config.additional_providers)
         self.orchestrators = {
             kind: GuidedOrchestrator(
@@ -778,6 +781,10 @@ class GuidedWindow:
 
         def work() -> None:
             try:
+                prepare_pi_path(
+                    self.config.pi_command, cwd=self.config.root,
+                    timeout=self.config.defaults.pi_contract_timeout_seconds,
+                )
                 discoveries, errors = discover_provider_catalog(self.orchestrators, self.discovery_cancel)
             except GuidedError as exc:
                 self.events.put(
@@ -1152,6 +1159,11 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        config = load_config(args.config)
+    except (ConfigError, OSError) as exc:
+        print(f"Errore configurazione / Configuration error: {exc}", file=sys.stderr)
+        return 2
+    try:
         import tkinter as tk
         from tkinter import messagebox
     except ImportError:
@@ -1163,7 +1175,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Errore: interfaccia grafica non disponibile: {exc}", file=sys.stderr)
         return 2
     try:
-        GuidedWindow(root, args.config)
+        GuidedWindow(root, args.config, config=config)
     except (ConfigError, GuidedError, OSError) as exc:
         root.withdraw()
         messagebox.showerror("LocalAgent Benchmark", str(exc), parent=root)

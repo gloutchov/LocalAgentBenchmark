@@ -15,11 +15,15 @@ This workflow compares models from one of the local providers configured in `ben
 
 The source checkout, Python 3.10+ with Tkinter, Git, a configured loopback model server, Pi passing the startup compatibility check, and clean protected benchmark inputs are required. No third-party Python package is added.
 
+Su macOS, se il comando `pi` di default si arresta all'avvio perché Node non espone `enableCompileCache`, la GUI prova Node 24 di Homebrew se è già installato. Il percorso usa quel runtime dopo aver verificato l'avvio di Pi, poi esegue il consueto controllo contrattuale.
+
+On macOS, if the default `pi` command fails to start because Node lacks `enableCompileCache`, the GUI tries the installed Homebrew Node 24. It checks that Pi starts with that runtime and then runs the usual Pi contract check.
+
 ## Elenco dei provider / Provider list
 
-Le colonne **Provider** e **Disponibilità** indicano l'origine e i modelli da caricare. Per scegliere modelli di uno o più provider, usa la selezione multipla o **Seleziona tutti**. La finestra di conferma indica i provider che verranno usati. I provider indisponibili sono segnalati.
+Le colonne **Provider** e **Disponibilità** indicano l'origine e i modelli da caricare. Per scegliere modelli di uno o più provider, usa la selezione multipla o **Seleziona tutti**. Con `python3 guided_benchmark.py` la configurazione standard controlla Ollama (11434), LM Studio (1234), Unsloth (8888), llama.cpp (8080) e Colibrì (8000) su loopback. La finestra di conferma indica i provider selezionati. Lo stato segnala quelli indisponibili. Usa `additional_providers` per aggiornare le porte applicabili.
 
-The **Provider** and **Availability** columns identify the source and the models that need loading. Use multi-select or **Select all** to choose models from one or several providers. The confirmation dialog lists the providers that will run. Unavailable providers are shown in the status area.
+The **Provider** and **Availability** columns identify the source and the models that need loading. Use multi-select or **Select all** to choose models from one or several providers. With `python3 guided_benchmark.py`, the default configuration checks Ollama (11434), LM Studio (1234), Unsloth (8888), llama.cpp (8080), and Colibrì (8000) on loopback. The confirmation dialog lists the selected providers. Unavailable providers appear in the status area. Set any custom alternative ports under `additional_providers`.
 
 ## Unsloth nel percorso guidato / Unsloth in guided mode
 
@@ -160,9 +164,9 @@ Le dimensioni GUI sono centralizzate in `guided.window_size` (900×720) e `guide
 
 ## Sessione multiprovider / Multi-provider session
 
-Configura almeno due provider in `provider` e `additional_providers`. Avvia dalla GUI con una sola conferma oppure da terminale. Sostituisci gli identificativi dell'esempio con quelli esposti dai tuoi server.
+Avvia almeno due dei provider elencati in `provider` e `additional_providers`. Avvia dalla GUI con una sola conferma oppure da terminale. Sostituisci gli identificativi dell'esempio con quelli esposti dai tuoi server.
 
-Configure at least two providers under `provider` and `additional_providers`. Confirm once in the GUI or start from the terminal. Replace the example identifiers with those advertised by your servers.
+Start at least two of the providers listed under `provider` and `additional_providers`. Confirm once in the GUI or start from the terminal. Replace the example identifiers with those advertised by your servers.
 
 ```bash
 python3 benchmark.py session --model ollama=qwen3.5:9b --model lmstudio=local/coder --seed 17

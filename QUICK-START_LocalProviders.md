@@ -12,7 +12,7 @@ I quattro provider sono gestiti da adattatori interni separati. La selezione res
 
 ### Selezionare più provider locali
 
-`provider` resta il default. Aggiungere in `additional_providers` gli altri provider da rilevare. Per esempio, con Ollama come default:
+`provider` resta il default. Il file incluso elenca gli altri quattro endpoint loopback in `additional_providers`. Aggiorna le voci quando i server usano porte diverse. Per esempio, con Ollama come default:
 
 ```json
 "additional_providers": [

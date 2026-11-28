@@ -8,6 +8,7 @@ import os
 import random
 import re
 import secrets
+import socket
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -333,7 +334,9 @@ class GuidedOrchestrator:
         self.cancel_event = threading.Event()
         self.manifest_path: Path | None = None
 
-    def discover(self, *, cancel_event: threading.Event | None = None) -> dict[str, Any]:
+    def discover(
+        self, *, cancel_event: threading.Event | None = None, check_endpoint: bool = False,
+    ) -> dict[str, Any]:
         if cancel_event is None:
             cancel_event = self.cancel_event
             cancel_event.clear()
@@ -342,6 +345,18 @@ class GuidedOrchestrator:
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto provider locali")
+        if check_endpoint:
+            host = "127.0.0.1" if parsed.hostname == "localhost" else parsed.hostname
+            port = parsed.port if parsed.port is not None else 80
+            try:
+                with socket.create_connection(
+                    (host, port), timeout=self.guided.discovery_connect_timeout_seconds,
+                ):
+                    pass
+            except OSError:
+                raise GuidedError(
+                    "provider_unreachable", "Provider locale non raggiungibile / Local provider unreachable",
+                ) from None
         payload = (
             self.doctor_function(self.config, cancel_event=cancel_event)
             if self.doctor_function is doctor else self.doctor_function(self.config)
@@ -821,7 +836,7 @@ def discover_provider_catalog(
     errors: dict[str, GuidedError] = {}
     for kind, orchestrator in orchestrators.items():
         try:
-            discoveries[kind] = orchestrator.discover(cancel_event=cancel_event)
+            discoveries[kind] = orchestrator.discover(cancel_event=cancel_event, check_endpoint=True)
         except GuidedError as exc:
             if cancel_event.is_set():
                 raise GuidedCancelled() from None
