@@ -1,16 +1,16 @@
 # Piano di sviluppo / Development Plan
 
-Versione in sviluppo / Development version: **0.17.0**. Ultima release verificata / Latest verified release: **0.16.0**.
+Versione candidata / Release candidate: **0.17.0**. Ultima release verificata / Latest verified release: **0.16.0**.
 
 ## Piano esecutivo corrente / Current execution plan
 
-**M18** è implementata sul branch locale dedicato. L'accettazione resta aperta per la prova con un modello residente.
+**C18** ha completato l'accettazione funzionale sul branch dedicato. La chiusura operativa richiede approvazione del commit finale, CI, checkpoint remoto e release verificata.
 
-### M18 – Una sessione con modelli di più provider / One session for models across providers
+### C18 – Una sessione con modelli di più provider / One session for models across providers
 
 - Obiettivo: selezionare modelli di provider locali diversi nella stessa finestra e avviare una sola volta. Una sessione li esegue in sequenza e apre la dashboard sui risultati prodotti. La CLI offre lo stesso flusso con una selezione che associa ogni modello al suo provider.
 - Dipendenza: M17 chiusa come C17, con `main` e `milestone/C17` verificati sul remoto. Riutilizzare catalogo, adapter, runner, orchestratore guidato e dashboard esistenti.
-- Branch previsto: `milestone/18-multi-provider-session`. Checkpoint previsto: `milestone/C18`. Incremento: `+0.1.0`, obiettivo `v0.17.0` se non intervengono altre release.
+- Branch: `milestone/18-multi-provider-session`. Checkpoint da pubblicare: `milestone/C18`. Incremento: `+0.1.0`, da `0.16.0` a `0.17.0`. Tag versione previsto: `v0.17.0`.
 - Attività principali:
   - Identificare ogni selezione per provider e ID modello, anche quando l'ID coincide fra due provider. Mostrare quali modelli sono pronti e quali richiedono un caricamento. Per Unsloth e Colibrì verificare le API di catalogo effettivamente disponibili e usare le sole librerie locali indicate dall'utente per gli inventari che richiedono accesso a disco.
   - Avviare una coda sequenziale con snapshot verificato, seed e impostazioni condivise. Per i provider con modello residente usare i comandi di caricamento supportati oppure sospendere la sessione e indicare quale modello caricare. Riprendere soltanto dopo aver verificato l'ID, il contesto e i controlli del nuovo modello. Niente download impliciti o modifiche a server già attivi senza consenso.
@@ -19,13 +19,24 @@ Versione in sviluppo / Development version: **0.17.0**. Ultima release verificat
 - Criteri di accettazione: una sola conferma avvia almeno due provider locali con gli stessi casi e impostazioni, conserva gli esiti di ciascuno anche a fronte di timeout o indisponibilità e apre una dashboard unica. Un cambio manuale riprende la stessa sessione soltanto dopo aver verificato il modello richiesto. I risultati e i comandi con un solo provider continuano a funzionare.
 - Test richiesti: GUI e CLI con almeno due provider sintetici (inclusi due ID uguali), integrazione sui gate e sull'identità dei modelli, timeout e cancellazione durante attesa ed esecuzione, protezione di credenziali e snapshot, compatibilità di export e report. Smoke reale su almeno due provider, inclusa una prova con modello residente, e verifica dell'accessibilità dei nuovi controlli.
 - Documentazione da aggiornare: README, manuali bilingui, guide Guided, LocalProviders, Colibrì–Unsloth e Dashboard, `SECURITY_MODEL.md`, `MAP.md`, `PLAN.md` e landing.
-- Stato: **implementazione locale pronta, accettazione aperta**. Branch creato da `5433739` dopo la verifica di `main` e C17. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
+- Stato: **implementazione e accettazione funzionale completate il 28 novembre 2026, pubblicazione in attesa di revisione**. Branch creato da `5433739` dopo la verifica di `main` e C17.
 
 - Implementazione locale: selezione per coppia provider/modello in GUI e CLI, coda sequenziale, snapshot e seed condivisi, ripresa verificata dei modelli residenti, manifesto atomico e dashboard unica. Le promozioni restano nel singolo run.
 - Verifiche locali: 276 test Python (271 superati, 5 skip nativi Windows/Linux), 21 test JavaScript, `compileall` e validazione dei sei casi. I test sintetici coprono selezione omonima, provider e modelli indisponibili, timeout e cancellazione, cambio manuale con verifica di ID e contesto, snapshot alterato, compatibilità dashboard ed esportazioni. Dashboard e landing testate in Chromium su desktop e mobile, in IT/EN e automatico/chiaro/scuro (24 combinazioni, nessun overflow, errore di console o richiesta esterna). Launcher Tkinter verificato su macOS in otto combinazioni a 900×720 e 760×720, con due provider simulati e il controllo di ripresa.
 - Smoke CLI reale macOS: Pi 1.6.0 e Seatbelt in modalità `required`, seed 18, thinking `off` e contesto 16.384. Nella prima sessione `guided-multi-20261128-103555-b262a4` Ollama ha completato la task e il modello llama.cpp è stato escluso per reasoning osservabile. Dopo la configurazione esplicita di `--reasoning off --reasoning-budget 0` sul router temporaneo, l'intera coppia è stata ripetuta nella sessione `guided-multi-20261128-103954-9e24bd` (commit di prova `1b0569d`). `qwen3.5:9b-mlx` su Ollama e `lfm-local` su llama.cpp hanno completato `targeted_patch`, entrambi con contratto Pi, thinking e integrità validi e lo stesso hash di snapshot. La dashboard schema 5 ha caricato i due run dallo stesso manifesto.
 - Avvio GUI predefinito verificato su macOS: `python3 guided_benchmark.py` usa i cinque endpoint locali standard e ha mostrato quattro modelli Ollama e un modello Unsloth reale, con LM Studio, llama.cpp e Colibrì segnalati come indisponibili sulle porte configurate. La GUI ha usato il Node 24 di Homebrew già installato dopo il riscontro dell'errore di Pi con Node 20. Un file `--config` mancante viene segnalato nel terminale prima di aprire Tkinter.
-- Accettazione aperta: prova reale con provider a modello residente (Unsloth o Colibrì). L'attesa e la ripresa sono state verificate con server/modelli simulati. Restano le verifiche native Windows/Linux e il controllo esplicito prima della pubblicazione.
+- Prova guidata reale confermata dal progettista su macOS con il commit `117efd4`, porta LM Studio `1235` impostata localmente, thinking `medium` e modalità `audit`. LM Studio (Gemma 4 12B) e Unsloth (Nemotron 3.5 Bolt E4B, già residente) hanno completato Preliminary, smoke, standard e full. Il manifesto conferma l'apertura della dashboard unica. Lo stato complessivo è `partial`: il thinking non è stato verificato per Mistral su LM Studio e Inkling su Ollama, entrambi esclusi nel Preliminary. La sequenza ha proseguito con i modelli idonei.
+- Limiti di verifica: attesa e ripresa dopo cambio manuale coperte in simulazione. Nella prova reale Unsloth era già pronto. Le prove con provider reali di C18 sono state eseguite su macOS. La CI su Windows e Linux copre i controlli automatici di piattaforma.
+
+### Checklist di chiusura C18
+
+- [x] Checkpoint remoto C17 verificato e branch dedicato creato da `main` aggiornato.
+- [x] Selezione multiprovider, coda, manifesto, ripresa e dashboard implementati; versione e documentazione aggiornate.
+- [x] Verifiche Python, JavaScript, compileall, casi, browser e Tkinter eseguite; smoke CLI reale e prova guidata con modello residente documentati.
+- [ ] Commit finale locale verificato personalmente e approvato dal progettista.
+- [ ] CI su PR e `main`, merge e deploy Pages verificati.
+- [ ] `main`, checkpoint annotato `milestone/C18` e tag annotato `v0.17.0` pubblicati e verificati.
+- [ ] Release sorgente, archivi ZIP e TAR.GZ e SHA-256 verificati dopo il download; branch rimosso in locale e sul remoto.
 
 ## C17 – Colibrì come provider locale / Colibrì local provider
 
