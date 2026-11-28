@@ -330,6 +330,10 @@ def run_pi(
         _terminate(process, close_job)
         stdout, stderr = _collect_after_stop(process)
         status = "timeout"
+    except KeyboardInterrupt:
+        _terminate(process, close_job)
+        _collect_after_stop(process)
+        raise
     finally:
         if close_job is not None:
             close_job()

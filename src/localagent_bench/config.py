@@ -64,6 +64,7 @@ class GuidedSettings:
     preliminary: bool = False
     window_size: tuple[int, int] = (900, 720)
     minimum_size: tuple[int, int] = (760, 720)
+    model_wait_timeout_seconds: int = 300
 
 
 @dataclass(frozen=True)
@@ -392,7 +393,7 @@ def load_config(path: Path) -> BenchmarkConfig:
         if not isinstance(guided_raw, dict):
             raise ConfigError("'guided' deve essere di tipo dict")
         unknown_guided = sorted(
-            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file", "preliminary", "window_size", "minimum_size"}
+            set(guided_raw) - {"profiles", "promotion_limits", "preferences_file", "preliminary", "window_size", "minimum_size", "model_wait_timeout_seconds"}
         )
         if unknown_guided:
             raise ConfigError(f"Campi sconosciuti in guided: {', '.join(unknown_guided)}")
@@ -432,7 +433,11 @@ def load_config(path: Path) -> BenchmarkConfig:
             geometry[key] = tuple(pair)
         if any(a < b for a,b in zip(geometry["window_size"],geometry["minimum_size"])):
             raise ConfigError("guided.window_size inferiore al minimo / smaller than minimum")
+        wait_timeout = guided_raw.get("model_wait_timeout_seconds", 300)
+        if type(wait_timeout) is not int or not 1 <= wait_timeout <= 3600:
+            raise ConfigError("guided.model_wait_timeout_seconds: 1..3600")
         guided = GuidedSettings(
+            model_wait_timeout_seconds=wait_timeout,
             **geometry,
             profiles=tuple(guided_profiles_raw),  # type: ignore[arg-type]
             promotion_limits=tuple(promotion_limits_raw),  # type: ignore[arg-type]

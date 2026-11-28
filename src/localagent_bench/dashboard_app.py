@@ -120,7 +120,8 @@ def resolve_run_directories(paths: Iterable[Path], *, root: Path) -> list[Path]:
     return output
 
 
-def render_dataset_script(dataset: dict[str, Any], *, source: str, skipped_runs: int = 0) -> bytes:
+def render_dataset_script(dataset: dict[str, Any], *, source: str, skipped_runs: int = 0,
+                          session: dict[str, Any] | None = None) -> bytes:
     """Serialize validated public data as a classic script that also works under file://."""
     validate_dashboard_data(dataset)
     metadata = {
@@ -128,6 +129,8 @@ def render_dataset_script(dataset: dict[str, Any], *, source: str, skipped_runs:
         "run_count": len(dataset["runs"]),
         "skipped_runs": max(0, int(skipped_runs)),
     }
+    if session is not None:
+        metadata["session"] = session
     payload = json.dumps(dataset, ensure_ascii=True, separators=(",", ":"))
     meta = json.dumps(metadata, ensure_ascii=True, separators=(",", ":"))
     return (
@@ -253,6 +256,7 @@ def create_dashboard_server(
     port: int,
     source: str,
     skipped_runs: int = 0,
+    session: dict[str, Any] | None = None,
 ) -> ThreadingHTTPServer:
     """Create, but do not start, a loopback-only dashboard server."""
     if host != "127.0.0.1":
@@ -265,7 +269,7 @@ def create_dashboard_server(
     handler = partial(
         DashboardRequestHandler,
         assets_directory=assets,
-        dataset_script=render_dataset_script(dataset, source=source, skipped_runs=skipped_runs),
+        dataset_script=render_dataset_script(dataset, source=source, skipped_runs=skipped_runs, session=session),
     )
     try:
         return ThreadingHTTPServer((host, port), handler)
@@ -280,6 +284,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("run_dirs", nargs="*", type=Path, help="Directory di run; default: run compatibili in results/")
     parser.add_argument("--config", type=Path, default=ROOT / "benchmark.json")
+    parser.add_argument("--session", type=Path, help="Manifesto di sessione multiprovider / Multi-provider session manifest")
     parser.add_argument("--dataset", type=Path, help="Usa un dashboard-data.json già esportato")
     parser.add_argument("--port", type=int, help="Porta loopback; 0 sceglie automaticamente")
     parser.add_argument("--no-open", action="store_true", help="Non apre automaticamente il browser")
@@ -311,7 +316,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         config = load_config(args.config)
         if args.refresh_snapshot:
-            if args.dataset or args.run_dirs or args.no_open or args.port is not None:
+            if args.session or args.dataset or args.run_dirs or args.no_open or args.port is not None:
                 raise DashboardAppError("--refresh-snapshot non accetta opzioni di avvio o sorgenti alternative")
             dataset = load_dashboard_dataset(config.dashboard.snapshot_source, root=config.root)
             target = config.dashboard.assets_directory / SNAPSHOT_SCRIPT
@@ -319,7 +324,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Snapshot dashboard aggiornato: {target.relative_to(config.root)}")
             return 0
 
-        dataset, source, skipped = _dataset_for_launch(args, config)
+        session = None
+        if args.session:
+            if args.dataset or args.run_dirs:
+                raise DashboardAppError("--session richiede una sorgente esclusiva / --session requires an exclusive source")
+            from .session_dashboard import load_session_dashboard
+            dataset, session = load_session_dashboard(args.session, root=config.root,
+                                                      results=config.dashboard.results_directory)
+            source, skipped = "local", 0
+        else:
+            dataset, source, skipped = _dataset_for_launch(args, config)
         port = config.dashboard.port if args.port is None else args.port
         server = create_dashboard_server(
             dataset=dataset,
@@ -328,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
             port=port,
             source=source,
             skipped_runs=skipped,
+            session=session,
         )
         actual_port = int(server.server_address[1])
         url = f"http://127.0.0.1:{actual_port}/"

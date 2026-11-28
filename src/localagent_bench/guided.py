@@ -269,7 +269,7 @@ def _manifest_run_directories(payload: dict[str, Any]) -> list[Any]:
     dashboard = payload.get("dashboard")
     if isinstance(dashboard, dict):
         recorded = dashboard.get("run_directories")
-        if isinstance(recorded, list) and recorded:
+        if isinstance(recorded, list) and (recorded or payload.get("mode") == "multi_provider"):
             return recorded
     available: list[Any] = []
     phases = payload.get("phases")
@@ -393,14 +393,14 @@ class GuidedOrchestrator:
     def cancel(self) -> None:
         self.cancel_event.set()
 
-    def _session_directory(self) -> Path:
+    def _session_directory(self, prefix: str = "guided-") -> Path:
         results = self.config.dashboard.results_directory.resolve()
         if not _inside(results, self.config.root.resolve()):
             raise GuidedError("unsafe_output", "La directory risultati deve restare nel progetto")
         results.mkdir(parents=True, exist_ok=True)
         for _ in range(20):
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            candidate = results / f"guided-{stamp}-{secrets.token_hex(3)}"
+            candidate = results / f"{prefix}{stamp}-{secrets.token_hex(3)}"
             try:
                 candidate.mkdir()
             except FileExistsError:
@@ -735,7 +735,7 @@ class GuidedOrchestrator:
     def reopen_dashboard(self, manifest_path: Path) -> None:
         payload = _read_object(manifest_path, root=self.config.root)
         raw_directories = _manifest_run_directories(payload)
-        if not 1 <= len(raw_directories) <= 4:
+        if not raw_directories or (len(raw_directories) > 4 and payload.get("mode") != "multi_provider"):
             raise GuidedError(
                 "dashboard_failed", "Nessun run disponibile per la dashboard"
             )
@@ -752,7 +752,12 @@ class GuidedOrchestrator:
             runs.append(resolved)
         try:
             self.dashboard_builder(runs)
-            self.dashboard_starter(self._dashboard_command(runs), cwd=self.config.root)
+            if payload.get("mode") == "multi_provider":
+                from .multi_provider import session_dashboard_command
+                command = session_dashboard_command(self.config, self.config_path, manifest_path)
+            else:
+                command = self._dashboard_command(runs)
+            self.dashboard_starter(command, cwd=self.config.root)
         except (DashboardDataError, GuidedProcessError, OSError) as exc:
             raise GuidedError("dashboard_failed", str(exc)) from exc
 
@@ -804,7 +809,7 @@ def find_latest_manifest(config: BenchmarkConfig) -> Path | None:
         except GuidedError:
             continue
         run_directories = _manifest_run_directories(payload)
-        if 1 <= len(run_directories) <= 4:
+        if run_directories and (payload.get("mode") == "multi_provider" or len(run_directories) <= 4):
             candidates.append(path)
     return max(candidates, key=lambda path: path.stat().st_mtime, default=None)
 

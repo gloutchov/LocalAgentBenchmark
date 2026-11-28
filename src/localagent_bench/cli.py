@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
+from contextlib import nullcontext
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +19,10 @@ from .case_sdk import (
 from .config import ConfigError, load_config, select_provider
 from .comparison import ComparisonError, write_comparison
 from .dashboard_data import DashboardDataError, write_dashboard_data
+from .guided import GuidedCancelled, GuidedError, GuidedOrchestrator
+from .guided_process import GuidedProcessError, interruptible
+from .integrity import InputIntegrityError
+from .multi_provider import ModelSelection, MultiProviderSession
 from .ollama import OllamaError
 from .provider_auth import CredentialError
 from .provider_gateway import GatewayError
@@ -74,6 +80,16 @@ def _parser() -> argparse.ArgumentParser:
     warmup.add_argument("--no-warmup", dest="warmup", action="store_false", help="Disabilita warmup")
     run.set_defaults(warmup=None)
     run.add_argument("--output", type=Path, help="Directory output esplicita")
+    run.add_argument("--session-input-hash", help=argparse.SUPPRESS)
+
+    session = subparsers.add_parser("session", help="Esegue una sessione su più provider locali / Run across local providers")
+    session.add_argument("--model", action="append", required=True, metavar="PROVIDER=MODEL")
+    session.add_argument("--profile", help="Un solo profilo (default: percorso guidato) / One profile (default: guided funnel)")
+    session.add_argument("--preliminary", action=argparse.BooleanOptionalAction, default=None)
+    session.add_argument("--thinking", choices=THINKING_LEVELS)
+    session.add_argument("--sandbox", choices=SANDBOX_MODES)
+    session.add_argument("--seed", type=int)
+    session.add_argument("--no-open", action="store_true", help="Non apre la dashboard / Do not open the dashboard")
 
     report = subparsers.add_parser("report", help="Rigenera il report di un run")
     report.add_argument("run_dir", type=Path)
@@ -129,6 +145,47 @@ def _print_doctor(payload: dict) -> None:
             )
 
 
+def _run_session(config, args: argparse.Namespace) -> int:
+    if args.provider or (args.profile and args.preliminary is not None):
+        raise ConfigError("session usa --model PROVIDER=MODEL; --preliminary vale per il funnel / "
+                          "session uses --model PROVIDER=MODEL; --preliminary applies to the funnel")
+    session = MultiProviderSession(GuidedOrchestrator(config, args.config))
+    accepting_input = threading.Event()
+    interactive = sys.stdin.isatty()
+    reader: threading.Thread | None = None
+
+    def read_confirmations() -> None:
+        for line in sys.stdin:
+            if accepting_input.is_set() and not line.strip():
+                session.resume()
+
+    def progress(event: dict) -> None:
+        nonlocal reader
+        kind = event["type"]
+        if kind == "phase":
+            print(f"[{event['provider']}] {event['profile']} · {', '.join(event['models'])}", flush=True)
+        elif kind == "task":
+            print(event["line"], flush=True)
+        elif kind == "model_wait":
+            print(f"{event['provider']} / {event['model']}: carica il modello e premi Invio / "
+                  f"load the model and press Enter ({event['seconds']} s)", flush=True)
+            accepting_input.set()
+            if reader is None:
+                reader = threading.Thread(target=read_confirmations, daemon=True)
+                reader.start()
+        elif kind in {"model_check", "model_wait_done"}:
+            accepting_input.clear()
+
+    manifest = session.run(
+        [ModelSelection.parse(value) for value in args.model],
+        thinking=args.thinking, sandbox=args.sandbox, preliminary=args.preliminary,
+        profile=args.profile, seed=args.seed, open_dashboard=not args.no_open,
+        callback=progress, wait_for_manual=interactive,
+    )
+    print(f"Sessione / Session: {manifest}")
+    return 1 if json.loads(manifest.read_text(encoding="utf-8"))["status"] == "partial" else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -137,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
             if config.provider_kind not in {"unsloth", "colibri"} or args.command not in {"doctor", "list", "run"}:
                 raise ConfigError("--credential-prompt richiede doctor/list/run con Unsloth o Colibrì / requires Unsloth or Colibrì doctor/list/run")
             config = replace(config, provider_auth_prompt=True)
+        if args.command == "session":
+            return _run_session(config, args)
         if args.command == "doctor":
             payload = doctor(config)
             _print_doctor(payload)
@@ -154,19 +213,21 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  - {model['name']}")
             return 0 if payload["ok"] else 1
         if args.command == "run":
-            run_dir = run_benchmark(
-                config,
-                profile=args.profile,
-                requested_models=args.models,
-                requested_cases=args.cases,
-                repetitions=args.repetitions,
-                timeout_seconds=args.timeout,
-                thinking_level=args.thinking,
-                use_warmup=args.warmup,
-                output_dir=args.output,
-                order_seed=args.seed,
-                sandbox_mode=args.sandbox,
-            )
+            with interruptible() if args.session_input_hash else nullcontext():
+                run_dir = run_benchmark(
+                    config,
+                    profile=args.profile,
+                    requested_models=args.models,
+                    requested_cases=args.cases,
+                    repetitions=args.repetitions,
+                    timeout_seconds=args.timeout,
+                    thinking_level=args.thinking,
+                    use_warmup=args.warmup,
+                    output_dir=args.output,
+                    order_seed=args.seed,
+                    sandbox_mode=args.sandbox,
+                    session_input_hash=args.session_input_hash,
+                )
             print(f"\nBenchmark completato: {run_dir}")
             print(f"Report: {run_dir / 'REPORT.md'}")
             report_payload = json.loads((run_dir / "report.json").read_text(encoding="utf-8"))
@@ -229,13 +290,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             print(f"Validazione completata: {len(reports)} casi validi")
             return 0
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, GuidedCancelled):
         print("Esecuzione annullata / Run cancelled", file=sys.stderr)
         return 130
     except (
         CaseValidationError,
         ConfigError,
         BenchmarkError,
+        GuidedError,
+        GuidedProcessError,
+        InputIntegrityError,
         ComparisonError,
         DashboardDataError,
         OllamaError,

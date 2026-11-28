@@ -83,13 +83,14 @@ class GuidedUiTests(unittest.TestCase):
         ]
         self.assertEqual((1, 0), _sorted_model_indices(models, "provider", False))
 
-    def test_start_rejects_mixed_providers_and_uses_selected_provider_for_run(self):
+    def test_start_routes_mixed_and_single_provider_selections(self):
         window = GuidedWindow.__new__(GuidedWindow)
         payload = {"ok": True, "models": [{"name": "shared:model"}]}
         window.discoveries = {"ollama": payload.copy(), "unsloth": payload.copy()}
         window.models = [{"name": "shared:model", "provider": kind} for kind in window.discoveries]
         window.root = None
         window.running = False
+        window.waiting_for_model = False
         window._selected_model_indices = Mock(return_value=[0, 1])
         window.thinking_enabled = Mock(**{"get.return_value": False})
         window.sandbox_enabled = Mock(**{"get.return_value": True})
@@ -102,16 +103,24 @@ class GuidedUiTests(unittest.TestCase):
         window.events = Mock()
         window.orchestrators = {kind: Mock() for kind in window.discoveries}
 
+        window.orchestrator = window.orchestrators["ollama"]
+
         def inline_thread(*, target, daemon):
             return SimpleNamespace(start=target)
 
         dialog = SimpleNamespace(showwarning=Mock(), askyesno=Mock(return_value=True))
         with patch.dict(sys.modules, {"tkinter": SimpleNamespace(messagebox=dialog)}), patch(
             "localagent_bench.guided_ui.threading.Thread", side_effect=inline_thread,
-        ):
+        ), patch("localagent_bench.guided_ui.MultiProviderSession.run") as run_multi:
+            from localagent_bench.multi_provider import ModelSelection
+            run_multi.return_value = Path("results/multi/guided-run.json")
             window.start()
-            dialog.showwarning.assert_called_once()
-            dialog.askyesno.assert_not_called()
+            dialog.showwarning.assert_not_called()
+            dialog.askyesno.assert_called_once()
+            run_multi.assert_called_once_with(
+                [ModelSelection("ollama", "shared:model"), ModelSelection("unsloth", "shared:model")],
+                thinking="off", sandbox="required", preliminary=True, callback=window.events.put,
+            )
             window._selected_model_indices.return_value = [1]
             window.start()
         window.orchestrators["ollama"].run.assert_not_called()

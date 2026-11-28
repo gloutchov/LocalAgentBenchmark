@@ -313,3 +313,29 @@ test("preliminary sample charts distinguish failures, zero success and missing e
   assert.equal(series[1].count, 3);
   assert.equal(series[1].total, 3);
 });
+
+test("session runs distinguish shared model IDs across providers without a merged funnel", () => {
+  const dataset = structuredClone(fixture);
+  dataset.schema_version = 5;
+  dataset.funnel = [];
+  dataset.runs = dataset.runs.map((run, index) => ({
+    ...run,
+    exclusions: [],
+    preliminary: [],
+    provider: index === 0 ? "ollama" : "lmstudio",
+    session_id: "guided-multi-20261128-101000-18a018",
+    load_seconds: index === 0 ? null : 1.25,
+  }));
+  Core.validateDashboardData(dataset);
+  const view = Core.createDashboardView(dataset);
+  const first = dataset.runs[0].participants[0];
+  assert.ok(view.availableModels.includes(`Ollama · ${first}`));
+  assert.ok(view.availableModels.some((model) => model.startsWith("LM Studio · ")));
+  const filtered = Core.createDashboardView(dataset, { model: `Ollama · ${first}` });
+  assert.ok(filtered.leaderboard.every((row) => row.run_id === dataset.runs[0].id));
+  assert.equal(view.summary.bestScore, null);
+  assert.deepEqual(Core.mergeDashboardData([dataset]).funnel, []);
+  assert.throws(() => Core.validateDashboardData({
+    ...dataset, runs: [{ ...dataset.runs[0], provider: "http://private.invalid" }, ...dataset.runs.slice(1)],
+  }), /provider metadata/);
+});

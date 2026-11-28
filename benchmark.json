@@ -45,6 +45,7 @@
     "window_size": [900, 720],
     "minimum_size": [760, 720],
     "promotion_limits": [4, 2],
+    "model_wait_timeout_seconds": 300,
     "preferences_file": ".localagent-benchmark/guided-preferences.json"
   },
   "profiles": {

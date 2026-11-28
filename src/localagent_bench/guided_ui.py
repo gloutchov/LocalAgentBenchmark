@@ -16,6 +16,7 @@ from typing import Any
 
 from .config import ConfigError, load_config, select_provider
 from .guided import GuidedError, GuidedOrchestrator, discover_provider_catalog, find_latest_manifest
+from .multi_provider import ModelSelection, MultiProviderSession, declared_models
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -93,7 +94,16 @@ TEXT = {
         "confirm": "Avviare il benchmark con {provider}? Il percorso può richiedere molto tempo.",
         "confirm_cancel": "Interrompere il processo corrente? Gli artefatti già prodotti saranno conservati.",
         "choose_model": "Seleziona almeno un modello.",
-        "choose_provider": "Seleziona modelli di un solo provider per avviare il percorso.",
+        "choose_provider": "Per accodare un modello da caricare, seleziona anche un altro provider.",
+        "confirm_multi": "Avviare la sessione con {providers}? I provider verranno eseguiti in sequenza.",
+        "model_state": "Disponibilità",
+        "ready_model": "Pronto",
+        "pending_model": "Da caricare",
+        "resume_model": "Verifica e riprendi",
+        "model_wait": "Carica {model} in {provider}, poi scegli Verifica e riprendi (entro {seconds} s).",
+        "model_check": "Verifica di {model} in {provider}…",
+        "multi_running": "Fase {index}/{total} · {provider} · {profile}",
+        "partial": "Sessione conclusa con esclusioni.",
         "provider_unavailable": "Provider non disponibili: {providers}",
         "cancelled": "Percorso annullato; gli artefatti diagnosticabili sono stati conservati.",
         "failed": "Percorso interrotto ({code}): {message}",
@@ -146,7 +156,16 @@ TEXT = {
         "confirm": "Start the benchmark with {provider}? The benchmark may take a long time.",
         "confirm_cancel": "Stop the current process? Existing diagnostic artifacts will be preserved.",
         "choose_model": "Select at least one model.",
-        "choose_provider": "Select models from a single provider to start the benchmark.",
+        "choose_provider": "To queue a model that needs loading, also select another provider.",
+        "confirm_multi": "Start a session with {providers}? Providers will run in sequence.",
+        "model_state": "Availability",
+        "ready_model": "Ready",
+        "pending_model": "Needs loading",
+        "resume_model": "Verify and resume",
+        "model_wait": "Load {model} in {provider}, then choose Verify and resume (within {seconds} s).",
+        "model_check": "Checking {model} in {provider}…",
+        "multi_running": "Stage {index}/{total} · {provider} · {profile}",
+        "partial": "Session finished with exclusions.",
         "provider_unavailable": "Unavailable providers: {providers}",
         "cancelled": "Quick path cancelled; diagnostic artifacts have been preserved.",
         "failed": "Quick path stopped ({code}): {message}",
@@ -392,7 +411,8 @@ class GuidedWindow:
             for kind in provider_kinds
         }
         self.orchestrator = self.orchestrators[self.config.provider_kind]
-        self.run_orchestrator: GuidedOrchestrator | None = None
+        self.run_orchestrator: GuidedOrchestrator | MultiProviderSession | None = None
+        self.waiting_for_model = False
         self.events: queue.Queue[dict[str, Any]] = queue.Queue()
         self.discoveries: dict[str, dict[str, Any]] = {}
         self.unavailable_providers: tuple[str, ...] = ()
@@ -483,7 +503,7 @@ class GuidedWindow:
 
         self.models_frame = ttk.LabelFrame(outer, padding=12)
         self.models_frame.grid(row=1, column=0, sticky="nsew", pady=(18, 10))
-        columns = ("name", "provider", "size", "thinking")
+        columns = ("name", "provider", "size", "thinking", "model_state")
         self.model_tree = ttk.Treeview(
             self.models_frame,
             columns=columns,
@@ -492,7 +512,8 @@ class GuidedWindow:
             height=5,
         )
         self.model_tree.column("name", width=370, minwidth=180)
-        self.model_tree.column("provider", width=115, minwidth=90)
+        self.model_tree.column("provider", width=105, minwidth=85)
+        self.model_tree.column("model_state", width=105, minwidth=85)
         self.model_tree.column("size", width=110, minwidth=80, anchor="e")
         self.model_tree.column("thinking", width=100, minwidth=80, anchor="center")
         scrollbar = ttk.Scrollbar(self.models_frame, orient="vertical", command=self.model_tree.yview)
@@ -672,8 +693,7 @@ class GuidedWindow:
         self._configure_model_headings()
         if self.models:
             self._render_model_rows(set(self._selected_model_indices()))
-        select_all_key = "select_provider_models" if len(self.orchestrators) > 1 else "select_all"
-        self.all_button.configure(text=self.text(select_all_key))
+        self.all_button.configure(text=self.text("select_all"))
         self.none_button.configure(text=self.text("select_none"))
         self.refresh_button.configure(text=self.text("refresh"))
         self.settings_frame.configure(text=self.text("settings"))
@@ -683,7 +703,7 @@ class GuidedWindow:
         self._render_settings()
         self.note_label.configure(text=self.text("long_note"))
         self.status_frame.configure(text=self.text("status"))
-        self.start_button.configure(text=self.text("start"))
+        self.start_button.configure(text=self.text("resume_model" if self.waiting_for_model else "start"))
         self.cancel_button.configure(text=self.text("cancel"))
         self.reopen_button.configure(text=self.text("reopen"))
         if not self.running and self.discoveries:
@@ -789,8 +809,15 @@ class GuidedWindow:
             for kind, payload in discoveries.items()
             for model in payload["models"]
         ]
+        if can_start:
+            ready = {(row["provider"], row["name"]) for row in self.models}
+            for kind, orchestrator in self.orchestrators.items():
+                pending = declared_models(orchestrator.config)
+                self.models.extend({"provider": kind, "name": name, "requires_load": True}
+                                   for name in pending if (kind, name) not in ready)
         first_kind = next(iter(discoveries), None)
-        self._render_model_rows({index for index, model in enumerate(self.models) if model["provider"] == first_kind})
+        self._render_model_rows({index for index, model in enumerate(self.models)
+                                 if model["provider"] == first_kind and not model.get("requires_load")})
         self._render_settings()
         self._render_ready_status()
         self._set_busy(False)
@@ -837,21 +864,17 @@ class GuidedWindow:
                 "",
                 "end",
                 iid=str(index),
-                values=(model["name"], PROVIDER_NAMES[model["provider"]], _size_text(model.get("size")), thinking_text),
+                values=(model["name"], PROVIDER_NAMES[model["provider"]], _size_text(model.get("size")), thinking_text,
+                        self.text("pending_model" if model.get("requires_load") else "ready_model")),
             )
             if index in selected_indices:
                 selected_items.append(str(index))
         self.model_tree.selection_set(selected_items)
         self._configure_model_headings()
+        self.model_tree.heading("model_state", text=self.text("model_state"))
 
     def _select_all(self) -> None:
-        selected = self._selected_model_indices()
-        if not self.models:
-            return
-        kind = self.models[selected[0] if selected else 0]["provider"]
-        self.model_tree.selection_set([
-            str(index) for index, model in enumerate(self.models) if model["provider"] == kind
-        ])
+        self.model_tree.selection_set(self.model_tree.get_children())
 
     def _select_none(self) -> None:
         self.model_tree.selection_remove(self.model_tree.selection())
@@ -862,30 +885,35 @@ class GuidedWindow:
     def start(self) -> None:
         from tkinter import messagebox
 
+        if self.waiting_for_model and isinstance(self.run_orchestrator, MultiProviderSession):
+            self.start_button.configure(state="disabled")
+            self.run_orchestrator.resume()
+            return
         if not self.discoveries or self.running:
             return
         models = [self.models[index] for index in self._selected_model_indices()]
         if not models:
             messagebox.showwarning(self.text("confirm_title"), self.text("choose_model"), parent=self.root)
             return
-        kinds = {model["provider"] for model in models}
-        if len(kinds) != 1:
-            messagebox.showwarning(self.text("confirm_title"), self.text("choose_provider"), parent=self.root)
+        kinds = list(dict.fromkeys(model["provider"] for model in models))
+        if len(kinds) > 1:
+            confirmation = self.text("confirm_multi", providers=", ".join(PROVIDER_NAMES[kind] for kind in kinds))
+            orchestrator = MultiProviderSession(self.orchestrator)
+        else:
+            if any(model.get("requires_load") for model in models):
+                messagebox.showwarning(self.text("confirm_title"), self.text("choose_provider"), parent=self.root)
+                return
+            confirmation = self.text("confirm", provider=PROVIDER_NAMES[kinds[0]])
+            orchestrator = self.orchestrators[kinds[0]]
+        if not messagebox.askyesno(self.text("confirm_title"), confirmation, parent=self.root):
             return
-        kind = kinds.pop()
-        if not messagebox.askyesno(
-            self.text("confirm_title"), self.text("confirm", provider=PROVIDER_NAMES[kind]), parent=self.root
-        ):
-            return
-        orchestrator = self.orchestrators[kind]
         orchestrator.manifest_path = None
+        orchestrator.cancel_event.clear()
         self.run_orchestrator = orchestrator
         self._set_busy(True)
         self.active_phase = 0
         self.progress_var.set(0)
         self.detail_var.set("")
-        discovery = self.discoveries[kind]
-        selected = [model["name"] for model in models]
         thinking_mode = "medium" if self.thinking_enabled.get() else "off"
         sandbox_mode = "required" if self.sandbox_enabled.get() else "audit"
 
@@ -895,10 +923,13 @@ class GuidedWindow:
 
         def work() -> None:
             try:
-                manifest = orchestrator.run(
-                    selected, discovery, thinking=thinking_mode, sandbox=sandbox_mode,
-                    preliminary=include_preliminary, callback=self.events.put,
-                )
+                settings = dict(thinking=thinking_mode, sandbox=sandbox_mode,
+                                preliminary=include_preliminary, callback=self.events.put)
+                if isinstance(orchestrator, MultiProviderSession):
+                    selected = [ModelSelection(model["provider"], model["name"]) for model in models]
+                    manifest = orchestrator.run(selected, **settings)
+                else:
+                    manifest = orchestrator.run([m["name"] for m in models], self.discoveries[kinds[0]], **settings)
             except GuidedError as exc:
                 self.events.put({"type": "error", "code": exc.code, "message": str(exc)})
             except Exception as exc:
@@ -951,7 +982,15 @@ class GuidedWindow:
             payload = json.loads(manifest.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return
-        messagebox.showinfo(self.text("summary"), _summary(payload), parent=self.root)
+        if payload.get("status") == "partial":
+            self.status_var.set(self.text("partial"))
+        if payload.get("mode") == "multi_provider":
+            lines = [f"{PROVIDER_NAMES.get(row['provider'], row['provider'])} · {row['profile']} · "
+                     f"{', '.join(row['models'])} · {row.get('reason') or row['status']}"
+                     for row in payload.get("phases", [])]
+            messagebox.showinfo(self.text("summary"), "\n".join(lines), parent=self.root)
+        else:
+            messagebox.showinfo(self.text("summary"), _summary(payload), parent=self.root)
 
     def _handle(self, event: dict[str, Any]) -> None:
         kind = event.get("type")
@@ -966,17 +1005,30 @@ class GuidedWindow:
                 self._handle({"type": "error", "code": error.code, "message": str(error),
                               "payload": error.context, "provider": provider})
         elif kind == "phase":
+            if "provider" in event:
+                self.phase_total = int(event["total"])
+                self.progress.configure(maximum=self.phase_total)
             self.active_phase = int(event["index"])
             self.progress_var.set(self.active_phase - 1)
             self.status_var.set(
                 self.text(
-                    "running",
+                    "multi_running" if "provider" in event else "running",
                     index=event["index"], total=event["total"],
+                    provider=PROVIDER_NAMES.get(event.get("provider"), ""),
                     profile=event["profile"],
                     count=len(event["models"]),
                 )
             )
             self.results_var.set(self.text("results", path=event["run_directory"]))
+        elif kind in {"model_wait", "model_check", "model_wait_done"}:
+            self.waiting_for_model = kind == "model_wait"
+            self.start_button.configure(text=self.text("resume_model" if self.waiting_for_model else "start"),
+                                        state="normal" if self.waiting_for_model else "disabled")
+            if self.waiting_for_model:
+                self.start_button.focus_set()
+            if kind != "model_wait_done":
+                self.detail_var.set(self.text(kind, model=event["model"], seconds=event.get("seconds"),
+                                              provider=PROVIDER_NAMES[event["provider"]]))
         elif kind == "task":
             self.progress_var.set(
                 max(

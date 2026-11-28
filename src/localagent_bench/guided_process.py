@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
@@ -22,6 +23,22 @@ class ProcessResult:
     returncode: int
     cancelled: bool
     output_tail: tuple[str, ...]
+
+
+@contextmanager
+def interruptible():
+    """Map the managed subprocess' POSIX termination request to orderly cleanup."""
+    def interrupt(_signum, _frame):
+        raise KeyboardInterrupt()
+
+    previous = None
+    if threading.current_thread() is threading.main_thread():
+        previous = signal.signal(signal.SIGTERM, interrupt)
+    try:
+        yield
+    finally:
+        if previous is not None:
+            signal.signal(signal.SIGTERM, previous)
 
 
 def _checked_args(args: Sequence[str]) -> list[str]:

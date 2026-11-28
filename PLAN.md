@@ -1,10 +1,10 @@
 # Piano di sviluppo / Development Plan
 
-Versione corrente / Current version: **0.16.0**
+Versione in sviluppo / Development version: **0.17.0**. Ultima release verificata / Latest verified release: **0.16.0**.
 
 ## Piano esecutivo corrente / Current execution plan
 
-**M18** è la prossima milestone programmata. Il checkpoint remoto C17 è verificato.
+**M18** è in sviluppo sul branch dedicato. Il checkpoint remoto C17 è verificato.
 
 ### M18 – Una sessione con modelli di più provider / One session for models across providers
 
@@ -19,7 +19,7 @@ Versione corrente / Current version: **0.16.0**
 - Criteri di accettazione: una sola conferma avvia almeno due provider locali con gli stessi casi e impostazioni, conserva gli esiti di ciascuno anche a fronte di timeout o indisponibilità e apre una dashboard unica. Un cambio manuale riprende la stessa sessione soltanto dopo aver verificato il modello richiesto. I risultati e i comandi con un solo provider continuano a funzionare.
 - Test richiesti: GUI e CLI con almeno due provider sintetici (inclusi due ID uguali), integrazione sui gate e sull'identità dei modelli, timeout e cancellazione durante attesa ed esecuzione, protezione di credenziali e snapshot, compatibilità di export e report. Smoke reale su almeno due provider, inclusa una prova con modello residente, e verifica dell'accessibilità dei nuovi controlli.
 - Documentazione da aggiornare: README, manuali bilingui, guide Guided, LocalProviders, Colibrì–Unsloth e Dashboard, `SECURITY_MODEL.md`, `MAP.md`, `PLAN.md` e landing.
-- Stato: **programmata**, checkpoint C17 verificato. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
+- Stato: **in sviluppo**, branch creato da `5433739` dopo la verifica di `main` e C17. La checklist di chiusura segue `AGENTS.md` con verifica del commit esatto, CI applicabile, checkpoint, release e verifica degli archivi prima della rimozione del branch.
 
 ## C17 – Colibrì come provider locale / Colibrì local provider
 

@@ -6,7 +6,7 @@ This workflow compares models from one of the local providers configured in `ben
 
 ## Requisiti / Requirements
 
-- checkout sorgente completo di LocalAgent Benchmark 0.16.0;
+- checkout sorgente completo di LocalAgent Benchmark 0.17.0;
 - Python 3.10 o successivo con Tkinter;
 - Git;
 - provider locale configurato su loopback con almeno un modello tool-capable;
@@ -17,9 +17,9 @@ The source checkout, Python 3.10+ with Tkinter, Git, a configured loopback model
 
 ## Elenco dei provider / Provider list
 
-La colonna **Provider** indica l'origine di ogni modello. La GUI rileva `provider` e le voci opzionali di `additional_providers` in `benchmark.json`. Un server spento compare tra i provider non disponibili, mentre gli altri restano utilizzabili. Selezionare i modelli di un solo provider per volta. **Tutti del provider** seleziona i modelli del provider della prima riga selezionata, oppure del primo provider disponibile se la selezione è vuota. La finestra di conferma indica quale provider useranno tutte le fasi.
+Le colonne **Provider** e **Disponibilità** indicano l'origine e i modelli da caricare. Per scegliere modelli di uno o più provider, usa la selezione multipla o **Seleziona tutti**. La finestra di conferma indica i provider che verranno usati. I provider indisponibili sono segnalati.
 
-The **Provider** column identifies each model's source. The GUI discovers `provider` and the optional entries in `additional_providers` in `benchmark.json`. A stopped server appears under unavailable providers while the others remain usable. Select models from one provider per run. **All from provider** selects the provider of the first selected row, or the first available provider when the selection is empty. The confirmation dialog identifies the provider used in all stages.
+The **Provider** and **Availability** columns identify the source and the models that need loading. Use multi-select or **Select all** to choose models from one or several providers. The confirmation dialog lists the providers that will run. Unavailable providers are shown in the status area.
 
 ## Unsloth nel percorso guidato / Unsloth in guided mode
 
@@ -156,3 +156,24 @@ Prima di smoke, il toggle Preliminary esegue sui modelli selezionati misure desc
 Before smoke, optionally run descriptive responsiveness and synthetic-source grounding probes on all selected models. The new configuration enables this toggle; disable it before starting to skip it. Promotions remain smoke → standard → full. The dashboard may receive four distinct directories; Preliminary stays outside rankings and funnel. Descriptive errors do not exclude models; mandatory control failures do. See [Preliminary](QUICK-START_Preliminary.md).
 
 Le dimensioni GUI sono centralizzate in `guided.window_size` (900×720) e `guided.minimum_size` (760×720). La tabella scorrevole si adatta all’altezza disponibile e lascia spazio ai pulsanti in fondo. I file legacy senza queste opzioni usano gli stessi valori. / GUI dimensions are configured by `guided.window_size` (900×720) and `guided.minimum_size` (760×720). The scrollable table adapts to the available height and leaves room for the action buttons. Legacy configurations use the same defaults.
+
+
+## Sessione multiprovider / Multi-provider session
+
+Configura almeno due provider in `provider` e `additional_providers`. Avvia dalla GUI con una sola conferma oppure da terminale. Sostituisci gli identificativi dell'esempio con quelli esposti dai tuoi server.
+
+Configure at least two providers under `provider` and `additional_providers`. Confirm once in the GUI or start from the terminal. Replace the example identifiers with those advertised by your servers.
+
+```bash
+python3 benchmark.py session --model ollama=qwen3.5:9b --model lmstudio=local/coder --seed 17
+```
+
+- La coda avanza in sequenza per provider. Per i provider che caricano modelli su richiesta, le promozioni riusano la classifica di ciascun run. Unsloth e Colibrì eseguono ciascun modello residente nel proprio percorso. Gli ID uguali di provider diversi restano distinti.
+- Per Unsloth e Colibrì, **Da caricare** identifica modelli aggiunti esplicitamente con `provider.model_files` o `provider.colibri.model_bundles`. Quando la coda lo richiede, carica il modello nella sua app o nel suo server, poi premi **Verifica e riprendi** o Invio nel terminale. `guided.model_wait_timeout_seconds` imposta l'attesa (300 secondi per default). In modalità non interattiva, i modelli che richiedono un intervento vengono esclusi.
+- `--profile smoke` esegue solo lo smoke. Per il funnel completo, `--preliminary` aggiunge le misure descrittive. `--no-open` conserva il manifesto per aprire la dashboard in seguito. Il codice CLI è 0 per una sessione completa, 1 con esclusioni, 2 per un errore di avvio o di sessione e 130 in caso di annullamento.
+- Il manifesto è `results/guided-multi-…/guided-run.json`. Nella GUI usa **Riapri dashboard** oppure esegui `python3 dashboard.py --session PERCORSO_MANIFESTO`.
+
+- The queue runs providers sequentially. For providers that load models on demand, promotion follows each run's official leaderboard. Unsloth and Colibrì run each resident model in its own funnel. Identical IDs from different providers stay distinct.
+- For Unsloth and Colibrì, **Needs loading** identifies models explicitly declared in `provider.model_files` or `provider.colibri.model_bundles`. When the queue pauses, load the model in its app or server, then select **Verify and resume** or press Enter in the terminal. `guided.model_wait_timeout_seconds` controls the wait (300 seconds by default). Non-interactive execution excludes models that need manual action.
+- `--profile smoke` runs smoke only. Use `--preliminary` to include descriptive measurements in the full funnel. `--no-open` keeps the manifest for later viewing. CLI exit codes are 0 for completion, 1 with exclusions, 2 for startup or session failure, and 130 for cancellation.
+- Find the manifest at `results/guided-multi-…/guided-run.json`. Use **Reopen dashboard** in the GUI or run `python3 dashboard.py --session MANIFEST_PATH`.

@@ -13,8 +13,8 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable
 
 
-DASHBOARD_SCHEMA_VERSION = 4
-SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2, 3, 4}
+DASHBOARD_SCHEMA_VERSION = 5
+SUPPORTED_DASHBOARD_SCHEMA_VERSIONS = {1, 2, 3, 4, 5}
 SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4}
 SUPPORTED_REPORT_SCHEMA_VERSIONS = {2, 3, 4}
 MAX_SOURCE_BYTES = 32 * 1024 * 1024
@@ -36,6 +36,9 @@ RUN_FIELDS = {
     "exclusions",
     "preliminary",
 }
+PROVIDERS = ("ollama", "lmstudio", "llama_cpp", "unsloth", "colibri")
+SESSION_ID = re.compile(r"guided-multi-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}")
+SCHEMA_5_RUN_FIELDS = RUN_FIELDS | {"provider", "session_id", "load_seconds"}
 SCHEMA_3_RUN_FIELDS = RUN_FIELDS - {"preliminary"}
 SCHEMA_2_RUN_FIELDS = SCHEMA_3_RUN_FIELDS - {"exclusions"}
 LEGACY_RUN_FIELDS = SCHEMA_2_RUN_FIELDS - {"thinking_control"}
@@ -426,7 +429,7 @@ def _build_funnel(runs: list[dict[str, Any]], profile_order: list[str]) -> list[
         profile = run["profile"]
         run_ids[profile].append(run["id"])
         participants[profile].update(run["participants"])
-    funnel_order = [profile for profile in FUNNEL_PIPELINE if profile in profile_order]
+    funnel_order = [profile for profile in FUNNEL_PIPELINE if profile in profile_order and profile in run_ids]
     funnel: list[dict[str, Any]] = []
     for index, profile in enumerate(funnel_order):
         current = participants[profile]
@@ -445,6 +448,24 @@ def _build_funnel(runs: list[dict[str, Any]], profile_order: list[str]) -> list[
             }
         )
     return funnel
+
+
+def provider_metadata(manifest: dict[str, Any]) -> dict[str, Any]:
+    configuration = manifest.get("configuration")
+    provider = configuration.get("provider_kind") if isinstance(configuration, dict) else None
+    session = manifest.get("session")
+    session_id = session.get("id") if isinstance(session, dict) else None
+    events = manifest.get("load_events")
+    milliseconds = [
+        duration for item in (events if isinstance(events, list) else ())
+        if isinstance(item, dict) and item.get("status") == "loaded"
+        and (duration := _number(item.get("duration_ms"), minimum=0)) is not None
+    ]
+    return {
+        "provider": provider if provider in PROVIDERS else None,
+        "session_id": session_id if isinstance(session_id, str) and SESSION_ID.fullmatch(session_id) else None,
+        "load_seconds": sum(milliseconds) / 1000 if milliseconds else None,
+    }
 
 
 def build_dashboard_data(run_dirs: Iterable[Path]) -> dict[str, Any]:
@@ -524,17 +545,21 @@ def build_dashboard_data(run_dirs: Iterable[Path]) -> dict[str, Any]:
                 "tasks": tasks,
                 "exclusions": _sanitize_exclusions(manifest, report_integrity, disqualified),
                 "preliminary": _sanitize_preliminary(report.get("preliminary")) if profile == "preliminary" else [],
+                **provider_metadata(manifest),
             }
         )
 
     order = _profile_order(run["profile"] for run in runs)
     profile_index = {profile: index for index, profile in enumerate(order)}
     runs.sort(key=lambda run: (profile_index[run["profile"]], run["id"]))
+    new_schema = any(run["provider"] is not None or run["session_id"] is not None for run in runs)
+    if not new_schema:
+        runs = [{key: value for key, value in run.items() if key in RUN_FIELDS} for run in runs]
     dataset = {
-        "schema_version": DASHBOARD_SCHEMA_VERSION,
+        "schema_version": DASHBOARD_SCHEMA_VERSION if new_schema else 4,
         "profile_order": order,
         "runs": runs,
-        "funnel": _build_funnel(runs, order),
+        "funnel": _build_funnel([run for run in runs if not run.get("session_id")], order),
     }
     validate_dashboard_data(dataset)
     return dataset
@@ -562,7 +587,7 @@ def validate_dashboard_data(dataset: Any) -> None:
     ids: set[str] = set()
     for run in runs:
         expected_run_fields = (
-            RUN_FIELDS if dashboard_schema >= 4 else
+            SCHEMA_5_RUN_FIELDS if dashboard_schema == 5 else RUN_FIELDS if dashboard_schema == 4 else
             SCHEMA_3_RUN_FIELDS if dashboard_schema == 3 else
             SCHEMA_2_RUN_FIELDS if dashboard_schema == 2 else LEGACY_RUN_FIELDS
         )
@@ -572,6 +597,14 @@ def validate_dashboard_data(dataset: Any) -> None:
         if run["id"] in ids:
             raise DashboardDataError(f"ID run duplicato: {run['id']}")
         ids.add(run["id"])
+        if dashboard_schema == 5:
+            identity = run["session_id"]
+            if (run["provider"] not in (*PROVIDERS, None)
+                    or (identity is not None and (run["provider"] is None
+                        or not isinstance(identity, str) or not SESSION_ID.fullmatch(identity)))
+                    or not _valid_nullable_number(run["load_seconds"])
+                    or (run["load_seconds"] is not None and run["load_seconds"] < 0)):
+                raise DashboardDataError("Metadati provider non validi / Invalid provider metadata")
         if dashboard_schema >= 4:
             if not isinstance(run["preliminary"], list) or run["preliminary"] != _sanitize_preliminary(run["preliminary"]):
                 raise DashboardDataError("Aggregati preliminary non validi / Invalid preliminary aggregates")
@@ -694,9 +727,10 @@ def validate_dashboard_data(dataset: Any) -> None:
             ):
                 raise DashboardDataError(f"Task non valida nel run {run['id']}")
     funnel_profiles = [item.get("profile") for item in funnel if isinstance(item, dict)] if isinstance(funnel, list) else []
-    expected_funnel_profiles = (
-        profiles if dashboard_schema == 1 else [profile for profile in FUNNEL_PIPELINE if profile in profiles]
-    )
+    funnel_run_profiles = {run["profile"] for run in runs if not run.get("session_id")} if dashboard_schema == 5 else profiles
+    expected_funnel_profiles = profiles if dashboard_schema == 1 else [
+        profile for profile in FUNNEL_PIPELINE if profile in funnel_run_profiles
+    ]
     if not isinstance(funnel, list) or funnel_profiles != expected_funnel_profiles:
         raise DashboardDataError("Funnel non coerente con profile_order")
     for stage in funnel:

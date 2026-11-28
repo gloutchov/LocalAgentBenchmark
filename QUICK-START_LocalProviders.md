@@ -1,8 +1,12 @@
 # Provider locali / Local model providers
 
+Per accodare provider diversi, usa [la sessione multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session). Il catalogo di sola inferenza Unsloth e l'API di Colibrì espongono i modelli residenti. I modelli non residenti compaiono solo dagli ID dichiarati in `model_files` o `colibri.model_bundles`. Il benchmark non esplora cartelle e non invoca API amministrative per scoprire o caricare questi modelli.
+
+To queue different providers, use the [multi-provider session](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session). Unsloth inference-only discovery and Colibrì's API expose resident models. Nonresident models come only from IDs declared in `model_files` or `colibri.model_bundles`. The benchmark does not scan folders or use administrative APIs for model discovery or loading.
+
 ## Italiano
 
-Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo**, al **router `llama-server` di llama.cpp** oppure a **Unsloth** con un GGUF locale già caricato e una chiave di sola inferenza. Ogni run usa un solo provider per tutte le fasi. La GUI può rilevare i modelli di più provider configurati in `benchmark.json`. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi o download automatici; Unsloth richiede una chiave locale protetta, mentre gli altri tre adapter mantengono la modalità senza autenticazione.
+Il benchmark usa Pi come agente e può collegarlo a **Ollama** (default), **LM Studio 0.4 o successivo**, al **router `llama-server` di llama.cpp** oppure a **Unsloth** con un GGUF locale già caricato e una chiave di sola inferenza. Un run usa il provider configurato. Una sessione accoda run per più provider locali configurati in `benchmark.json`. Il server deve restare su loopback HTTP (`127.0.0.1`, `localhost` o `::1`). Non servono pacchetti Python aggiuntivi o download automatici; Unsloth richiede una chiave locale protetta, mentre gli altri tre adapter mantengono la modalità senza autenticazione.
 
 I quattro provider sono gestiti da adattatori interni separati. La selezione resta `provider.kind` in `benchmark.json`: non servono file ricetta aggiuntivi e il formato dei run non cambia.
 
@@ -149,7 +153,7 @@ Il preflight usa `reasoning_effort: "none"` per `off` e verifica che non emerga 
 
 ## English
 
-Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, the **llama.cpp `llama-server` router**, or **Unsloth** with an already-loaded local GGUF and an inference-only key. Each run uses a single provider for all phases. The GUI can discover models from multiple providers configured in `benchmark.json`. The server must use HTTP loopback. No extra Python packages or automatic model downloads are needed. Unsloth requires a protected local key; the original three adapters retain their unauthenticated mode.
+Pi remains the coding agent. The benchmark can connect it to **Ollama** (default), **LM Studio 0.4+**, the **llama.cpp `llama-server` router**, or **Unsloth** with an already-loaded local GGUF and an inference-only key. A run uses one configured provider. A session queues runs for multiple local providers configured in `benchmark.json`. The server must use HTTP loopback. No extra Python packages or automatic model downloads are needed. Unsloth requires a protected local key; the original three adapters retain their unauthenticated mode.
 
 The four providers use separate built-in adapters. Select one with `provider.kind` in `benchmark.json`; no extra recipe files are required, and run formats do not change.
 

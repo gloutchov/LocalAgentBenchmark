@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, the llama.cpp `llama-server` router, Unsloth with an inference-only key, and Colibrì. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Versione / Version: **0.16.0 – Colibrì come provider locale / Colibrì local provider**
+Versione / Version: **0.17.0 – Sessione multiprovider / Multi-provider session**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
@@ -20,6 +20,10 @@ Version 0.14.0 adds the descriptive Preliminary profile, measuring responsivenes
 La 0.16.0 integra Colibrì come provider locale per Preliminary e task Pi. L'adapter usa un modello chat già residente, autenticazione opzionale protetta e provenienza dei file dichiarata per il confronto. [Guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
 
 Version 0.16.0 integrates Colibrì as a local provider for Preliminary and Pi tasks. The adapter uses an already-resident chat model, optional protected authentication, and declared model-file provenance for comparison. [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
+
+La GUI e il comando `session` eseguono modelli di provider diversi in sequenza con gli stessi input e impostazioni. La dashboard mostra gli esiti per modello e provider, incluse le esclusioni e le attese di caricamento manuale. [Avvio rapido multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
+
+The GUI and the `session` command run models from different providers sequentially with the same inputs and settings. The dashboard shows the outcome for each model and provider, including exclusions and manual loading waits. [Multi-provider quick start](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
 
 ## Cosa misura / What it measures
 

@@ -9,8 +9,16 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const SCHEMA_VERSION = 4;
-  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3, 4]);
+  const SCHEMA_VERSION = 5;
+  const PROVIDER_LABELS = Object.freeze({
+    ollama: "Ollama", lmstudio: "LM Studio", llama_cpp: "llama.cpp", unsloth: "Unsloth", colibri: "Colibrì",
+  });
+  const SESSION_ID = /^guided-multi-[0-9]{8}-[0-9]{6}-[0-9a-f]{6}$/;
+
+  function modelLabel(run, model) {
+    return run.session_id ? `${PROVIDER_LABELS[run.provider]} · ${model}` : model;
+  }
+  const SUPPORTED_SCHEMA_VERSIONS = new Set([1, 2, 3, 4, 5]);
   const EXCLUSION_REASONS = new Set([
     "thinking_observed_off", "thinking_unverified", "provider_incompatible", "provider_context_mismatch", "provider_model_bundle_changed", "workspace_boundary",
     "repository_mutation", "snapshot_mutation", "integrity_other",
@@ -212,6 +220,15 @@
         validatePreliminary(run.preliminary);
         if (run.profile !== "preliminary" && run.preliminary.length) fail("Unexpected preliminary rows");
       }
+      if (dataset.schema_version >= 5) {
+        runFields.push("provider", "session_id", "load_seconds");
+        if ((run.provider !== null && !Object.hasOwn(PROVIDER_LABELS, run.provider)) ||
+            (run.session_id !== null && (typeof run.session_id !== "string" ||
+              !SESSION_ID.test(run.session_id) || run.provider === null)) ||
+            (run.load_seconds !== null && (!Number.isFinite(run.load_seconds) || run.load_seconds < 0))) {
+          fail("Invalid provider metadata");
+        }
+      }
       exactKeys(
         run,
         runFields,
@@ -290,10 +307,12 @@
     }
 
     const funnelProfiles = dataset.funnel.map((stage) => (isObject(stage) ? stage.profile : null));
+    const funnelProfilesWithRuns = dataset.schema_version === 5
+      ? new Set(dataset.runs.filter((run) => !run.session_id).map((run) => run.profile)) : profiles;
     const expectedFunnelProfiles =
       dataset.schema_version === 1
         ? dataset.profile_order
-        : FUNNEL_PIPELINE.filter((profile) => profiles.has(profile));
+        : FUNNEL_PIPELINE.filter((profile) => funnelProfilesWithRuns.has(profile));
     if (JSON.stringify(funnelProfiles) !== JSON.stringify(expectedFunnelProfiles)) {
       fail("Funnel does not match profile_order");
     }
@@ -348,7 +367,7 @@
   }
 
   function buildFunnel(runs, order) {
-    const funnelOrder = FUNNEL_PIPELINE.filter((profile) => order.includes(profile));
+    const funnelOrder = FUNNEL_PIPELINE.filter((profile) => runs.some((run) => run.profile === profile));
     const runIds = new Map();
     const participants = new Map();
     order.forEach((profile) => {
@@ -377,7 +396,7 @@
     });
   }
 
-  function normalizeRun(run, schemaVersion) {
+  function normalizeRun(run, schemaVersion, targetVersion) {
     const normalized = clone(run);
     if (schemaVersion < 2) {
       normalized.thinking_control = {
@@ -390,18 +409,24 @@
     }
     if (schemaVersion < 3) normalized.exclusions = [];
     if (schemaVersion < 4) normalized.preliminary = [];
+    if (targetVersion === 5 && schemaVersion < 5) {
+      normalized.provider = null;
+      normalized.session_id = null;
+      normalized.load_seconds = null;
+    }
     return normalized;
   }
 
   function mergeDashboardData(datasets) {
     if (!Array.isArray(datasets) || datasets.length === 0) fail("Select at least one dashboard dataset");
+    const targetVersion = datasets.some((dataset) => dataset.schema_version === SCHEMA_VERSION) ? SCHEMA_VERSION : 4;
     const runsById = new Map();
     const profiles = [];
     for (const dataset of datasets) {
       validateDashboardData(dataset);
       dataset.profile_order.forEach((profile) => profiles.push(profile));
       for (const run of dataset.runs) {
-        const normalized = normalizeRun(run, dataset.schema_version);
+        const normalized = normalizeRun(run, dataset.schema_version, targetVersion);
         const existing = runsById.get(run.id);
         if (existing && canonical(existing) !== canonical(normalized)) fail(`Run id collision: ${run.id}`);
         if (!existing) runsById.set(run.id, normalized);
@@ -412,7 +437,10 @@
     const runs = [...runsById.values()].sort(
       (left, right) => index.get(left.profile) - index.get(right.profile) || left.id.localeCompare(right.id)
     );
-    const merged = { schema_version: SCHEMA_VERSION, profile_order: order, runs, funnel: buildFunnel(runs, order) };
+    const merged = {
+      schema_version: targetVersion, profile_order: order, runs,
+      funnel: buildFunnel(runs.filter((run) => !run.session_id), order),
+    };
     validateDashboardData(merged);
     return merged;
   }
@@ -420,11 +448,11 @@
   function collectModels(runs) {
     const models = new Set();
     for (const run of runs) {
-      run.participants.forEach((model) => models.add(model));
-      run.leaderboard.forEach((row) => models.add(row.model));
-      run.tasks.forEach((task) => models.add(task.model));
-      run.integrity.disqualified_models.forEach((model) => models.add(model));
-      (run.exclusions || []).forEach((exclusion) => models.add(exclusion.model));
+      run.participants.forEach((model) => models.add(modelLabel(run, model)));
+      run.leaderboard.forEach((row) => models.add(modelLabel(run, row.model)));
+      run.tasks.forEach((task) => models.add(modelLabel(run, task.model)));
+      run.integrity.disqualified_models.forEach((model) => models.add(modelLabel(run, model)));
+      (run.exclusions || []).forEach((exclusion) => models.add(modelLabel(run, exclusion.model)));
     }
     return [...models].sort((a, b) => a.localeCompare(b));
   }
@@ -535,6 +563,7 @@
       .flatMap((run) =>
         run.leaderboard.map((row) => ({
           ...clone(row),
+          model: modelLabel(run, row.model),
           run_id: run.id,
           profile: run.profile,
           thinking_mode: run.thinking_control ? run.thinking_control.requested : "unknown",
@@ -547,6 +576,7 @@
     const tasks = runs
       .flatMap((run) => run.tasks.map((task) => ({
         ...clone(task),
+        model: modelLabel(run, task.model),
         run_id: run.id,
         profile: run.profile,
         thinking_mode: run.thinking_control ? run.thinking_control.requested : "unknown",
@@ -561,7 +591,7 @@
 
     const exclusions = runs
       .flatMap((run) => (run.exclusions || []).map((exclusion) => ({
-        ...clone(exclusion), run_id: run.id, profile: run.profile,
+        ...clone(exclusion), model: modelLabel(run, exclusion.model), run_id: run.id, profile: run.profile,
         thinking_mode: run.thinking_control.requested,
         sandbox_backend: run.sandbox.backend,
         sandbox_enforced: run.sandbox.enforced,
@@ -592,6 +622,7 @@
     const disqualifiedModels = new Set();
     runs.forEach((run) => {
       run.integrity.disqualified_models
+        .map((model) => modelLabel(run, model))
         .filter((model) => selectedModel === "all" || model === selectedModel)
         .forEach((model) => disqualifiedModels.add(model));
     });
@@ -599,7 +630,7 @@
       runCount: runs.length,
       modelCount: visibleModels.length,
       taskCount: tasks.length,
-      bestScore,
+      bestScore: runs.some((run) => run.session_id) && runs.length > 1 ? null : bestScore,
       passedCount: tasks.filter((task) => task.state === "passed").length,
       belowThresholdCount: tasks.filter((task) => task.state === "below_threshold").length,
       anomalousCount: tasks.filter((task) => ["timeout", "error", "missing_score", "integrity_excluded"].includes(task.state)).length,
@@ -610,7 +641,7 @@
     };
 
     return {
-      preliminary: runs.flatMap((run) => (run.preliminary || []).map((row) => ({...clone(row), run_id: run.id, thinking_mode: run.thinking_control ? run.thinking_control.requested : "unknown"}))).filter((row) => selectedModel === "all" || row.model === selectedModel),
+      preliminary: runs.flatMap((run) => (run.preliminary || []).map((row) => ({...clone(row), model: modelLabel(run, row.model), run_id: run.id, thinking_mode: run.thinking_control ? run.thinking_control.requested : "unknown"}))).filter((row) => selectedModel === "all" || row.model === selectedModel),
       profiles: [...dataset.profile_order],
       runs: clone(runs),
       leaderboard,
@@ -626,6 +657,7 @@
 
   return {
     SCHEMA_VERSION,
+    PROVIDER_LABELS,
     buildEfficiencyCohorts,
     buildFunnel,
     buildLogDomain,

@@ -121,6 +121,7 @@
     UI.renderComparison(view);
     UI.renderEfficiency(view);
     UI.renderFunnel(view);
+    UI.renderSession(state.meta.session, view);
     UI.renderTasks(view, UI.showTaskDialog);
     UI.renderRuns(view);
     renderStatus();
