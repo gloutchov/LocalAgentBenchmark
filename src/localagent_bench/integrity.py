@@ -84,20 +84,21 @@ def changed_paths(before: dict[str, str], after: dict[str, str]) -> list[str]:
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
 
 
-def _copy_tracked_tree(repository_root: Path, source: Path, destination: Path) -> None:
-    """Copy and verify only Git-tracked files below ``source``."""
+def _tracked_paths(repository_root: Path, source: Path) -> list[Path]:
     relative_source = source.relative_to(repository_root)
     payload = subprocess.run(
         ["git", "ls-files", "-z", "--", str(relative_source)],
-        cwd=repository_root,
-        capture_output=True,
-        check=True,
-        timeout=30,
+        cwd=repository_root, capture_output=True, check=True, timeout=30,
     ).stdout
-    tracked = payload.decode("utf-8", errors="surrogateescape").split("\0")
+    return [repository_root / path for path in
+            payload.decode("utf-8", errors="surrogateescape").split("\0") if path]
+
+
+def _copy_tracked_tree(repository_root: Path, source: Path, destination: Path) -> None:
+    """Copy and verify only Git-tracked files below ``source``."""
+    tracked = _tracked_paths(repository_root, source)
     destination.mkdir(parents=True, exist_ok=False)
-    for repository_relative in (path for path in tracked if path):
-        source_path = repository_root / repository_relative
+    for source_path in tracked:
         target_path = destination / source_path.relative_to(source)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if source_path.is_symlink():
@@ -105,7 +106,7 @@ def _copy_tracked_tree(repository_root: Path, source: Path, destination: Path) -
         else:
             shutil.copy2(source_path, target_path)
         if _entry_fingerprint(source_path) != _entry_fingerprint(target_path):
-            raise InputIntegrityError(f"Copia snapshot non verificata: {repository_relative}")
+            raise InputIntegrityError(f"Copia snapshot non verificata: {source_path.relative_to(repository_root)}")
 
 
 def _copy_verified_file(source: Path, destination: Path, label: str) -> None:
@@ -113,6 +114,44 @@ def _copy_verified_file(source: Path, destination: Path, label: str) -> None:
     shutil.copy2(source, destination)
     if _entry_fingerprint(source) != _entry_fingerprint(destination):
         raise InputIntegrityError(f"La copia di {label} non coincide con la sorgente")
+
+
+def verify_snapshot_origin(
+    root: Path, context: Path, sources: list[CaseSpec], frozen: list[CaseSpec],
+    extra_paths: tuple[Path, ...], policy_name: str, execution_policy: str,
+) -> None:
+    """Anchor a shared subprocess snapshot to the same clean inputs as a solo run."""
+    files = [
+        (root / "AGENTS.md", context / "AGENTS.snapshot.md"),
+        (root / ".gitignore", context / ".gitignore.snapshot"),
+        *((source, context / f"extra-{index}.json") for index, source in enumerate(extra_paths)),
+    ]
+    for source, snapshot in zip(sources, frozen, strict=True):
+        for field in ("prompt_path", "grader_path", "manifest_path", "manual_rubric_path"):
+            if source_path := getattr(source, field):
+                files.append((source_path, getattr(snapshot, field)))
+        if snapshot.fixture_path.is_symlink() or context not in snapshot.fixture_path.resolve().parents:
+            raise InputIntegrityError("Fixture snapshot non confinata / Unconfined snapshot fixture")
+        tracked = {item.relative_to(source.fixture_path): item
+                   for item in _tracked_paths(root, source.fixture_path)}
+        actual = {item.relative_to(snapshot.fixture_path): item for item in snapshot.fixture_path.rglob("*")
+                  if item.is_symlink() or not item.is_dir()}
+        allowed_case_files = {getattr(snapshot, field) for field in
+                              ("prompt_path", "grader_path", "manifest_path", "manual_rubric_path")}
+        allowed_case_files.update(snapshot.fixture_path / key for key in tracked)
+        observed_case_files = {item for item in snapshot.directory.rglob("*") if item.is_symlink() or not item.is_dir()}
+        if observed_case_files != allowed_case_files - {None} or tracked.keys() != actual.keys() or any(
+            _entry_fingerprint(item) != _entry_fingerprint(actual[key]) for key, item in tracked.items()
+        ):
+            raise InputIntegrityError(f"Fixture condivisa non valida / Invalid shared fixture: {source.id}")
+    for source, target in files:
+        if target.is_symlink() or not target.is_file() or context not in target.resolve().parents:
+            raise InputIntegrityError("File snapshot non confinato / Unconfined snapshot file")
+        if _entry_fingerprint(source) != _entry_fingerprint(target):
+            raise InputIntegrityError("Snapshot diverso dalla sorgente / Snapshot differs from source")
+    policy = context / policy_name
+    if policy.is_symlink() or not policy.is_file() or policy.read_bytes() != execution_policy.encode("utf-8"):
+        raise InputIntegrityError("Policy snapshot non valida / Invalid snapshot policy")
 
 
 def require_clean_inputs(root: Path, cases: Iterable[CaseSpec], extra_paths: Iterable[Path] = ()) -> None:
@@ -172,7 +211,7 @@ def snapshot_cases(
     policy_hash = ""
     if execution_policy is not None:
         policy_snapshot = destination / "EXECUTION_POLICY.snapshot.md"
-        policy_snapshot.write_text(execution_policy, encoding="utf-8")
+        policy_snapshot.write_bytes(execution_policy.encode("utf-8"))
         policy_hash = fingerprint_tree(policy_snapshot)
     snapshot_specs: list[CaseSpec] = []
     case_manifest: dict[str, dict[str, object]] = {}

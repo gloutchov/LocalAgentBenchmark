@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 import unittest
+from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -13,7 +14,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from localagent_bench.config import load_config
+from localagent_bench.config import load_config, select_provider
 from localagent_bench.guided import (
     GuidedCancelled,
     GuidedError,
@@ -285,20 +286,34 @@ class GuidedTests(unittest.TestCase):
         config_path = ROOT / "benchmark.json"
         config = load_config(config_path)
         payload = {"ok": True, "models": [{"name": "shared:model"}]}
-        offline = {"ok": False, "checks": [{"name": "lmstudio", "ok": False}], "models": []}
+        doctor_calls = []
+
+        def synthetic_doctor(current):
+            doctor_calls.append(current.provider_kind)
+            return payload
+
+        def connect(address, *, timeout):
+            self.assertEqual("127.0.0.1", address[0])
+            self.assertEqual(1, timeout)
+            if address[1] == 8888:
+                raise ConnectionRefusedError
+            return nullcontext()
+
         orchestrators = {
             kind: GuidedOrchestrator(
-                replace(config, provider_kind=kind), config_path,
-                doctor_function=lambda current: offline if current.provider_kind == "lmstudio" else payload,
+                select_provider(config, kind), config_path, doctor_function=synthetic_doctor,
                 provider_override=True,
             )
-            for kind in ("ollama", "lmstudio", "unsloth")
+            for kind in (config.provider_kind, *config.additional_providers)
         }
         cancel_event = threading.Event()
-        discoveries, errors = discover_provider_catalog(orchestrators, cancel_event)
-        self.assertEqual({"ollama", "unsloth"}, set(discoveries))
-        self.assertEqual({"lmstudio"}, set(errors))
-        self.assertEqual("shared:model", discoveries["unsloth"]["models"][0]["name"])
+        with patch("localagent_bench.guided.socket.create_connection", side_effect=connect):
+            discoveries, errors = discover_provider_catalog(orchestrators, cancel_event)
+        self.assertEqual({"ollama", "lmstudio", "llama_cpp", "colibri"}, set(discoveries))
+        self.assertEqual(["ollama", "lmstudio", "llama_cpp", "colibri"], doctor_calls)
+        self.assertEqual({"unsloth"}, set(errors))
+        self.assertEqual("provider_unreachable", errors["unsloth"].code)
+        self.assertEqual("shared:model", discoveries["colibri"]["models"][0]["name"])
         with tempfile.TemporaryDirectory() as directory:
             for profile in ("preliminary", "smoke", "standard", "full"):
                 command = orchestrators["unsloth"]._benchmark_command(

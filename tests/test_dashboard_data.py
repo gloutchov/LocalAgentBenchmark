@@ -250,7 +250,7 @@ class DashboardDataTests(unittest.TestCase):
         fixture = json.loads(
             (ROOT / "cases" / "results_dashboard" / "fixture" / "dashboard-data.json").read_text(encoding="utf-8")
         )
-        self.assertEqual([1, 2, 3, 4], schema["properties"]["schema_version"]["enum"])
+        self.assertEqual([1, 2, 3, 4, 5], schema["properties"]["schema_version"]["enum"])
         validate_dashboard_data(fixture)
         self.assertEqual(2, fixture["schema_version"])
         self.assertEqual(["smoke", "standard", "full"], fixture["profile_order"])

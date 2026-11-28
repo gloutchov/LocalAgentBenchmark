@@ -8,6 +8,7 @@ import os
 import random
 import re
 import secrets
+import socket
 import tempfile
 import threading
 from dataclasses import dataclass
@@ -269,7 +270,7 @@ def _manifest_run_directories(payload: dict[str, Any]) -> list[Any]:
     dashboard = payload.get("dashboard")
     if isinstance(dashboard, dict):
         recorded = dashboard.get("run_directories")
-        if isinstance(recorded, list) and recorded:
+        if isinstance(recorded, list) and (recorded or payload.get("mode") == "multi_provider"):
             return recorded
     available: list[Any] = []
     phases = payload.get("phases")
@@ -333,7 +334,9 @@ class GuidedOrchestrator:
         self.cancel_event = threading.Event()
         self.manifest_path: Path | None = None
 
-    def discover(self, *, cancel_event: threading.Event | None = None) -> dict[str, Any]:
+    def discover(
+        self, *, cancel_event: threading.Event | None = None, check_endpoint: bool = False,
+    ) -> dict[str, Any]:
         if cancel_event is None:
             cancel_event = self.cancel_event
             cancel_event.clear()
@@ -342,6 +345,18 @@ class GuidedOrchestrator:
         parsed = urlparse(self.config.ollama_url)
         if parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
             raise GuidedError("remote_ollama", "Il percorso guidato accetta soltanto provider locali")
+        if check_endpoint:
+            host = "127.0.0.1" if parsed.hostname == "localhost" else parsed.hostname
+            port = parsed.port if parsed.port is not None else 80
+            try:
+                with socket.create_connection(
+                    (host, port), timeout=self.guided.discovery_connect_timeout_seconds,
+                ):
+                    pass
+            except OSError:
+                raise GuidedError(
+                    "provider_unreachable", "Provider locale non raggiungibile / Local provider unreachable",
+                ) from None
         payload = (
             self.doctor_function(self.config, cancel_event=cancel_event)
             if self.doctor_function is doctor else self.doctor_function(self.config)
@@ -393,14 +408,14 @@ class GuidedOrchestrator:
     def cancel(self) -> None:
         self.cancel_event.set()
 
-    def _session_directory(self) -> Path:
+    def _session_directory(self, prefix: str = "guided-") -> Path:
         results = self.config.dashboard.results_directory.resolve()
         if not _inside(results, self.config.root.resolve()):
             raise GuidedError("unsafe_output", "La directory risultati deve restare nel progetto")
         results.mkdir(parents=True, exist_ok=True)
         for _ in range(20):
             stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            candidate = results / f"guided-{stamp}-{secrets.token_hex(3)}"
+            candidate = results / f"{prefix}{stamp}-{secrets.token_hex(3)}"
             try:
                 candidate.mkdir()
             except FileExistsError:
@@ -735,7 +750,7 @@ class GuidedOrchestrator:
     def reopen_dashboard(self, manifest_path: Path) -> None:
         payload = _read_object(manifest_path, root=self.config.root)
         raw_directories = _manifest_run_directories(payload)
-        if not 1 <= len(raw_directories) <= 4:
+        if not raw_directories or (len(raw_directories) > 4 and payload.get("mode") != "multi_provider"):
             raise GuidedError(
                 "dashboard_failed", "Nessun run disponibile per la dashboard"
             )
@@ -752,7 +767,12 @@ class GuidedOrchestrator:
             runs.append(resolved)
         try:
             self.dashboard_builder(runs)
-            self.dashboard_starter(self._dashboard_command(runs), cwd=self.config.root)
+            if payload.get("mode") == "multi_provider":
+                from .multi_provider import session_dashboard_command
+                command = session_dashboard_command(self.config, self.config_path, manifest_path)
+            else:
+                command = self._dashboard_command(runs)
+            self.dashboard_starter(command, cwd=self.config.root)
         except (DashboardDataError, GuidedProcessError, OSError) as exc:
             raise GuidedError("dashboard_failed", str(exc)) from exc
 
@@ -804,7 +824,7 @@ def find_latest_manifest(config: BenchmarkConfig) -> Path | None:
         except GuidedError:
             continue
         run_directories = _manifest_run_directories(payload)
-        if 1 <= len(run_directories) <= 4:
+        if run_directories and (payload.get("mode") == "multi_provider" or len(run_directories) <= 4):
             candidates.append(path)
     return max(candidates, key=lambda path: path.stat().st_mtime, default=None)
 
@@ -816,7 +836,7 @@ def discover_provider_catalog(
     errors: dict[str, GuidedError] = {}
     for kind, orchestrator in orchestrators.items():
         try:
-            discoveries[kind] = orchestrator.discover(cancel_event=cancel_event)
+            discoveries[kind] = orchestrator.discover(cancel_event=cancel_event, check_endpoint=True)
         except GuidedError as exc:
             if cancel_event.is_set():
                 raise GuidedCancelled() from None

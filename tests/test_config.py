@@ -53,6 +53,18 @@ class ConfigTests(unittest.TestCase):
             config.guided.preferences_file,
         )
 
+    def test_default_configuration_declares_all_local_endpoints(self):
+        config = load_config(ROOT / "benchmark.json")
+        providers = {kind: select_provider(config, kind).ollama_url
+                     for kind in (config.provider_kind, *config.additional_providers)}
+        self.assertEqual({
+            "ollama": "http://127.0.0.1:11434",
+            "lmstudio": "http://127.0.0.1:1234",
+            "unsloth": "http://127.0.0.1:8888",
+            "llama_cpp": "http://127.0.0.1:8080",
+            "colibri": "http://127.0.0.1:8000",
+        }, providers)
+
     def test_select_provider_uses_shared_run_settings_and_validates_alternatives(self):
         config_path = ROOT / "benchmark.json"
         raw = json.loads(config_path.read_text())

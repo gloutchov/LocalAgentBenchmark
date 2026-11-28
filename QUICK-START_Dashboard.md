@@ -1,5 +1,9 @@
 # Dashboard ufficiale / Official results dashboard
 
+Usa `python3 dashboard.py --session results/guided-multi-…/guided-run.json` per riaprire una sessione. Il riepilogo mostra gli esiti di ciascuna fase, anche se il provider non ha prodotto un run. Il filtro distingue provider e ID del modello. Il tempo di caricamento esplicito compare nei dettagli del run, l'attesa manuale nel riepilogo di sessione. Gli export schema 5 includono provider, ID della sessione e tempo di caricamento, mentre le edizioni precedenti rimangono leggibili.
+
+Use `python3 dashboard.py --session results/guided-multi-…/guided-run.json` to reopen a session. Its summary shows each stage outcome, including providers that produced no run. The model filter distinguishes provider and model ID. Explicit loading time appears in run details, and manual waits appear in the session summary. Schema 5 exports include provider, session ID, and loading time, and older exports remain readable.
+
 Questa guida riguarda la dashboard mantenuta dal progetto in `dashboard/`. La dashboard candidata costruita dai modelli nel profilo `showcase` è invece una prova separata: un risultato da valutare, non l'interfaccia ufficiale.
 
 This guide covers the project-maintained dashboard in `dashboard/`. The candidate dashboard built by models in the `showcase` profile is a separate test outcome, not the official interface.

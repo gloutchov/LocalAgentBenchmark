@@ -11,6 +11,12 @@
       "max_connections": 16
     }
   },
+  "additional_providers": [
+    {"kind": "lmstudio", "url": "http://127.0.0.1:1234"},
+    {"kind": "unsloth", "url": "http://127.0.0.1:8888", "credential_ref": "unsloth-local"},
+    {"kind": "llama_cpp", "url": "http://127.0.0.1:8080"},
+    {"kind": "colibri", "url": "http://127.0.0.1:8000"}
+  ],
   "pi": {
     "command": ["pi"]
   },
@@ -45,6 +51,8 @@
     "window_size": [900, 720],
     "minimum_size": [760, 720],
     "promotion_limits": [4, 2],
+    "model_wait_timeout_seconds": 300,
+    "discovery_connect_timeout_seconds": 1,
     "preferences_file": ".localagent-benchmark/guided-preferences.json"
   },
   "profiles": {

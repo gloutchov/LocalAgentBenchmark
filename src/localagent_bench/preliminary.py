@@ -2,9 +2,6 @@
 from __future__ import annotations
 
 import random
-import signal
-import threading
-from contextlib import contextmanager
 import time
 from dataclasses import asdict
 from pathlib import Path
@@ -24,32 +21,23 @@ or reasoning persistence. HTTP probes execute on the host; the selected sandbox
 protects the Pi contract probe only. Descriptive outcomes never affect ranking.
 """
 
-@contextmanager
-def interruptible():
-    """Let POSIX guided cancellation unwind sockets and provider lifecycle."""
-    previous = None
-    if threading.current_thread() is threading.main_thread():
-        previous = signal.getsignal(signal.SIGTERM)
-        def interrupt(_signum, _frame):
-            raise KeyboardInterrupt()
-        signal.signal(signal.SIGTERM, interrupt)
-    try:
-        yield
-    finally:
-        if previous is not None:
-            signal.signal(signal.SIGTERM, previous)
-
-
 def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
-            run_dir: Path, repository_state: dict[str, str], save: Callable[[], None]) -> None:
+            run_dir: Path, repository_state: dict[str, str], save: Callable[[], None],
+            *, context_dir: Path | None = None,
+            snapshot_check: Callable[[], list[str]] | None = None) -> None:
     options = config.preliminary
-    initial_changes = verify_snapshot(run_dir / 'benchmark-context', manifest['inputs'])
+    context_dir = context_dir or run_dir / 'benchmark-context'
+
+    def snapshot_changes() -> list[str]:
+        return snapshot_check() if snapshot_check else verify_snapshot(context_dir, manifest['inputs'])
+
+    initial_changes = snapshot_changes()
     if initial_changes:
         manifest['integrity'].update(status='snapshot_compromised', aborted=True)
         manifest['preliminary'] = {'observations': [], 'contexts': ['short','long']}
         save()
         return
-    suite = load_suite(run_dir / 'benchmark-context' / 'extra-0.json')
+    suite = load_suite(context_dir / 'extra-0.json')
     randomizer = random.Random(manifest['order_seed'])
     models = list(manifest['models'])
     randomizer.shuffle(models)
@@ -80,7 +68,7 @@ def execute(config: Any, provider: Any, policy: Any, manifest: dict[str, Any],
             manifest['thinking_control']['disqualified_models'] = sorted(set(manifest['thinking_control']['disqualified_models']) | {model})
 
     def verify(model: str) -> bool:
-        snapshot = verify_snapshot(run_dir/'benchmark-context', manifest['inputs'])
+        snapshot = snapshot_changes()
         if snapshot:
             violation(model, 'snapshot_changed', snapshot)
             manifest['integrity'].update(status='snapshot_compromised', aborted=True)

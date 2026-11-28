@@ -1,9 +1,9 @@
 (function (root, factory) {
   "use strict";
-  const api = factory(root.LocalAgentDashboardI18n, root.LocalAgentDashboardPreliminary);
+  const api = factory(root.LocalAgentDashboardI18n, root.LocalAgentDashboardPreliminary, root.LocalAgentDashboardCore);
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (root) root.LocalAgentDashboardUI = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n, Preliminary) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (I18n, Preliminary, Core) {
   "use strict";
 
   const t = (key, values) => I18n.translate(key, values);
@@ -527,6 +527,43 @@
     container.replaceChildren(...parts, wrapper);
   }
 
+  function renderSession(session, view) {
+    const panel = document.getElementById("session-panel");
+    const results = document.getElementById("session-results");
+    const rows = session ? session.phases : [];
+    panel.hidden = rows.length === 0;
+    document.getElementById("funnel-panel").hidden = view.runs.length > 0 && view.runs.every((run) => run.session_id);
+    if (!rows.length) {
+      results.replaceChildren();
+      return;
+    }
+    const wrapper = element("div", "table-scroll");
+    const table = element("table");
+    table.setAttribute("aria-labelledby", "session-heading");
+    const head = table.createTHead().insertRow();
+    ["provider", "model", "profile", "session_outcome", "session_wait"].forEach((key) => {
+      const cell = element("th", "", t(key));
+      cell.scope = "col";
+      head.append(cell);
+    });
+    const translatedReasons = new Set([
+      "model_wait_timeout", "model_unavailable", "provider_or_preflight_failed", "timeout",
+      "task_failed", "thinking_control", "integrity",
+    ]);
+    const body = table.createTBody();
+    rows.forEach((row) => {
+      const outcome = row.reason
+        ? t(translatedReasons.has(row.reason) ? `session_${row.reason}` : "session_unclassified")
+        : t(`session_${row.status}`);
+      const values = [Core.PROVIDER_LABELS[row.provider], row.model, row.profile, outcome,
+        row.manual_wait_seconds === null ? "—" : formatNumber(row.manual_wait_seconds, 2) + " s"];
+      const line = body.insertRow();
+      values.forEach((value) => line.append(element("td", "", value)));
+    });
+    wrapper.append(table);
+    results.replaceChildren(element("p", "", t(`session_${session.status}`)), wrapper);
+  }
+
   function renderRuns(view) {
     const container = document.getElementById("run-list");
     container.replaceChildren(
@@ -554,6 +591,10 @@
           ["models", run.participants.length],
           ["commit", run.provenance.repository_commit ? run.provenance.repository_commit.slice(0, 12) : t("unknown")],
         ];
+        if (run.provider) entries.push(["provider", Core.PROVIDER_LABELS[run.provider]]);
+        if (run.load_seconds !== null && run.load_seconds !== undefined) {
+          entries.push(["session_load", formatNumber(run.load_seconds, 2) + " s"]);
+        }
         entries.forEach(([label, value]) => {
           grid.append(element("dt", "", t(label)), element("dd", "", value));
         });
@@ -603,6 +644,7 @@
     renderLeaderboard,
     renderPreliminary,
     renderRuns,
+    renderSession,
     renderSource,
     renderTasks,
     showTaskDialog,

@@ -1,6 +1,6 @@
 # User Manual – LocalAgent Benchmark
 
-Version **0.16.0**. Adds Colibrì as a local provider for Preliminary and Pi tasks. See the [Colibrì setup](QUICK-START_LocalProviders.md#colibrì) and the [guide to comparing models with Unsloth](QUICK-START_Colibri-Unsloth.md).
+Version **0.17.0**. The quick path and `session` command queue models from different providers. See the [Colibrì setup](QUICK-START_LocalProviders.md#colibrì) and the [guide to comparing models with Unsloth](QUICK-START_Colibri-Unsloth.md).
 
 ## 1. Purpose
 
@@ -203,7 +203,7 @@ When maintaining the page, update both dictionaries in `site/js/i18n.js`, keep p
 
 ## 5. Configuration
 
-The GUI identifies the provider in the model table. Add optional providers to `additional_providers`. A guided run accepts models from one provider. The CLI command `python3 benchmark.py --provider unsloth list` selects Unsloth. By default it uses `provider`.
+The GUI identifies the provider in the model table. The standard launch checks the local endpoints for all five providers. Set any custom ports under `provider` or `additional_providers`. The quick path can queue models from several providers. In the CLI, use `session --model PROVIDER=MODEL` once per selection. [Multi-provider session](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session). The CLI command `python3 benchmark.py --provider unsloth list` selects Unsloth. By default it uses `provider`.
 
 `benchmark.json` is the central configuration file. `provider.kind` selects `ollama`, `lmstudio`, `llama_cpp`, `unsloth`, or `colibri`; `provider.url` selects an HTTP loopback endpoint. The legacy `ollama.url` form remains readable. It also defines the Pi command, model selection, task/preflight timeouts, repetitions, thinking level, HTTP idle timeout, agent/provider retries, warmup, context and output limits, temperature, sandbox mode, profiles, case discovery directory, and dashboard settings. Its `guided` section fixes the `smoke`, `standard`, `full` progression, promotion limits, and local GUI preference file. Official defaults remain thinking `off`, HTTP idle timeout `0`, and zero retries. For Unsloth, `provider.credential_ref` is a non-secret protected-store reference such as `unsloth-local`; `provider.backend_version` is the user-declared backend version required with runtime version and GGUF digests for `compare`; `provider.transport` defaults to `timeout_seconds: 1200`, `max_request_bytes: 8388608`, `max_response_bytes: 33554432`, `max_header_bytes: 16384`, and `max_connections: 16`.
 

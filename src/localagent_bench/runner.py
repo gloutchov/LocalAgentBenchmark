@@ -22,9 +22,11 @@ from .case_sdk import CASE_SCHEMA_VERSION
 from .config import BenchmarkConfig, CaseSpec
 from . import __version__
 from .grading import grade_workspace
+from .guided_process import interruptible
 from .integrity import (
     InputIntegrityError,
     changed_paths,
+    fingerprint_tree,
     repository_fingerprints,
     repository_metadata,
     require_clean_inputs,
@@ -46,6 +48,7 @@ from .model_bundle import ModelBundleError
 from .provider_session import provider_origin, provider_session
 from .report import write_report
 from .sandbox import SandboxError, sandbox_capability, select_sandbox
+from .session_inputs import session_context
 from .system_metrics import hardware_snapshot
 from .thinking import (
     THINKING_CONTROL_VERSION,
@@ -367,6 +370,7 @@ def run_benchmark(
     output_dir: Path | None,
     order_seed: int | None = None,
     sandbox_mode: str | None = None,
+    session_input_hash: str | None = None,
 ) -> Path:
     preliminary = profile == "preliminary"
     if preliminary and (requested_cases or config.preliminary is None):
@@ -377,6 +381,18 @@ def run_benchmark(
         require_clean_inputs(config.root, cases, extra_paths)
     except InputIntegrityError as exc:
         raise BenchmarkError(str(exc)) from exc
+    shared_inputs = None
+    if session_input_hash is not None:
+        if output_dir is None:
+            raise BenchmarkError("Snapshot condiviso richiede una directory run esplicita / Shared snapshot requires an explicit run directory")
+        policy = EXECUTION_POLICY
+        if preliminary:
+            from .preliminary import PRELIMINARY_POLICY
+            policy += PRELIMINARY_POLICY
+        try:
+            shared_inputs = session_context(config, output_dir.resolve(), session_input_hash, cases, extra_paths, policy)
+        except (InputIntegrityError, OSError, ValueError) as exc:
+            raise BenchmarkError(str(exc)) from exc
     pi_version = _command_version([*config.pi_command, "--version"])
     try:
         sandbox = select_sandbox(sandbox_mode or config.defaults.sandbox)
@@ -401,6 +417,7 @@ def run_benchmark(
             thinking_level=thinking_level, use_warmup=use_warmup,
             output_dir=output_dir, order_seed=order_seed, sandbox=sandbox,
             pi_version=pi_version, pi_compatibility=pi_compatibility,
+            session_input_hash=session_input_hash, shared_inputs=shared_inputs,
         )
 
 
@@ -410,6 +427,8 @@ def _run_provider_session(
     repetitions: int | None, timeout_seconds: int | None, thinking_level: str | None,
     use_warmup: bool | None, output_dir: Path | None, order_seed: int | None,
     sandbox: Any, pi_version: str | None, pi_compatibility: PiCompatibility,
+    session_input_hash: str | None = None,
+    shared_inputs: tuple[Path, list[CaseSpec], dict[str, Any]] | None = None,
 ) -> Path:
     provider = create_provider(config)
     installed = provider.list_models()
@@ -440,18 +459,25 @@ def _run_provider_session(
         from .preliminary import PRELIMINARY_POLICY
         execution_policy += PRELIMINARY_POLICY
     try:
-        frozen_cases, input_manifest = snapshot_cases(
-            cases,
-            context_dir,
-            config.root / "AGENTS.md",
-            config.root / ".gitignore",
-            execution_policy,
-            extra_paths=extra_paths,
-        )
-    except InputIntegrityError as exc:
+        if shared_inputs is None:
+            frozen_cases, input_manifest = snapshot_cases(
+                cases, context_dir, config.root / "AGENTS.md",
+                config.root / ".gitignore", execution_policy, extra_paths=extra_paths,
+            )
+        else:
+            context_dir, frozen_cases, input_manifest = shared_inputs
+    except (InputIntegrityError, OSError, ValueError) as exc:
         raise BenchmarkError(str(exc)) from exc
+
+    def snapshot_changes() -> list[str]:
+        if session_input_hash is not None and (context_dir.is_symlink() or fingerprint_tree(context_dir) != session_input_hash):
+            return ["shared_snapshot"]
+        return verify_snapshot(context_dir, input_manifest)
+
     frozen_by_id = {case.id: case for case in frozen_cases}
     repository_state = repository_fingerprints(config.root, (run_dir,))
+    if session_input_hash is not None and snapshot_changes():
+        raise BenchmarkError("Snapshot condiviso modificato / Shared snapshot changed")
     installed_by_name: dict[str, OllamaModel] = {}
     for name in models:
         base_model = next(item for item in installed if item.name == name)
@@ -483,7 +509,7 @@ def _run_provider_session(
         "inputs": input_manifest,
         "execution_policy": {
             "audit_version": AUDIT_VERSION,
-            "sha256": input_manifest.get("execution_policy_sha256"),
+            "sha256": input_manifest.get("preliminary_policy_sha256", input_manifest.get("execution_policy_sha256")),
             "scratch_directory": SCRATCH_DIRECTORY,
             "network_access": "forbidden",
             "filesystem_scope": "task_workspace",
@@ -534,6 +560,8 @@ def _run_provider_session(
         },
         "model_metadata": {name: asdict(installed_by_name[name]) for name in models},
     }
+    if session_input_hash is not None:
+        manifest["session"] = {"id": run_dir.parent.name, "input_sha256": session_input_hash}
     if config.provider_kind in {"unsloth", "colibri"}:
         manifest["provider_controls"] = {
             "authentication": ("memory_prompt" if config.provider_auth_prompt else
@@ -600,11 +628,12 @@ def _run_provider_session(
     _write_manifest(run_dir, manifest)
 
     if preliminary:
-        from .preliminary import execute, interruptible
+        from .preliminary import execute
         try:
             with interruptible():
                 execute(config, provider, thinking_policy, manifest, run_dir, repository_state,
-                        lambda: _write_manifest(run_dir, manifest))
+                        lambda: _write_manifest(run_dir, manifest),
+                        context_dir=context_dir, snapshot_check=snapshot_changes)
         except KeyboardInterrupt:
             manifest['cancelled'] = True
             manifest['integrity'].update(status='cancelled', aborted=True)
@@ -640,7 +669,7 @@ def _run_provider_session(
         case_id = str(task["case_id"])
         repetition = int(task["repetition"])
         case = frozen_by_id[case_id]
-        snapshot_before = verify_snapshot(context_dir, input_manifest)
+        snapshot_before = snapshot_changes()
         if snapshot_before:
             manifest["integrity"]["status"] = "snapshot_compromised"
             manifest["integrity"]["aborted"] = True
@@ -774,10 +803,20 @@ def _run_provider_session(
             )
         except SandboxError as exc:
             raise BenchmarkError(f"Avvio sandbox fallito: {exc}") from exc
+        except KeyboardInterrupt:
+            manifest["cancelled"] = True
+            manifest["integrity"].update(status="cancelled", aborted=True)
+            _write_manifest(run_dir, manifest)
+            try:
+                provider.unload(model, timeout=3)
+            except Exception:
+                pass
+            write_report(run_dir)
+            raise
         after_task_repository = repository_fingerprints(config.root, (run_dir,))
         source_mutations = changed_paths(before_task_repository, after_task_repository)
         repository_state = after_task_repository
-        snapshot_mutations = verify_snapshot(context_dir, input_manifest)
+        snapshot_mutations = snapshot_changes()
         external_accesses = audit_workspace_accesses(pi_run.stdout, workspace, protected_paths)
         thinking_violations: list[dict[str, Any]] = []
         if not thinking_policy.active and metrics_show_thinking(pi_run.metrics):

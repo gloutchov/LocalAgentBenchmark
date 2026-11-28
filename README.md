@@ -4,7 +4,7 @@ Benchmark personale, ripetibile e offline per confrontare modelli locali usati c
 
 Personal, repeatable, offline benchmark for comparing local models used as coding agents through [Pi](https://pi.dev). It supports Ollama, LM Studio, the llama.cpp `llama-server` router, Unsloth with an inference-only key, and Colibrì. Its scenarios derive from this repository's operating rules: small patches, modular architecture, tests, security, configuration, i18n, documentation, and Git discipline.
 
-Versione / Version: **0.16.0 – Colibrì come provider locale / Colibrì local provider**
+Versione / Version: **0.17.0 – Sessione multiprovider / Multi-provider session**
 Piattaforme / Platforms: macOS, Windows, Linux
 Verifica reale / Real-world validation: **0.13.3: smoke reali Pi con Ollama, LM Studio e llama.cpp su macOS, con Seatbelt `required`, controllo thinking e integrità verificati. I percorsi guidati completi dei tre provider e lo smoke Pi/Ollama su Windows appartengono a versioni precedenti; non sono stati eseguiti smoke reali 0.13.3 su Windows o Linux. / 0.13.3: real Pi smoke runs with Ollama, LM Studio, and llama.cpp on macOS, with Seatbelt `required`, thinking control, and integrity verified. Full guided runs for all three providers and the Pi/Ollama smoke on Windows belong to earlier versions; no real 0.13.3 smoke runs have been performed on Windows or Linux.**
 Licenza / License: Apache-2.0
@@ -20,6 +20,10 @@ Version 0.14.0 adds the descriptive Preliminary profile, measuring responsivenes
 La 0.16.0 integra Colibrì come provider locale per Preliminary e task Pi. L'adapter usa un modello chat già residente, autenticazione opzionale protetta e provenienza dei file dichiarata per il confronto. [Guida Colibrì](QUICK-START_LocalProviders.md#colibrì).
 
 Version 0.16.0 integrates Colibrì as a local provider for Preliminary and Pi tasks. The adapter uses an already-resident chat model, optional protected authentication, and declared model-file provenance for comparison. [Colibrì guide](QUICK-START_LocalProviders.md#colibrì).
+
+La GUI e il comando `session` eseguono modelli di provider diversi in sequenza con gli stessi input e impostazioni. La dashboard mostra gli esiti per modello e provider, incluse le esclusioni e le attese di caricamento manuale. [Avvio rapido multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
+
+The GUI and the `session` command run models from different providers sequentially with the same inputs and settings. The dashboard shows the outcome for each model and provider, including exclusions and manual loading waits. [Multi-provider quick start](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
 
 ## Cosa misura / What it measures
 
@@ -297,9 +301,9 @@ The optimized frames in `site/assets/` are derived from the local `assets/Dashbo
 
 ## Configurazione / Configuration
 
-La GUI mostra il provider dei modelli rilevati. Aggiungere gli endpoint locali opzionali in `additional_providers` per vederli nella stessa finestra. Ogni esecuzione usa il provider dei modelli selezionati. Da CLI, `benchmark.py --provider lmstudio list` seleziona un provider configurato. `provider` rimane il default.
+Avviando `python3 guided_benchmark.py`, la GUI controlla gli endpoint locali dei cinque provider inclusi in `benchmark.json` e mostra i modelli disponibili. Per usare altre porte, aggiorna `provider` o `additional_providers`. Ogni esecuzione usa il provider dei modelli selezionati. Da CLI, `benchmark.py --provider lmstudio list` seleziona un provider configurato. `provider` rimane il default.
 
-The GUI shows the source provider of each discovered model. Add optional local endpoints in `additional_providers` to see them in the same window. Each run uses the provider of the selected models. From the CLI, `benchmark.py --provider lmstudio list` selects a configured provider. `provider` remains the default.
+Start `python3 guided_benchmark.py` to check the five local provider endpoints in `benchmark.json` and see the available models. Set any custom ports in `provider` or `additional_providers`. Each run uses the provider of the selected models. From the CLI, `benchmark.py --provider lmstudio list` selects a configured provider. `provider` remains the default.
 
 [`benchmark.json`](benchmark.json) centralizza provider e URL locale, il riferimento non segreto `provider.credential_ref` e i limiti `provider.transport` di Unsloth, comando Pi, timeout task/preflight, thinking, timeout idle HTTP, retry agente/provider, contesto, token massimi, warmup, sandbox, profili, directory di discovery dei casi e opzioni locali della dashboard. Il default resta `thinking: "off"`, `http_idle_timeout_ms: 0` e zero retry. La sezione `dashboard` mantiene asset e risultati dentro il repository, impone l'host `127.0.0.1` e configura sorgente dati, porta e apertura automatica. La sezione `guided` fissa i profili `smoke`, `standard`, `full`, i limiti di promozione decrescenti `4`, `2` e il file locale delle preferenze GUI; viene validata senza fallback silenziosi e non può includere `results_dashboard`. L'eventuale `dashboard/data/snapshot.js` è un output locale ignorato da Git. Ogni `cases/<id>/case.json`, verificabile contro [`schemas/case.schema.json`](schemas/case.schema.json), contiene ID, titoli bilingui, categoria, peso e path relativi; i manifesti pre-0.4 inline restano leggibili per compatibilità. `"models": "installed"` rileva tutti i modelli dal provider configurato; una lista esplicita rende il set stabile. `defaults.sandbox` accetta `audit`, `auto` o `required`; il default conservativo e retrocompatibile è `audit`.
 

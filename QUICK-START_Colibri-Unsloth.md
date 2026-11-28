@@ -1,5 +1,9 @@
 # Provare i modelli Colibrì e Unsloth uno alla volta / Test Colibrì and Unsloth models one at a time
 
+Puoi accodare entrambi i provider dalla stessa finestra o con `benchmark.py session`. Il benchmark attende una conferma quando un modello dichiarato deve essere caricato nella sua app. Gli esempi separati qui sotto restano utilizzabili per diagnosticare un singolo provider. [Flusso multiprovider](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
+
+Queue both providers in one window or with `benchmark.py session`. The benchmark waits for confirmation when a declared model needs to be loaded in its app. The separate examples below still work for diagnosing each provider. [Multi-provider flow](QUICK-START_Guided.md#sessione-multiprovider--multi-provider-session).
+
 ## Italiano
 
 1. Configura Colibrì e Unsloth in `benchmark.json` come `provider` e `additional_providers` oppure usa un file di configurazione separato nella root del progetto per ciascuno. La [guida ai provider locali](QUICK-START_LocalProviders.md) descrive endpoint, credenziali e finestra di contesto.
