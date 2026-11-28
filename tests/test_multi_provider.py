@@ -19,7 +19,12 @@ from localagent_bench.integrity import InputIntegrityError, fingerprint_tree
 from localagent_bench.multi_provider import ModelSelection, MultiProviderSession
 from localagent_bench.runner import EXECUTION_POLICY
 from localagent_bench.session_dashboard import load_session_dashboard
-from localagent_bench.session_inputs import CONTEXT_NAME, freeze_session_inputs, session_context
+from localagent_bench.session_inputs import (
+    CONTEXT_NAME,
+    PRELIMINARY_POLICY_NAME,
+    freeze_session_inputs,
+    session_context,
+)
 
 
 class SessionProcess:
@@ -205,12 +210,20 @@ class MultiProviderTests(unittest.TestCase):
         folder = self.root / "results" / "guided-multi-20261128-123000-ab1234"
         folder.mkdir(parents=True)
         digest = freeze_session_inputs(self.config, folder, ("preliminary", "smoke"), EXECUTION_POLICY)
+        policy = EXECUTION_POLICY + PRELIMINARY_POLICY
+        suite = (self.config.preliminary.suite,)
         context, cases, manifest = session_context(self.config, folder / "preliminary", digest, [],
-                                                  (self.config.preliminary.suite,),
-                                                  EXECUTION_POLICY + PRELIMINARY_POLICY)
+                                                  suite, policy)
         self.assertEqual([], cases)
         self.assertNotEqual(manifest["execution_policy_sha256"], manifest["preliminary_policy_sha256"])
         self.assertTrue((context / "extra-0.json").is_file())
+        self.assertEqual(EXECUTION_POLICY.encode("utf-8"), (context / "EXECUTION_POLICY.snapshot.md").read_bytes())
+        policy_path = context / PRELIMINARY_POLICY_NAME
+        self.assertEqual(policy.encode("utf-8"), policy_path.read_bytes())
+        policy_path.write_bytes(policy.replace("\n", "\r\n").encode("utf-8"))
+        with self.assertRaisesRegex(InputIntegrityError, "Invalid snapshot policy"):
+            session_context(self.config, folder / "preliminary", fingerprint_tree(context), [],
+                            suite, policy)
 
     def test_cli_dispatches_paired_selection(self):
         real = self.orchestrator(SessionProcess())

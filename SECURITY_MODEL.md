@@ -66,6 +66,10 @@ Una sessione congela insieme casi, fixture tracciate, istruzioni, policy e l'eve
 
 A session freezes cases, tracked fixtures, instructions, policy, and the optional Preliminary suite together. The stage process verifies the shared hash and checks the inputs against the clean Git source. Changes to the snapshot, configuration, or repository stop the session. The atomic manifest records settings, IDs, outcomes, and relative references. The host provider reads declared provenance files under its documented controls. Resident model availability uses the API and explicit IDs, without scanning libraries. Manual loading takes place in the provider app or server when the session pauses. ID, context, and thinking checks precede the tasks.
 
+Le policy generate vengono salvate come byte UTF-8, senza conversione dei fine riga del sistema operativo. Il controllo di origine confronta il contenuto byte per byte.
+
+Generated policies are stored as UTF-8 bytes with their original line endings. The origin check verifies the exact bytes.
+
 La dashboard su loopback legge un manifesto esplicito confinato alla propria directory risultati e trasmette solo provider, ID, fasi, codici di esito e tempi autorizzati. L'export `dashboard-data` continua a leggere soltanto `run.json` e `report.json`. / The loopback dashboard reads an explicit manifest confined to its results directory and serves only allowlisted providers, IDs, stages, outcome codes, and timings. The `dashboard-data` export continues to read only `run.json` and `report.json`.
 
 ### Colibrì: gateway e provenienza / gateway and provenance

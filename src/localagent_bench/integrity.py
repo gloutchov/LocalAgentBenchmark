@@ -211,7 +211,7 @@ def snapshot_cases(
     policy_hash = ""
     if execution_policy is not None:
         policy_snapshot = destination / "EXECUTION_POLICY.snapshot.md"
-        policy_snapshot.write_text(execution_policy, encoding="utf-8")
+        policy_snapshot.write_bytes(execution_policy.encode("utf-8"))
         policy_hash = fingerprint_tree(policy_snapshot)
     snapshot_specs: list[CaseSpec] = []
     case_manifest: dict[str, dict[str, object]] = {}

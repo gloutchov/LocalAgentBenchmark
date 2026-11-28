@@ -38,7 +38,7 @@ def freeze_session_inputs(
     if extra_paths:
         from .preliminary import PRELIMINARY_POLICY
         policy = context / PRELIMINARY_POLICY_NAME
-        policy.write_text(execution_policy + PRELIMINARY_POLICY, encoding="utf-8")
+        policy.write_bytes((execution_policy + PRELIMINARY_POLICY).encode("utf-8"))
         manifest["preliminary_policy_sha256"] = fingerprint_tree(policy)
     (context / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
     return fingerprint_tree(context)
