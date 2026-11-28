@@ -1,16 +1,17 @@
 # Piano di sviluppo / Development Plan
 
-Versione candidata / Release candidate: **0.17.0**. Ultima release verificata / Latest verified release: **0.16.0**.
+Versione corrente / Current version: **0.17.0**.
 
 ## Piano esecutivo corrente / Current execution plan
 
-**C18** ha completato l'accettazione funzionale sul branch dedicato. La chiusura operativa richiede approvazione del commit finale, CI, checkpoint remoto e release verificata.
+**C18** è integrata e verificata. Il checkpoint remoto e la release sorgente `v0.17.0` sono pubblicati.
 
 ### C18 – Una sessione con modelli di più provider / One session for models across providers
 
 - Obiettivo: selezionare modelli di provider locali diversi nella stessa finestra e avviare una sola volta. Una sessione li esegue in sequenza e apre la dashboard sui risultati prodotti. La CLI offre lo stesso flusso con una selezione che associa ogni modello al suo provider.
 - Dipendenza: M17 chiusa come C17, con `main` e `milestone/C17` verificati sul remoto. Riutilizzare catalogo, adapter, runner, orchestratore guidato e dashboard esistenti.
-- Branch: `milestone/18-multi-provider-session`. Checkpoint da pubblicare: `milestone/C18`. Incremento: `+0.1.0`, da `0.16.0` a `0.17.0`. Tag versione previsto: `v0.17.0`.
+- Branch `milestone/18-multi-provider-session` rimosso in locale e sul remoto dopo le verifiche. Incremento `+0.1.0`, da `0.16.0` a `0.17.0`.
+- Checkpoint annotato `milestone/C18` e tag annotato `v0.17.0` verificati sul commit di merge `992b9e444477049e73c51d45215b153857982f73`.
 - Attività principali:
   - Identificare ogni selezione per provider e ID modello, anche quando l'ID coincide fra due provider. Mostrare quali modelli sono pronti e quali richiedono un caricamento. Per Unsloth e Colibrì verificare le API di catalogo effettivamente disponibili e usare le sole librerie locali indicate dall'utente per gli inventari che richiedono accesso a disco.
   - Avviare una coda sequenziale con snapshot verificato, seed e impostazioni condivise. Per i provider con modello residente usare i comandi di caricamento supportati oppure sospendere la sessione e indicare quale modello caricare. Riprendere soltanto dopo aver verificato l'ID, il contesto e i controlli del nuovo modello. Niente download impliciti o modifiche a server già attivi senza consenso.
@@ -19,7 +20,7 @@ Versione candidata / Release candidate: **0.17.0**. Ultima release verificata / 
 - Criteri di accettazione: una sola conferma avvia almeno due provider locali con gli stessi casi e impostazioni, conserva gli esiti di ciascuno anche a fronte di timeout o indisponibilità e apre una dashboard unica. Un cambio manuale riprende la stessa sessione soltanto dopo aver verificato il modello richiesto. I risultati e i comandi con un solo provider continuano a funzionare.
 - Test richiesti: GUI e CLI con almeno due provider sintetici (inclusi due ID uguali), integrazione sui gate e sull'identità dei modelli, timeout e cancellazione durante attesa ed esecuzione, protezione di credenziali e snapshot, compatibilità di export e report. Smoke reale su almeno due provider, inclusa una prova con modello residente, e verifica dell'accessibilità dei nuovi controlli.
 - Documentazione da aggiornare: README, manuali bilingui, guide Guided, LocalProviders, Colibrì–Unsloth e Dashboard, `SECURITY_MODEL.md`, `MAP.md`, `PLAN.md` e landing.
-- Stato: **implementazione e accettazione funzionale completate il 28 novembre 2026, pubblicazione in attesa di revisione**. Branch creato da `5433739` dopo la verifica di `main` e C17.
+- C18 è stata **integrata, pubblicata e verificata il 28 novembre 2026**. Il progettista ha approvato il commit `ef7eb4b5095b3ff608c2e27b53a34e4aea51914e`, il cui tree coincide con quello del merge.
 
 - Implementazione locale: selezione per coppia provider/modello in GUI e CLI, coda sequenziale, snapshot e seed condivisi, ripresa verificata dei modelli residenti, manifesto atomico e dashboard unica. Le promozioni restano nel singolo run.
 - Verifiche locali: 276 test Python (271 superati, 5 skip nativi Windows/Linux), 21 test JavaScript, `compileall` e validazione dei sei casi. I test sintetici coprono selezione omonima, provider e modelli indisponibili, timeout e cancellazione, cambio manuale con verifica di ID e contesto, snapshot alterato, compatibilità dashboard ed esportazioni. Dashboard e landing testate in Chromium su desktop e mobile, in IT/EN e automatico/chiaro/scuro (24 combinazioni, nessun overflow, errore di console o richiesta esterna). Launcher Tkinter verificato su macOS in otto combinazioni a 900×720 e 760×720, con due provider simulati e il controllo di ripresa.
@@ -28,16 +29,24 @@ Versione candidata / Release candidate: **0.17.0**. Ultima release verificata / 
 - Prova guidata reale confermata dal progettista su macOS con il commit `117efd4`, porta LM Studio `1235` impostata localmente, thinking `medium` e modalità `audit`. LM Studio (Gemma 4 12B) e Unsloth (Nemotron 3.5 Bolt E4B, già residente) hanno completato Preliminary, smoke, standard e full. Il manifesto conferma l'apertura della dashboard unica. Lo stato complessivo è `partial`: il thinking non è stato verificato per Mistral su LM Studio e Inkling su Ollama, entrambi esclusi nel Preliminary. La sequenza ha proseguito con i modelli idonei.
 - La prima [CI della PR #24](https://github.com/gloutchov/LocalAgentBenchmark/actions/runs/46148922345) ha superato i job macOS e Ubuntu. Su Windows la scrittura in modalità testo convertiva i fine riga delle policy in CRLF e il confronto byte per byte rifiutava lo snapshot. Entrambe le policy sono ora scritte come byte UTF-8. La regressione verifica i byte prodotti e il rifiuto di una policy alterata anche con un nuovo hash dello snapshot.
 - Limiti di verifica: attesa e ripresa dopo cambio manuale coperte in simulazione. Nella prova reale Unsloth era già pronto. Le prove con provider reali di C18 sono state eseguite su macOS. La CI su Windows e Linux copre i controlli automatici di piattaforma.
+- Pubblicazione tramite [PR #24](https://github.com/gloutchov/LocalAgentBenchmark/pull/24). La [CI della PR](https://github.com/gloutchov/LocalAgentBenchmark/actions/runs/46149611904) e la [CI di main](https://github.com/gloutchov/LocalAgentBenchmark/actions/runs/46149988055) sono passate su macOS, Windows e Ubuntu con gli skip previsti per le altre piattaforme. Il [deploy Pages](https://github.com/gloutchov/LocalAgentBenchmark/actions/runs/46149988058) è riuscito. Sette file HTML, CSS e JavaScript della [landing pubblica](https://localagentbenchmark.glaucosilvestri.it/) corrispondono ai file del merge.
+- La [release v0.17.0](https://github.com/gloutchov/LocalAgentBenchmark/releases/tag/v0.17.0) include due archivi sorgente e `SHA256SUMS.txt`. I due archivi allegati e i due archivi automatici di GitHub sono stati riscaricati e verificati sui 205 file del commit. La copia estratta ha validato i sei casi e aperto la guida del launcher e della dashboard. Gli SHA-256 degli allegati coincidono con il manifesto della release.
+
+```text
+3d64776925711f139ecc5ee458a4c11740ac9311002b2f6d975d093cc6cfd94c  LocalAgentBenchmark-0.17.0.zip
+906c6938762b3fc06cc955d6ca2a213059677f6b8c0b65275c802ebef5c87a9a  LocalAgentBenchmark-0.17.0.tar.gz
+```
 
 ### Checklist di chiusura C18
 
 - [x] Checkpoint remoto C17 verificato e branch dedicato creato da `main` aggiornato.
 - [x] Selezione multiprovider, coda, manifesto, ripresa e dashboard implementati; versione e documentazione aggiornate.
 - [x] Verifiche Python, JavaScript, compileall, casi, browser e Tkinter eseguite; smoke CLI reale e prova guidata con modello residente documentati.
-- [ ] Commit finale locale verificato personalmente e approvato dal progettista.
-- [ ] CI su PR e `main`, merge e deploy Pages verificati.
-- [ ] `main`, checkpoint annotato `milestone/C18` e tag annotato `v0.17.0` pubblicati e verificati.
-- [ ] Release sorgente, archivi ZIP e TAR.GZ e SHA-256 verificati dopo il download; branch rimosso in locale e sul remoto.
+- [x] Commit finale locale approvato dal progettista dopo la correzione Windows.
+- [x] CI su PR e `main`, merge e deploy Pages verificati.
+- [x] `main`, checkpoint annotato `milestone/C18` e tag annotato `v0.17.0` pubblicati e verificati.
+- [x] Release sorgente, archivi ZIP e TAR.GZ e SHA-256 verificati dopo il download. Branch rimosso in locale e sul remoto e cancellazione automatica ripristinata.
+- [x] Tre sessioni salvate in `results/` e verificate con SHA-256. Worktree e file temporanei C18 rimossi da `/private/tmp`.
 
 ## C17 – Colibrì come provider locale / Colibrì local provider
 
